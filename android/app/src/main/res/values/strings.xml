@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Smart Attendance</string>
+    <string name="channel_attendance_tracking">Active Attendance Tracking</string>
+    <string name="channel_attendance_desc">Shows ongoing background proximity detection for enrolled lectures</string>
+    <string name="tracking_notification_title">Smart Attendance Active</string>
+    <string name="tracking_notification_content">Passively verifying attendance for current lecture session</string>
+</resources>
