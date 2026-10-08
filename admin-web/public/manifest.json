@@ -1,11 +1,11 @@
 {
   "name": "Smart Attendance · IIIT-NR",
   "short_name": "Attendance",
-  "description": "Cryptographic Anti-Proxy Student Attendance Portal for IIIT Naya Raipur",
-  "start_url": "/pwa",
+  "description": "Cross-Platform Zero-Touch Attendance App for IIIT Naya Raipur",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F8F8F6",
+  "background_color": "#F8FAFC",
   "theme_color": "#2563EB",
   "scope": "/",
   "icons": [

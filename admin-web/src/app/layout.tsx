@@ -1,9 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#2563EB",
+};
+
 export const metadata: Metadata = {
-  title: "Smart Attendance — Institutional Administration",
-  description: "Automated zero-friction attendance management system for colleges and universities",
+  title: "Smart Attendance — IIIT Naya Raipur",
+  description: "Automated zero-touch attendance system for IIIT Naya Raipur",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Smart Attendance",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -13,7 +31,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-canvas text-primary min-h-screen">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Smart Attendance" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+      </head>
+      <body className="bg-slate-50 text-slate-900 min-h-screen font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
         {children}
       </body>
     </html>

@@ -1410,14 +1410,14 @@ export default function StudentPortal() {
             <input
               type="text"
               required
-              placeholder="e.g. CS505-34A5"
+              placeholder="e.g. CS50-6374"
               value={joinCodeInput}
               onChange={(e) => setJoinCodeInput(e.target.value)}
               className="flex-1 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm uppercase font-mono tracking-wider"
             />
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-slate-900 rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all shrink-0 cursor-pointer"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all shrink-0 cursor-pointer"
             >
               Join Batch
             </button>
@@ -1460,7 +1460,7 @@ export default function StudentPortal() {
                   className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4 flex items-center justify-between gap-4"
                 >
                   <div className="space-y-1">
-                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-600 border border-blue-800">
+                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold">
                       {c.subjectCode}
                     </span>
                     <h4 className="text-sm font-bold text-slate-900">{c.subjectName}</h4>
@@ -1469,7 +1469,7 @@ export default function StudentPortal() {
 
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <span className="text-xs font-bold text-emerald-400 block font-mono">100%</span>
+                      <span className="text-xs font-bold text-emerald-600 block font-mono">100%</span>
                       <span className="text-[10px] text-slate-500 uppercase">Attendance</span>
                     </div>
                     <button
