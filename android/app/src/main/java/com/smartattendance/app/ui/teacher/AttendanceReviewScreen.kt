@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import com.smartattendance.app.core.engine.AttendanceStatus
+import com.smartattendance.app.core.network.FinalRollCallRecord
 import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.ui.theme.*
 import java.io.File
@@ -37,6 +38,7 @@ import java.util.Locale
 
 data class StudentReviewItem(
     val id: String,
+    val studentId: String = "",
     val name: String,
     val rollNumber: String,
     val presenceCoverage: Int,
@@ -46,6 +48,9 @@ data class StudentReviewItem(
 
 @Composable
 fun AttendanceReviewScreen(
+    classId: String = "",
+    joinCode: String = "",
+    sessionId: String = "",
     subjectName: String = "Data Structures & Algorithms",
     subjectCode: String = "CS501",
     room: String = "Room A-204 (AC Block)",
@@ -58,25 +63,105 @@ fun AttendanceReviewScreen(
     var selectedFilter by remember { mutableStateOf("All") }
     var showCommitSuccessDialog by remember { mutableStateOf(false) }
     var isSubmittingCloud by remember { mutableStateOf(false) }
+    var isLoadingData by remember { mutableStateOf(true) }
+    var activeSessionUuid by remember { mutableStateOf(sessionId) }
 
-    // Load real final attendance records from Supabase for this lecture session
-    LaunchedEffect(Unit) {
-        val res = SupabaseAttendanceService.fetchLiveSessionAttendance("c921ca2a-bddf-487f-a5c8-55c05929655f")
-        res.onSuccess { liveRecords ->
-            studentList.clear()
-            liveRecords.forEach { rec ->
+    // Load real final attendance records and roster from Supabase for this lecture session
+    LaunchedEffect(classId, joinCode, sessionId) {
+        isLoadingData = true
+
+        // 1. Resolve session ID if not passed directly
+        val effectiveSessionId = if (sessionId.isNotBlank()) {
+            sessionId
+        } else {
+            SupabaseAttendanceService.resolveLatestSessionForClass(
+                classId = classId,
+                joinCode = joinCode,
+                subjectCode = subjectCode,
+                subjectName = subjectName
+            ) ?: ""
+        }
+        activeSessionUuid = effectiveSessionId
+
+        // 2. Fetch enrolled course roster
+        val rosterRes = SupabaseAttendanceService.fetchCourseRoster(
+            classId = classId,
+            joinCode = joinCode,
+            subjectCode = subjectCode,
+            subjectName = subjectName
+        )
+        val roster = rosterRes.getOrNull() ?: emptyList()
+
+        // 3. Fetch live recorded attendance for this session
+        val liveRecords = if (effectiveSessionId.isNotBlank()) {
+            SupabaseAttendanceService.fetchLiveSessionAttendance(effectiveSessionId).getOrNull() ?: emptyList()
+        } else {
+            emptyList()
+        }
+
+        studentList.clear()
+        val addedRolls = mutableSetOf<String>()
+
+        // 4. Merge roster with live records
+        for (enrolled in roster) {
+            val liveMatch = liveRecords.find {
+                (it.studentId.isNotBlank() && it.studentId == enrolled.studentId) ||
+                it.rollNumber.equals(enrolled.rollNumber, ignoreCase = true)
+            }
+
+            val status = when (liveMatch?.status) {
+                "PRESENT" -> AttendanceStatus.PRESENT
+                "REVIEW" -> AttendanceStatus.REVIEW
+                else -> AttendanceStatus.ABSENT
+            }
+
+            val coverage = liveMatch?.presencePercentage?.toInt() ?: if (status == AttendanceStatus.PRESENT) 100 else 0
+            val source = when (liveMatch?.verificationMethod) {
+                "QR_FALLBACK" -> "Dynamic QR Scan"
+                "WIFI_AUTO" -> "Classroom Wi-Fi AP"
+                "MANUAL_TEACHER" -> "Teacher Override"
+                null -> if (status == AttendanceStatus.PRESENT) "Wi-Fi / BLE Presence" else "Absent (Not Detected)"
+                else -> liveMatch.verificationMethod
+            }
+
+            studentList.add(
+                StudentReviewItem(
+                    id = enrolled.studentId.ifBlank { enrolled.rollNumber },
+                    studentId = enrolled.studentId,
+                    name = enrolled.name,
+                    rollNumber = enrolled.rollNumber,
+                    presenceCoverage = coverage,
+                    verificationSource = source,
+                    status = status
+                )
+            )
+            addedRolls.add(enrolled.rollNumber.uppercase())
+        }
+
+        // Add any extra students from live attendance not in roster
+        for (live in liveRecords) {
+            if (!addedRolls.contains(live.rollNumber.uppercase())) {
+                val status = when (live.status) {
+                    "PRESENT" -> AttendanceStatus.PRESENT
+                    "REVIEW" -> AttendanceStatus.REVIEW
+                    else -> AttendanceStatus.ABSENT
+                }
                 studentList.add(
                     StudentReviewItem(
-                        id = rec.id,
-                        name = rec.studentName,
-                        rollNumber = rec.rollNumber,
-                        presenceCoverage = rec.presencePercentage.toInt(),
-                        verificationSource = if (rec.verificationMethod == "QR_FALLBACK") "Dynamic QR Optical Scan" else "Classroom Wi-Fi AP Gateway",
-                        status = if (rec.status == "PRESENT") AttendanceStatus.PRESENT else if (rec.status == "REVIEW") AttendanceStatus.REVIEW else AttendanceStatus.ABSENT
+                        id = live.id,
+                        studentId = live.studentId,
+                        name = live.studentName,
+                        rollNumber = live.rollNumber,
+                        presenceCoverage = live.presencePercentage.toInt(),
+                        verificationSource = if (live.verificationMethod == "QR_FALLBACK") "Dynamic QR Scan" else "Classroom Wi-Fi AP",
+                        status = status
                     )
                 )
+                addedRolls.add(live.rollNumber.uppercase())
             }
         }
+
+        isLoadingData = false
     }
 
     val presentCount = studentList.count { it.status == AttendanceStatus.PRESENT }
@@ -103,13 +188,13 @@ fun AttendanceReviewScreen(
             .background(CanvasBackground)
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        // TOP HEADER
+        // TOP HEADER: Title & Export CSV on opposite sides, preventing wrapping
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = "FINAL ROLL CALL AUDIT",
                     fontSize = 11.sp,
@@ -119,59 +204,58 @@ fun AttendanceReviewScreen(
                 )
                 Text(
                     text = "Attendance Review",
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Surface(
+                shape = PillShape,
+                color = AccentPill,
+                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                modifier = Modifier.clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    shareRollCallCsv(context, subjectCode, subjectName, studentList)
+                }
             ) {
-                Surface(
-                    shape = BadgeShape,
-                    color = SurfaceNeutral,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Export CSV",
+                        tint = BrandAccent,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "$subjectCode · $room",
+                        text = "Export CSV",
+                        color = BrandAccent,
                         fontSize = 11.sp,
-                        color = TextSecondary,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
                     )
                 }
-
-                Surface(
-                    shape = PillShape,
-                    color = AccentPill,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
-                    modifier = Modifier.clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        shareRollCallCsv(context, subjectCode, subjectName, studentList)
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Export CSV",
-                            tint = BrandAccent,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = "Export CSV",
-                            color = BrandAccent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
             }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // SUBTITLE INFO CHIP
+        Surface(
+            shape = BadgeShape,
+            color = SurfaceNeutral,
+            border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
+        ) {
+            Text(
+                text = "$subjectCode · $room",
+                fontSize = 11.sp,
+                color = TextSecondary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -238,15 +322,19 @@ fun AttendanceReviewScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // FILTER PILLS
+        // FILTER TABS
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             items(filterOptions) { filter ->
-                val isSelected = filter == selectedFilter || (selectedFilter == "All" && filter.startsWith("All"))
+                val isSelected = (selectedFilter.startsWith("All") && filter.startsWith("All")) ||
+                        (selectedFilter.startsWith("Present") && filter.startsWith("Present")) ||
+                        (selectedFilter.startsWith("Review") && filter.startsWith("Review")) ||
+                        (selectedFilter.startsWith("Absent") && filter.startsWith("Absent"))
+
                 Surface(
-                    shape = BadgeShape,
+                    shape = PillShape,
                     color = if (isSelected) BrandAccent.copy(alpha = 0.08f) else SurfaceNeutral,
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
@@ -270,7 +358,35 @@ fun AttendanceReviewScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        if (filteredList.isEmpty()) {
+        if (isLoadingData) {
+            Surface(
+                shape = CardShape,
+                color = SurfaceNeutral,
+                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(36.dp),
+                        color = BrandAccent,
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Loading Live Roll Call Audit...",
+                        fontSize = 13.sp,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        } else if (filteredList.isEmpty()) {
             Surface(
                 shape = CardShape,
                 color = SurfaceNeutral,
@@ -314,129 +430,138 @@ fun AttendanceReviewScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filteredList) { student ->
-                val studentIndex = studentList.indexOfFirst { it.id == student.id }
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, BorderHairline, CardShape),
-                    colors = CardDefaults.cardColors(containerColor = CardBackground),
-                    shape = CardShape
-                ) {
-                    Row(
+                items(filteredList, key = { it.id }) { student ->
+                    val studentIndex = studentList.indexOfFirst { it.id == student.id }
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .border(1.dp, BorderHairline, CardShape),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        shape = CardShape
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            // Status Icon
-                            val (bgColor, iconTint, iconVec) = when (student.status) {
-                                AttendanceStatus.PRESENT -> Triple(StatusPresentBg, StatusPresent, Icons.Default.Check)
-                                AttendanceStatus.REVIEW -> Triple(StatusReviewBg, StatusReview, Icons.Default.QuestionMark)
-                                AttendanceStatus.ABSENT -> Triple(StatusAbsentBg, StatusAbsent, Icons.Default.Close)
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(bgColor)
-                                    .border(1.dp, iconTint.copy(alpha = 0.35f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = iconVec,
-                                    contentDescription = null,
-                                    tint = iconTint,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Text(
-                                    text = student.name,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = student.rollNumber,
-                                    fontSize = 12.sp,
-                                    style = TabularCodeStyle,
-                                    color = TextSecondary
-                                )
-                                Text(
-                                    text = "Via: ${student.verificationSource}",
-                                    fontSize = 10.sp,
-                                    color = TextMuted
-                                )
-                            }
-                        }
-
-                        // Toggle Pill: tap to cycle (Present -> Absent -> Review)
-                        Surface(
-                            shape = BadgeShape,
-                            color = when (student.status) {
-                                AttendanceStatus.PRESENT -> StatusPresentBg
-                                AttendanceStatus.REVIEW -> StatusReviewBg
-                                AttendanceStatus.ABSENT -> StatusAbsentBg
-                            },
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                when (student.status) {
-                                    AttendanceStatus.PRESENT -> StatusPresentBorder
-                                    AttendanceStatus.REVIEW -> StatusReviewBorder
-                                    AttendanceStatus.ABSENT -> StatusAbsentBorder
-                                }
-                            ),
-                            modifier = Modifier.clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                if (studentIndex >= 0) {
-                                    val nextStatus = when (student.status) {
-                                        AttendanceStatus.PRESENT -> AttendanceStatus.ABSENT
-                                        AttendanceStatus.ABSENT -> AttendanceStatus.REVIEW
-                                        AttendanceStatus.REVIEW -> AttendanceStatus.PRESENT
-                                    }
-                                    studentList[studentIndex] = student.copy(status = nextStatus)
-                                }
-                            }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                // Status Icon
+                                val (bgColor, iconTint, iconVec) = when (student.status) {
+                                    AttendanceStatus.PRESENT -> Triple(StatusPresentBg, StatusPresent, Icons.Default.Check)
+                                    AttendanceStatus.REVIEW -> Triple(StatusReviewBg, StatusReview, Icons.Default.QuestionMark)
+                                    AttendanceStatus.ABSENT -> Triple(StatusAbsentBg, StatusAbsent, Icons.Default.Close)
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(bgColor)
+                                        .border(1.dp, iconTint.copy(alpha = 0.35f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = iconVec,
+                                        contentDescription = null,
+                                        tint = iconTint,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column {
+                                    Text(
+                                        text = student.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = student.rollNumber,
+                                        fontSize = 12.sp,
+                                        style = TabularCodeStyle,
+                                        color = TextSecondary
+                                    )
+                                    Text(
+                                        text = "Via: ${student.verificationSource}",
+                                        fontSize = 10.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+
+                            // Toggle Pill: tap to cycle (Present -> Absent -> Review)
+                            Surface(
+                                shape = BadgeShape,
+                                color = when (student.status) {
+                                    AttendanceStatus.PRESENT -> StatusPresentBg
+                                    AttendanceStatus.REVIEW -> StatusReviewBg
+                                    AttendanceStatus.ABSENT -> StatusAbsentBg
+                                },
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    when (student.status) {
+                                        AttendanceStatus.PRESENT -> StatusPresentBorder
+                                        AttendanceStatus.REVIEW -> StatusReviewBorder
+                                        AttendanceStatus.ABSENT -> StatusAbsentBorder
+                                    }
+                                ),
+                                modifier = Modifier.clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (studentIndex >= 0) {
+                                        val nextStatus = when (student.status) {
+                                            AttendanceStatus.PRESENT -> AttendanceStatus.ABSENT
+                                            AttendanceStatus.ABSENT -> AttendanceStatus.REVIEW
+                                            AttendanceStatus.REVIEW -> AttendanceStatus.PRESENT
+                                        }
+                                        val nextCoverage = when (nextStatus) {
+                                            AttendanceStatus.PRESENT -> 100
+                                            AttendanceStatus.REVIEW -> 50
+                                            AttendanceStatus.ABSENT -> 0
+                                        }
+                                        studentList[studentIndex] = student.copy(
+                                            status = nextStatus,
+                                            presenceCoverage = nextCoverage,
+                                            verificationSource = "Faculty Manual Audit"
+                                        )
+                                    }
+                                }
                             ) {
-                                Text(
-                                    text = "${student.presenceCoverage}%",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    style = TabularCodeStyle,
-                                    color = when (student.status) {
-                                        AttendanceStatus.PRESENT -> StatusPresent
-                                        AttendanceStatus.REVIEW -> StatusReview
-                                        AttendanceStatus.ABSENT -> StatusAbsent
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = student.status.name,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = when (student.status) {
-                                        AttendanceStatus.PRESENT -> StatusPresent
-                                        AttendanceStatus.REVIEW -> StatusReview
-                                        AttendanceStatus.ABSENT -> StatusAbsent
-                                    }
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${student.presenceCoverage}%",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        style = TabularCodeStyle,
+                                        color = when (student.status) {
+                                            AttendanceStatus.PRESENT -> StatusPresent
+                                            AttendanceStatus.REVIEW -> StatusReview
+                                            AttendanceStatus.ABSENT -> StatusAbsent
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = student.status.name,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = when (student.status) {
+                                            AttendanceStatus.PRESENT -> StatusPresent
+                                            AttendanceStatus.REVIEW -> StatusReview
+                                            AttendanceStatus.ABSENT -> StatusAbsent
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -447,29 +572,71 @@ fun AttendanceReviewScreen(
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 isSubmittingCloud = true
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    com.smartattendance.app.core.network.SupabaseAttendanceService.endAttendanceSession("c921ca2a-bddf-487f-a5c8-55c05929655f")
+                    val finalRecords = studentList.map { s ->
+                        FinalRollCallRecord(
+                            studentId = s.studentId,
+                            rollNumber = s.rollNumber,
+                            status = when (s.status) {
+                                AttendanceStatus.PRESENT -> "PRESENT"
+                                AttendanceStatus.REVIEW -> "REVIEW"
+                                AttendanceStatus.ABSENT -> "ABSENT"
+                            },
+                            presencePercentage = if (s.status == AttendanceStatus.PRESENT) 100.0 else if (s.status == AttendanceStatus.REVIEW) 50.0 else 0.0,
+                            verificationMethod = if (s.status == AttendanceStatus.PRESENT) "MANUAL_TEACHER" else "MANUAL_TEACHER"
+                        )
+                    }
+                    val targetId = activeSessionUuid.ifBlank {
+                        SupabaseAttendanceService.resolveLatestSessionForClass(
+                            classId = classId,
+                            joinCode = joinCode,
+                            subjectCode = subjectCode,
+                            subjectName = subjectName
+                        ) ?: ""
+                    }
+                    if (targetId.isNotBlank()) {
+                        SupabaseAttendanceService.commitFinalAttendanceRollCall(targetId, finalRecords)
+                    }
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        isSubmittingCloud = false
+                        showCommitSuccessDialog = true
+                    }
                 }
-                showCommitSuccessDialog = true
             },
+            enabled = !isSubmittingCloud,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
             shape = ButtonShape,
             colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
         ) {
-            Icon(
-                imageVector = Icons.Default.CloudDone,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Commit & Sign to Supabase ($presentCount Present)",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                color = Color.White
-            )
+            if (isSubmittingCloud) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Syncing to Supabase...",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    color = Color.White
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.CloudDone,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Commit & Sign to Supabase ($presentCount Present)",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    color = Color.White
+                )
+            }
         }
     }
 
@@ -518,7 +685,7 @@ fun AttendanceReviewScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "Session $subjectCode has been locked and permanently recorded in the Supabase Cloud database with $presentCount students marked Present.",
+                        text = "Session for $subjectCode has been audited and permanently recorded in Supabase with $presentCount Present and $absentCount Absent.",
                         fontSize = 12.sp,
                         color = TextSecondary,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -538,7 +705,7 @@ fun AttendanceReviewScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
                         shape = ButtonShape
                     ) {
-                        Text("Return to Schedule", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("Return to Home", color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -575,29 +742,33 @@ private fun shareRollCallCsv(
     studentList: List<StudentReviewItem>
 ) {
     val dateStr = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).format(Date())
-    val filename = "RollCall_${subjectCode}_$dateStr.csv"
-    val header = "Roll Number,Student Name,Presence Coverage %,Status,Verification Method\n"
+    val filename = "RollCall_" + subjectCode + "_" + dateStr + ".csv"
+    val header = "Roll Number,Student Name,Presence Coverage %,Status,Verification Method" + "\n"
     val rows = studentList.joinToString("\n") {
-        "\"${it.rollNumber}\",\"${it.name}\",${it.presenceCoverage}%,\"${it.status.name}\",\"${it.verificationSource}\""
+        s -> s.rollNumber + "," + s.name + "," + s.presenceCoverage + "%," + s.status.name + "," + s.verificationSource
     }
-    val content = "IIIT NAYA RAIPUR - OFFICIAL ATTENDANCE RECORD\nCourse: $subjectName ($subjectCode)\nGenerated: $dateStr\nTotal Students: ${studentList.size} | Present: ${studentList.count { it.status == AttendanceStatus.PRESENT }} | Absent: ${studentList.count { it.status == AttendanceStatus.ABSENT }}\n\n$header$rows"
+    val present = studentList.count { it.status == AttendanceStatus.PRESENT }
+    val absent = studentList.count { it.status == AttendanceStatus.ABSENT }
+    val headerInfo = "IIIT NAYA RAIPUR - OFFICIAL ATTENDANCE RECORD" + "\n" + "Course: " + subjectName + " (" + subjectCode + ")" + "\n" + "Generated: " + dateStr + "\n" + "Total Students: " + studentList.size + " | Present: " + present + " | Absent: " + absent + "\n\n"
+    val content = headerInfo + header + rows
 
     try {
         val cacheFile = File(context.cacheDir, filename)
         cacheFile.writeText(content)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cacheFile)
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", cacheFile)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/csv"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Attendance Roll Call: $subjectCode ($dateStr)")
-            putExtra(Intent.EXTRA_TEXT, "Official Attendance Sheet for $subjectName ($subjectCode)\nTotal Present: ${studentList.count { it.status == AttendanceStatus.PRESENT }}/${studentList.size}")
+            putExtra(Intent.EXTRA_SUBJECT, "Attendance Roll Call: " + subjectCode + " (" + dateStr + ")")
+            val summary = "Official Attendance Sheet for " + subjectName + " (" + subjectCode + ")" + "\n" + "Total Present: " + present + "/" + studentList.size
+            putExtra(Intent.EXTRA_TEXT, summary)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Share Roll Call via..."))
     } catch (e: Exception) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Attendance Roll Call: $subjectCode")
+            putExtra(Intent.EXTRA_SUBJECT, "Attendance Roll Call: " + subjectCode)
             putExtra(Intent.EXTRA_TEXT, content)
         }
         context.startActivity(Intent.createChooser(intent, "Share Roll Call via..."))

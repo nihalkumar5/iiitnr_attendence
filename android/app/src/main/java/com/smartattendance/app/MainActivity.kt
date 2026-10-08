@@ -315,6 +315,7 @@ class MainActivity : ComponentActivity() {
                                             .padding(innerPadding)
                                     ) {
                                         var activeLectureClass by remember { mutableStateOf<com.smartattendance.app.ui.teacher.TeacherClassItem?>(null) }
+                                        var activeLectureSessionId by remember { mutableStateOf("") }
 
                                         Crossfade(
                                             targetState = currentTeacherTab,
@@ -367,13 +368,17 @@ class MainActivity : ComponentActivity() {
                                                                 room = activeLectureClass?.room ?: "Room A-204 (AC Block)",
                                                                 timeSlot = activeLectureClass?.timeSlot ?: "10:00 – 11:00 AM",
                                                                 totalStudents = activeLectureClass?.enrolledStudents ?: prefs.getInt("synced_enrolled_student_count", 22),
-                                                                onEndLecture = {
+                                                                onEndLecture = { endedSessionId ->
+                                                                    activeLectureSessionId = endedSessionId
                                                                     teacherStep = TeacherSubStep.REVIEW
                                                                 }
                                                              )
                                                         }
                                                         TeacherSubStep.REVIEW -> {
                                                             AttendanceReviewScreen(
+                                                                classId = activeLectureClass?.id ?: "",
+                                                                joinCode = activeLectureClass?.joinCode ?: "",
+                                                                sessionId = activeLectureSessionId,
                                                                 subjectName = activeLectureClass?.subjectName ?: "Data Structures & Algorithms",
                                                                 subjectCode = activeLectureClass?.subjectCode ?: "CS501",
                                                                 room = activeLectureClass?.room ?: "Room A-204 (AC Block)",

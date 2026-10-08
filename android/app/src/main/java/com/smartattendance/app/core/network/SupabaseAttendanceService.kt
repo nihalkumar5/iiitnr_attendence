@@ -134,6 +134,14 @@ data class EnrolledStudentInfo(
     val enrollmentType: String = "CORE"
 )
 
+data class FinalRollCallRecord(
+    val studentId: String,
+    val rollNumber: String,
+    val status: String,
+    val presencePercentage: Double,
+    val verificationMethod: String = "MANUAL_TEACHER"
+)
+
 data class RegisteredClassRecord(
     val classId: String,
     val subjectCode: String,
@@ -927,6 +935,144 @@ object SupabaseAttendanceService {
         } catch (e: Exception) {
             Log.e(TAG, "Error ending session", e)
             false
+        }
+    }
+
+    /**
+     * Resolves the most recent attendance session ID for the given class / subject.
+     */
+    suspend fun resolveLatestSessionForClass(
+        classId: String,
+        joinCode: String = "",
+        subjectCode: String = "",
+        subjectName: String = ""
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            var effectiveClassId = classId
+            val cleanJoin = joinCode.trim().uppercase()
+            if (cleanJoin.isNotBlank()) {
+                try {
+                    val subReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.$cleanJoin&limit=1")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .get()
+                        .build()
+                    val subRes = client.newCall(subReq).execute()
+                    val arr = JSONArray(subRes.body?.string() ?: "[]")
+                    if (arr.length() > 0) {
+                        effectiveClassId = arr.getJSONObject(0).getString("id")
+                    }
+                } catch (_: Exception) {}
+            }
+            if (effectiveClassId.isBlank() || effectiveClassId == "class-01") {
+                val cleanSub = subjectCode.trim().uppercase()
+                if (cleanSub.isNotBlank()) {
+                    try {
+                        val subReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.${cleanSub}*&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val subRes = client.newCall(subReq).execute()
+                        val arr = JSONArray(subRes.body?.string() ?: "[]")
+                        if (arr.length() > 0) {
+                            effectiveClassId = arr.getJSONObject(0).getString("id")
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            if (effectiveClassId.isNotBlank() && effectiveClassId != "class-01") {
+                val sessReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/attendance_sessions?class_id=eq.$effectiveClassId&order=created_at.desc&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+                val sessRes = client.newCall(sessReq).execute()
+                val sessArr = JSONArray(sessRes.body?.string() ?: "[]")
+                if (sessArr.length() > 0) {
+                    return@withContext sessArr.getJSONObject(0).getString("id")
+                }
+            }
+
+            val anySessReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?order=created_at.desc&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val anySessRes = client.newCall(anySessReq).execute()
+            val anySessArr = JSONArray(anySessRes.body?.string() ?: "[]")
+            if (anySessArr.length() > 0) {
+                return@withContext anySessArr.getJSONObject(0).getString("id")
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error resolving latest session for class", e)
+            null
+        }
+    }
+
+    /**
+     * Commits final audited roll call to Supabase attendance_records for the session,
+     * saving statuses for all students (PRESENT, REVIEW, ABSENT) and marks session COMPLETED.
+     */
+    suspend fun commitFinalAttendanceRollCall(
+        sessionId: String,
+        records: List<FinalRollCallRecord>
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            if (sessionId.isBlank()) {
+                return@withContext Result.failure(Exception("Session ID cannot be empty"))
+            }
+
+            val recordsArray = JSONArray()
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val nowIso = sdf.format(Date())
+
+            for (r in records) {
+                var sId = r.studentId
+                if (sId.isBlank() && r.rollNumber.isNotBlank()) {
+                    val prof = fetchStudentProfile(r.rollNumber)
+                    sId = prof.getOrNull()?.first ?: ""
+                }
+                if (sId.isBlank()) continue
+
+                val obj = JSONObject().apply {
+                    put("session_id", sessionId)
+                    put("student_id", sId)
+                    put("status", r.status)
+                    put("presence_percentage", r.presencePercentage)
+                    put("verification_method", r.verificationMethod)
+                    put("marked_at", nowIso)
+                    put("notes", "Final Roll Call Audit: ${r.status}")
+                }
+                recordsArray.put(obj)
+            }
+
+            if (recordsArray.length() > 0) {
+                val req = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/attendance_records?on_conflict=session_id,student_id")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(recordsArray.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                val res = client.newCall(req).execute()
+                Log.d(TAG, "commitFinalAttendanceRollCall records upsert code: ${res.code}")
+            }
+
+            endAttendanceSession(sessionId)
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in commitFinalAttendanceRollCall", e)
+            Result.failure(e)
         }
     }
 

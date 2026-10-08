@@ -51,7 +51,7 @@ fun ActiveLectureScreen(
     timeSlot: String = "10:00 – 11:00 AM",
     detectedStudents: Int = 5,
     totalStudents: Int = 22,
-    onEndLecture: () -> Unit = {}
+    onEndLecture: (sessionId: String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -849,7 +849,7 @@ fun ActiveLectureScreen(
                             }
                             SupabaseAttendanceService.endAllActiveSessions()
                             withContext(Dispatchers.Main) {
-                                onEndLecture()
+                                onEndLecture(sId ?: "")
                             }
                         }
                     },
