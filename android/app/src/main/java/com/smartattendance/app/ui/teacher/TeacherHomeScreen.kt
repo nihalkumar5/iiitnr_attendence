@@ -161,6 +161,7 @@ fun TeacherHomeScreen(
     onStartLecture: (TeacherClassItem) -> Unit = {},
     onOpenSchedule: () -> Unit = {},
     onOpenLiveRollCall: () -> Unit = {},
+    onOpenDeviceRequests: () -> Unit = {},
     onLogout: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -177,6 +178,12 @@ fun TeacherHomeScreen(
 
     // Schedule state
     var classList by remember { mutableStateOf(loadPersistedSchedule(context)) }
+    var pendingUnbindCount by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        val reqs = SupabaseAttendanceService.fetchPendingUnbindRequests()
+        reqs.onSuccess { pendingUnbindCount = it.size }
+    }
     fun updateClassList(newList: List<TeacherClassItem>) {
         classList = newList
         savePersistedSchedule(context, newList)
@@ -408,6 +415,70 @@ fun TeacherHomeScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+            }
+        }
+
+        // PENDING DEVICE UNBIND REQUESTS ALERT BANNER
+        if (pendingUnbindCount > 0) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenDeviceRequests() }
+                    .border(1.dp, Color(0xFFF59E0B), CardShape),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                shape = CardShape
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFFF59E0B),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "$pendingUnbindCount Device Unbind Request${if (pendingUnbindCount > 1) "s" else ""}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF92400E)
+                            )
+                            Text(
+                                text = "Students requested phone changes. Tap to review.",
+                                fontSize = 11.sp,
+                                color = Color(0xFFB45309)
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { onOpenDeviceRequests() },
+                        shape = ButtonShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("Review", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

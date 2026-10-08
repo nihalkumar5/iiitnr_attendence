@@ -125,6 +125,13 @@ fun StudentHomeScreen(
     var selectedSubjectForDetail by remember { mutableStateOf<EnrolledCourseInfo?>(null) }
     var showSimpleCelebration by remember { mutableStateOf(false) }
 
+    var deviceStatus by remember { mutableStateOf<com.smartattendance.app.core.network.StudentDeviceStatusInfo?>(null) }
+    var showUnbindDialog by remember { mutableStateOf(false) }
+    var unbindReasonInput by remember { mutableStateOf("") }
+    var isSubmittingUnbind by remember { mutableStateOf(false) }
+    var showDeviceLockDialog by remember { mutableStateOf(false) }
+    var deviceLockSecurityError by remember { mutableStateOf<String?>(null) }
+
     var userTotalClasses by remember { mutableStateOf(totalClasses) }
     var userAttendedClasses by remember { mutableStateOf(attendedClasses) }
 
@@ -141,6 +148,10 @@ fun StudentHomeScreen(
             val coursesRes = SupabaseAttendanceService.fetchStudentEnrolledCourses(activeRoll)
             coursesRes.onSuccess { list ->
                 enrolledCourses = list
+            }
+            val devRes = SupabaseAttendanceService.getStudentDeviceStatus(activeRoll)
+            devRes.onSuccess { info ->
+                deviceStatus = info
             }
         }
     }
@@ -205,19 +216,26 @@ fun StudentHomeScreen(
                             prefs.edit().putString("last_celebrated_session_id", session.sessionId).apply()
                             showSimpleCelebration = true
                         }
-                    }.onFailure {
-                        offlineStore.enqueueRecord(
-                            sessionId = session.sessionId,
-                            studentRoll = activeRoll,
-                            studentName = activeName,
-                            verificationMethod = "WIFI_GPS_GEOFENCE",
-                            bleToken = "GPS_30M_VERIFIED",
-                            wifiSsid = currentSsid,
-                            wifiBssid = snap.bssid ?: "classroom-ap",
-                            installationId = installationId
-                        )
-                        isVerifiedPresent = true
-                        prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
+                    }.onFailure { err ->
+                        val msg = err.message ?: ""
+                        if (err is SecurityException || msg.contains("ANTI_PROXY") || msg.contains("DEVICE_MISMATCH")) {
+                            android.util.Log.e("StudentHome", "Anti-proxy security rejection: $msg")
+                            deviceLockSecurityError = msg
+                            showDeviceLockDialog = true
+                        } else {
+                            offlineStore.enqueueRecord(
+                                sessionId = session.sessionId,
+                                studentRoll = activeRoll,
+                                studentName = activeName,
+                                verificationMethod = "WIFI_GPS_GEOFENCE",
+                                bleToken = "GPS_30M_VERIFIED",
+                                wifiSsid = currentSsid,
+                                wifiBssid = snap.bssid ?: "classroom-ap",
+                                installationId = installationId
+                            )
+                            isVerifiedPresent = true
+                            prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
+                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -1003,6 +1021,158 @@ fun StudentHomeScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // DEVICE HARDWARE BINDING & ANTI-PROXY SECURITY
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, BorderHairline, CardShape),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = CardShape
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.PhoneAndroid,
+                            contentDescription = null,
+                            tint = if (deviceStatus?.isUnbindPending == true) Color(0xFFF59E0B) else StatusPresent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "DEVICE BINDING SECURITY",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    Surface(
+                        shape = BadgeShape,
+                        color = if (deviceStatus?.isUnbindPending == true) Color(0xFFFEF3C7) else StatusPresent.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (deviceStatus?.isUnbindPending == true) Color(0xFFF59E0B) else StatusPresent
+                        )
+                    ) {
+                        Text(
+                            text = if (deviceStatus?.isUnbindPending == true) "UNBIND PENDING" else "HARDWARE BOUND",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (deviceStatus?.isUnbindPending == true) Color(0xFFB45309) else StatusPresent,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = SurfaceNeutral,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Smartphone,
+                            contentDescription = null,
+                            tint = BrandAccent,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = deviceStatus?.deviceModel ?: android.os.Build.MODEL ?: "This Device",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "ID: " + (deviceStatus?.installationId ?: installationId).take(18) + "...",
+                                fontSize = 10.sp,
+                                style = TabularCodeStyle,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (deviceStatus?.isUnbindPending == true) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFFEF3C7),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HourglassTop,
+                                contentDescription = null,
+                                tint = Color(0xFFB45309),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Unbind request sent to faculty. Pending approval.",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF92400E)
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Strict Anti-Proxy: Your student account is locked to this physical device. 1 Student = 1 Device hardware protection is active.",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        lineHeight = 15.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        unbindReasonInput = ""
+                        showUnbindDialog = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ButtonShape,
+                    enabled = deviceStatus?.isUnbindPending != true
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhoneAndroid,
+                        contentDescription = null,
+                        tint = if (deviceStatus?.isUnbindPending == true) TextMuted else BrandAccent,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (deviceStatus?.isUnbindPending == true) "Unbind Request Pending" else "Request Device Unbind",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (deviceStatus?.isUnbindPending == true) TextMuted else BrandAccent
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
     }
 
@@ -1333,6 +1503,137 @@ fun StudentHomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // 10. REQUEST DEVICE UNBIND DIALOG
+    if (showUnbindDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isSubmittingUnbind) showUnbindDialog = false },
+            shape = DialogShape,
+            containerColor = CardBackground,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Request Device Unbind",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextPrimary
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Faculty approval is required to switch your attendance device or reset your phone.",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+                    OutlinedTextField(
+                        value = unbindReasonInput,
+                        onValueChange = { unbindReasonInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Reason (e.g. Bought new phone, device reset)", fontSize = 12.sp, color = TextMuted) },
+                        shape = InputShape
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isSubmittingUnbind = true
+                        coroutineScope.launch {
+                            val res = SupabaseAttendanceService.requestDeviceUnbind(activeRoll, unbindReasonInput)
+                            isSubmittingUnbind = false
+                            if (res.isSuccess) {
+                                showUnbindDialog = false
+                                refreshStatsAndHistory()
+                                android.widget.Toast.makeText(context, "Unbind request submitted to teacher.", android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "Error: " + res.exceptionOrNull()?.message, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    shape = ButtonShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                    enabled = !isSubmittingUnbind
+                ) {
+                    if (isSubmittingUnbind) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Submit Request", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showUnbindDialog = false },
+                    shape = ButtonShape,
+                    enabled = !isSubmittingUnbind
+                ) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // 11. DEVICE LOCK SECURITY REJECTION DIALOG
+    if (showDeviceLockDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeviceLockDialog = false },
+            shape = DialogShape,
+            containerColor = CardBackground,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Security, contentDescription = null, tint = StatusAbsent, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Anti-Proxy Device Lock",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = StatusAbsent
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = deviceLockSecurityError ?: "This device is locked or does not match your registered hardware.",
+                        fontSize = 13.sp,
+                        color = TextPrimary,
+                        lineHeight = 18.sp
+                    )
+                    Text(
+                        text = "To use this phone for attendance, request a device unbind from your teacher.",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeviceLockDialog = false
+                        unbindReasonInput = "Switching to new device: " + (android.os.Build.MODEL ?: "Phone")
+                        showUnbindDialog = true
+                    },
+                    shape = ButtonShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
+                ) {
+                    Text("Request Faculty Unbind", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showDeviceLockDialog = false },
+                    shape = ButtonShape
+                ) {
+                    Text("Dismiss", color = TextSecondary)
                 }
             }
         )

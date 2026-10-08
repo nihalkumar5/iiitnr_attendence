@@ -173,6 +173,28 @@ data class RegisteredClassRecord(
     val initialAttendancePercentage: Float = 100f
 )
 
+data class DeviceUnbindRequestItem(
+    val id: String,
+    val studentId: String,
+    val rollNumber: String,
+    val studentName: String,
+    val deviceModel: String,
+    val installationId: String,
+    val reason: String,
+    val requestedAt: String,
+    val status: String
+)
+
+data class StudentDeviceStatusInfo(
+    val isBound: Boolean,
+    val deviceId: String?,
+    val deviceModel: String?,
+    val installationId: String?,
+    val status: String,
+    val isUnbindPending: Boolean,
+    val pendingReason: String?
+)
+
 object SupabaseAttendanceService {
     private const val TAG = "SupabaseAttendance"
 
@@ -1227,9 +1249,12 @@ object SupabaseAttendanceService {
                     client.newCall(updateReq).execute()
                 }
 
-                // Bind hardware device if provided
+                // Strict anti-proxy hardware device binding check
                 if (!installationId.isNullOrBlank()) {
-                    bindDeviceToStudent(studentId, installationId)
+                    val bindRes = verifyAndBindDevice(studentId, cleanRoll, installationId)
+                    if (bindRes.isFailure) {
+                        return@withContext Result.failure(bindRes.exceptionOrNull()!!)
+                    }
                 }
 
                 return@withContext Result.success(studentId)
@@ -1296,9 +1321,12 @@ object SupabaseAttendanceService {
 
             val newStudentId = studentArr.getJSONObject(0).getString("id")
 
-            // 5. Bind hardware device
+            // 5. Bind hardware device strictly
             val effectiveInstallationId = installationId ?: java.util.UUID.randomUUID().toString()
-            bindDeviceToStudent(newStudentId, effectiveInstallationId)
+            val bindRes = verifyAndBindDevice(newStudentId, cleanRoll, effectiveInstallationId)
+            if (bindRes.isFailure) {
+                return@withContext Result.failure(bindRes.exceptionOrNull()!!)
+            }
 
             Log.d(TAG, "Successfully registered student $cleanName ($cleanRoll) with ID: $newStudentId")
             Result.success(newStudentId)
@@ -1310,9 +1338,11 @@ object SupabaseAttendanceService {
 
     /**
      * Strictly verifies anti-proxy hardware device binding:
-     * 1. Checks if this installation_id is already bound to a different student.
-     * 2. Checks if this student_id is already registered on another device.
-     * 3. If new device & unassigned, auto-registers and returns the device UUID.
+     * 1. 1 Phone = 1 Student: If this installation_id is already bound to a different student with ACTIVE status,
+     *    blocks with ANTI_PROXY_LOCK.
+     * 2. 1 Student = 1 Phone: If this student is already registered with a different installation_id with ACTIVE status,
+     *    blocks with DEVICE_MISMATCH.
+     * 3. If unassigned or unbind approved, binds phone as ACTIVE.
      */
     suspend fun verifyAndBindDevice(
         studentId: String,
@@ -1320,15 +1350,15 @@ object SupabaseAttendanceService {
         installationId: String
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val cleanRoll = studentRollNumber.trim()
+            val cleanRoll = studentRollNumber.trim().uppercase()
             val cleanInst = installationId.trim()
             if (cleanInst.isBlank()) {
                 return@withContext Result.failure(Exception("ANTI_PROXY_VIOLATION: Missing hardware installation key."))
             }
 
-            // Step 1: Check if this installation_id already exists in Supabase
+            // Step 1: Check if this physical installation_id already exists in Supabase
             val devReq = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/devices?installation_id=eq.$cleanInst&select=id,student_id,status,students(roll_number,users(name))&limit=1")
+                .url("$SUPABASE_URL/rest/v1/devices?installation_id=eq.$cleanInst&select=id,student_id,status,device_model,students(roll_number,users(name))&limit=1")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()
@@ -1342,27 +1372,50 @@ object SupabaseAttendanceService {
                 val devObj = devArr.getJSONObject(0)
                 val devId = devObj.getString("id")
                 val boundStudentId = devObj.getString("student_id")
+                val boundStatus = devObj.optString("status", "ACTIVE")
 
-                // Update device binding to current student seamlessly
-                val updatePayload = JSONObject().apply {
-                    put("student_id", studentId)
-                    put("device_model", android.os.Build.MODEL ?: "Android Device")
-                    put("os_version", "Android ${android.os.Build.VERSION.RELEASE}")
-                    put("status", "ACTIVE")
+                if (boundStudentId != studentId) {
+                    // This device belongs to a different student!
+                    if (boundStatus == "ACTIVE") {
+                        val boundRoll = devObj.optJSONObject("students")?.optString("roll_number") ?: "another student"
+                        Log.e(TAG, "ANTI_PROXY_LOCK: Hardware $cleanInst is bound to $boundRoll, attempted by $cleanRoll")
+                        return@withContext Result.failure(
+                            SecurityException("ANTI_PROXY_LOCK: This phone is hardware-bound to student $boundRoll. Proxy attendance or multi-account usage is strictly blocked.")
+                        )
+                    } else {
+                        // Previous student had an approved unbind or revoked status -> reassign hardware to this student
+                        val currentModel = android.os.Build.MODEL ?: "Android Device"
+                        val updatePayload = JSONObject().apply {
+                            put("student_id", studentId)
+                            put("device_model", currentModel)
+                            put("os_version", "Android ${android.os.Build.VERSION.RELEASE}")
+                            put("status", "ACTIVE")
+                        }
+                        val updateReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/devices?id=eq.$devId")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .addHeader("Content-Type", "application/json")
+                            .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                            .build()
+                        client.newCall(updateReq).execute()
+                        Log.d(TAG, "Device $devId reassigned from unbind/revoked to student $cleanRoll")
+                        return@withContext Result.success(devId)
+                    }
                 }
-                val updateReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/devices?id=eq.$devId")
-                    .addHeader("apikey", ANON_KEY)
-                    .addHeader("Authorization", "Bearer $ANON_KEY")
-                    .addHeader("Content-Type", "application/json")
-                    .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
-                    .build()
-                client.newCall(updateReq).execute()
-                Log.d(TAG, "Device $devId verified/rebound for student $cleanRoll (Device lock disabled)")
+
+                // Device belongs to this student!
+                if (boundStatus == "BLOCKED") {
+                    return@withContext Result.failure(
+                        SecurityException("DEVICE_BLOCKED: This device has been disabled by faculty administration.")
+                    )
+                }
+
+                // If status was PENDING_APPROVAL and student is using their original device, keep them active
                 return@withContext Result.success(devId)
             }
 
-            // Step 2: Device installation_id does not exist yet. Check existing device records for student.
+            // Step 2: Device installation_id is NOT in Supabase. Check if this student already has an active phone registered elsewhere.
             val studentDevReq = Request.Builder()
                 .url("$SUPABASE_URL/rest/v1/devices?student_id=eq.$studentId&status=eq.ACTIVE&select=id,installation_id,device_model&limit=1")
                 .addHeader("apikey", ANON_KEY)
@@ -1376,32 +1429,14 @@ object SupabaseAttendanceService {
 
             if (studentDevArr.length() > 0) {
                 val sDev = studentDevArr.getJSONObject(0)
-                val existingDevId = sDev.optString("id")
-                val currentModel = android.os.Build.MODEL ?: "Android Device"
-
-                if (existingDevId.isNotBlank()) {
-                    val updatePayload = JSONObject().apply {
-                        put("installation_id", cleanInst)
-                        put("device_model", currentModel)
-                        put("os_version", "Android ${android.os.Build.VERSION.RELEASE}")
-                        put("status", "ACTIVE")
-                    }
-                    val updateReq = Request.Builder()
-                        .url("$SUPABASE_URL/rest/v1/devices?id=eq.$existingDevId")
-                        .addHeader("apikey", ANON_KEY)
-                        .addHeader("Authorization", "Bearer $ANON_KEY")
-                        .addHeader("Content-Type", "application/json")
-                        .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
-                        .build()
-                    val updateRes = client.newCall(updateReq).execute()
-                    if (updateRes.isSuccessful) {
-                        Log.d(TAG, "Rebound existing device $existingDevId to new install ID $cleanInst for $currentModel (Device lock disabled)")
-                        return@withContext Result.success(existingDevId)
-                    }
-                }
+                val registeredModel = sDev.optString("device_model", "Registered Device")
+                Log.e(TAG, "DEVICE_MISMATCH: Student $cleanRoll already bound to $registeredModel, attempted new hardware $cleanInst.")
+                return@withContext Result.failure(
+                    SecurityException("DEVICE_MISMATCH: Your account is locked to registered device ($registeredModel). You cannot switch devices without faculty unbinding approval. Request unbind from your teacher.")
+                )
             }
 
-            // Step 3: Neither device nor student is conflicting! Register this new device.
+            // Step 3: Neither device nor student has conflicts. Register this new hardware device as ACTIVE.
             val devicePayload = JSONObject().apply {
                 put("student_id", studentId)
                 put("installation_id", cleanInst)
@@ -1437,8 +1472,251 @@ object SupabaseAttendanceService {
     }
 
     /**
-     * Unbinds physical hardware device for a student from Supabase
+     * Submits a device unbind request to faculty with a student-provided reason.
      */
+    suspend fun requestDeviceUnbind(
+        studentRoll: String,
+        reason: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val cleanRoll = studentRoll.trim().uppercase()
+            val cleanReason = reason.trim().ifBlank { "Phone upgrade / Device reset" }
+
+            // 1. Fetch student ID
+            val sReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/students?roll_number=eq.$cleanRoll&select=id&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val sRes = client.newCall(sReq).execute()
+            val sArr = JSONArray(sRes.body?.string() ?: "[]")
+            if (sArr.length() == 0) return@withContext Result.failure(Exception("Student not found for roll $cleanRoll"))
+            val studentId = sArr.getJSONObject(0).getString("id")
+
+            // 2. Find device record
+            val devReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/devices?student_id=eq.$studentId&order=registered_at.desc&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val devRes = client.newCall(devReq).execute()
+            val devArr = JSONArray(devRes.body?.string() ?: "[]")
+
+            val currentModel = android.os.Build.MODEL ?: "Android Device"
+            val unbindDesc = "[UNBIND REQUEST] $currentModel (Reason: $cleanReason)"
+
+            if (devArr.length() > 0) {
+                val devId = devArr.getJSONObject(0).getString("id")
+                val updatePayload = JSONObject().apply {
+                    put("device_model", unbindDesc)
+                    put("status", "PENDING_APPROVAL")
+                }
+                val updateReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/devices?id=eq.$devId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                val updateRes = client.newCall(updateReq).execute()
+                Result.success(updateRes.isSuccessful)
+            } else {
+                // Insert placeholder unbind request
+                val insertPayload = JSONObject().apply {
+                    put("student_id", studentId)
+                    put("installation_id", "REQ-REBIND-${System.currentTimeMillis()}")
+                    put("device_model", unbindDesc)
+                    put("platform", "ANDROID")
+                    put("status", "PENDING_APPROVAL")
+                }
+                val insertReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/devices")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .post(insertPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                val insertRes = client.newCall(insertReq).execute()
+                Result.success(insertRes.isSuccessful)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting device unbind", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Fetches all pending unbind requests for faculty dashboard.
+     */
+    suspend fun fetchPendingUnbindRequests(): Result<List<DeviceUnbindRequestItem>> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/devices?status=eq.PENDING_APPROVAL&select=id,student_id,installation_id,device_model,os_version,platform,status,registered_at,students(id,roll_number,users(name,email))&order=registered_at.desc")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+
+            val res = client.newCall(req).execute()
+            val body = res.body?.string() ?: "[]"
+            val arr = JSONArray(body)
+            val list = mutableListOf<DeviceUnbindRequestItem>()
+
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val devId = obj.getString("id")
+                val studentId = obj.getString("student_id")
+                val installationId = obj.optString("installation_id", "")
+                val rawModel = obj.optString("device_model", "Android Device")
+                val status = obj.optString("status", "PENDING_APPROVAL")
+                val regAt = obj.optString("registered_at", "")
+
+                val sObj = obj.optJSONObject("students")
+                val roll = sObj?.optString("roll_number") ?: "Unknown"
+                val uObj = sObj?.optJSONObject("users")
+                val name = uObj?.optString("name") ?: "Student"
+
+                // Extract reason if present
+                val reason = if (rawModel.contains("(Reason:")) {
+                    rawModel.substringAfter("(Reason:").substringBeforeLast(")").trim()
+                } else {
+                    "Device change / reset request"
+                }
+                val cleanModel = rawModel.replace("[UNBIND REQUEST]".toRegex(), "").substringBefore("(Reason:").trim().ifBlank { "Mobile Device" }
+
+                list.add(
+                    DeviceUnbindRequestItem(
+                        id = devId,
+                        studentId = studentId,
+                        rollNumber = roll,
+                        studentName = name,
+                        deviceModel = cleanModel,
+                        installationId = installationId,
+                        reason = reason,
+                        requestedAt = regAt,
+                        status = status
+                    )
+                )
+            }
+            Result.success(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching pending unbind requests", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Faculty approves unbind request: deletes previous device record so student can bind new phone on next launch.
+     */
+    suspend fun approveDeviceUnbind(deviceId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/devices?id=eq.$deviceId")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .delete()
+                .build()
+
+            val res = client.newCall(req).execute()
+            Result.success(res.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error approving device unbind", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Faculty rejects unbind request: clears unbind tag and restores status to ACTIVE.
+     */
+    suspend fun rejectDeviceUnbind(deviceId: String, originalModel: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val cleanModel = originalModel.replace("[UNBIND REQUEST]".toRegex(), "").substringBefore("(Reason:").trim().ifBlank { "Mobile Device" }
+            val payload = JSONObject().apply {
+                put("status", "ACTIVE")
+                put("device_model", cleanModel)
+            }
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/devices?id=eq.$deviceId")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .addHeader("Content-Type", "application/json")
+                .patch(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val res = client.newCall(req).execute()
+            Result.success(res.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error rejecting device unbind", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Checks device binding status for a student by roll number.
+     */
+    suspend fun getStudentDeviceStatus(studentRoll: String): Result<StudentDeviceStatusInfo> = withContext(Dispatchers.IO) {
+        try {
+            val cleanRoll = studentRoll.trim().uppercase()
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/students?roll_number=eq.$cleanRoll&select=id,devices(id,installation_id,device_model,status)&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+
+            val res = client.newCall(req).execute()
+            val body = res.body?.string() ?: "[]"
+            val arr = JSONArray(body)
+            if (arr.length() == 0) {
+                return@withContext Result.success(StudentDeviceStatusInfo(false, null, null, null, "UNBOUND", false, null))
+            }
+
+            val sObj = arr.getJSONObject(0)
+            val devArr = sObj.optJSONArray("devices")
+            if (devArr == null || devArr.length() == 0) {
+                return@withContext Result.success(StudentDeviceStatusInfo(false, null, null, null, "UNBOUND", false, null))
+            }
+
+            var activeDev: JSONObject? = null
+            for (i in 0 until devArr.length()) {
+                val d = devArr.getJSONObject(i)
+                val st = d.optString("status")
+                if (st == "PENDING_APPROVAL" || st == "ACTIVE") {
+                    activeDev = d
+                    break
+                }
+            }
+            if (activeDev == null) {
+                activeDev = devArr.getJSONObject(0)
+            }
+
+            val devId = activeDev.getString("id")
+            val instId = activeDev.optString("installation_id")
+            val rawModel = activeDev.optString("device_model", "Mobile Device")
+            val status = activeDev.optString("status", "ACTIVE")
+            val isPending = status == "PENDING_APPROVAL" || rawModel.contains("[UNBIND REQUEST]")
+            val reason = if (rawModel.contains("(Reason:")) rawModel.substringAfter("(Reason:").substringBeforeLast(")").trim() else null
+            val cleanModel = rawModel.replace("[UNBIND REQUEST]".toRegex(), "").substringBefore("(Reason:").trim()
+
+            Result.success(
+                StudentDeviceStatusInfo(
+                    isBound = status == "ACTIVE",
+                    deviceId = devId,
+                    deviceModel = cleanModel,
+                    installationId = instId,
+                    status = status,
+                    isUnbindPending = isPending,
+                    pendingReason = reason
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting student device status", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun unbindDevice(
         installationId: String
     ): Result<Boolean> = withContext(Dispatchers.IO) {

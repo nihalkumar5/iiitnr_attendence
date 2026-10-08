@@ -19,12 +19,14 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.FactCheck
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,7 +63,8 @@ enum class TeacherTab {
     HOME,
     SCHEDULE,
     ACTIVE_ROLL_CALL,
-    RECORDS
+    RECORDS,
+    DEVICES
 }
 
 enum class TeacherSubStep {
@@ -321,6 +324,19 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 )
+
+                                                AppllamaTabItem(
+                                                    selected = currentTeacherTab == TeacherTab.DEVICES,
+                                                    label = "Devices",
+                                                    selectedIcon = Icons.Filled.Lock,
+                                                    unselectedIcon = Icons.Outlined.Lock,
+                                                    onClick = {
+                                                        if (currentTeacherTab != TeacherTab.DEVICES) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentTeacherTab = TeacherTab.DEVICES
+                                                        }
+                                                    }
+                                                )
                                             }
                                         }
                                     }
@@ -356,6 +372,9 @@ class MainActivity : ComponentActivity() {
                                                         onOpenLiveRollCall = {
                                                             currentTeacherTab = TeacherTab.ACTIVE_ROLL_CALL
                                                             teacherStep = TeacherSubStep.ACTIVE_LECTURE
+                                                        },
+                                                        onOpenDeviceRequests = {
+                                                            currentTeacherTab = TeacherTab.DEVICES
                                                         },
                                                         onLogout = { logout() }
                                                     )
@@ -424,6 +443,12 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 TeacherTab.RECORDS -> {
                                                     TeacherAttendanceHistoryScreen(
+                                                        facultyName = facultyName,
+                                                        onLogout = { logout() }
+                                                    )
+                                                }
+                                                TeacherTab.DEVICES -> {
+                                                    com.smartattendance.app.ui.teacher.TeacherDeviceRequestsScreen(
                                                         facultyName = facultyName,
                                                         onLogout = { logout() }
                                                     )
