@@ -89,8 +89,6 @@ export default function StudentPortal() {
   const [oauthError, setOauthError] = useState<string | null>(null);
 
   // Google Account Entry & Post-Login Profile Completion
-  const [googleEmailInput, setGoogleEmailInput] = useState("");
-  const [showGoogleInput, setShowGoogleInput] = useState(false);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [profileEmail, setProfileEmail] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -288,6 +286,49 @@ export default function StudentPortal() {
     } else {
       setTimeout(initializeGoogleGSI, 300);
     }
+    // 0. Handle OAuth callback tokens from URL hash (popup or redirect)
+    if (typeof window !== "undefined" && window.location.hash.includes("access_token=")) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get("access_token");
+      if (accessToken) {
+        if (window.opener && window.opener !== window) {
+          try {
+            window.opener.postMessage({ type: "GOOGLE_OAUTH_TOKEN", token: accessToken }, window.location.origin);
+            window.close();
+            return;
+          } catch (e) {}
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setAuthLoading(true);
+        fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: "Bearer " + accessToken },
+        })
+          .then(r => r.json())
+          .then(handleVerifiedGoogleUser)
+          .catch(() => setAuthError("Failed to fetch Google profile."))
+          .finally(() => setAuthLoading(false));
+      }
+    }
+
+    const handleOAuthMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "GOOGLE_OAUTH_TOKEN" && event.data?.token) {
+        setAuthLoading(true);
+        try {
+          const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: "Bearer " + event.data.token },
+          });
+          const user = await res.json();
+          await handleVerifiedGoogleUser(user);
+        } catch (e) {
+          setAuthError("Failed to verify Google account from popup.");
+        } finally {
+          setAuthLoading(false);
+        }
+      }
+    };
+    window.addEventListener("message", handleOAuthMessage);
+
     // 0. Handle OAuth redirect errors from URL
     if (typeof window !== "undefined") {
       const currentUrl = new URL(window.location.href);
@@ -374,34 +415,29 @@ export default function StudentPortal() {
       supabase.removeChannel(sessionChannel);
       supabase.removeChannel(classesChannel);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("message", handleOAuthMessage);
     };
   }, []);
 
-  const handleGoogleCredentialResponse = async (response: any) => {
-    if (!response?.credential) return;
+  const handleVerifiedGoogleUser = async (googleUser: {
+    email: string;
+    name?: string;
+    picture?: string;
+    sub?: string;
+  }) => {
+    const email = googleUser.email?.trim().toLowerCase();
+    const displayName = googleUser.name?.trim() || "Student";
+
+    if (!email) {
+      setAuthError("Failed to obtain verified email from Google.");
+      return;
+    }
+
     setAuthLoading(true);
     setAuthError(null);
 
     try {
-      const base64Url = response.credential.split(".")[1];
-      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split("")
-          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-          .join("")
-      );
-      const googleUser = JSON.parse(jsonPayload);
-      const email = googleUser.email?.trim().toLowerCase();
-      const displayName = googleUser.name || googleUser.given_name || "Student";
-
-      if (!email) {
-        setAuthError("Unable to read email from Google profile.");
-        setAuthLoading(false);
-        return;
-      }
-
-      // Check if student profile already completed in Supabase
+      // 1. Check if user already exists with an established student profile in Supabase
       const { data: dbUser } = await supabase
         .from("users")
         .select("id, name, email, students(id, roll_number, semester, program_id)")
@@ -418,6 +454,7 @@ export default function StudentPortal() {
       );
 
       if (dbUser && isRollComplete) {
+        // Complete profile already exists -> Log in immediately!
         const finalName = dbUser.name || displayName;
         setStudentName(finalName);
         setRollNo(existingRoll);
@@ -436,6 +473,7 @@ export default function StudentPortal() {
         const live = await getActiveSessionFromDB();
         if (live) setActiveSession(live);
       } else {
+        // First-time login / incomplete profile -> Prompt to complete student profile
         setProfileEmail(email);
         setProfileName(displayName);
         setProfileRollNo(existingRoll && existingRoll !== emailPrefix ? existingRoll : "");
@@ -451,79 +489,82 @@ export default function StudentPortal() {
     }
   };
 
-  const handleLaunchGooglePopup = () => {
-    setAuthError(null);
-    if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
-      try {
-        (window as any).google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            setShowGoogleInput(true);
-          }
-        });
-      } catch (e) {
-        setShowGoogleInput(true);
-      }
-    } else {
-      setShowGoogleInput(true);
+  const handleGoogleCredentialResponse = async (response: any) => {
+    if (!response?.credential) return;
+    try {
+      const base64Url = response.credential.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      const googleUser = JSON.parse(jsonPayload);
+      await handleVerifiedGoogleUser(googleUser);
+    } catch (err: any) {
+      setAuthError("Failed to parse Google credential token.");
     }
   };
 
-  const handleVerifyGoogleAccount = async (emailToVerify?: string) => {
-    const targetEmail = (emailToVerify || googleEmailInput).trim().toLowerCase();
-    if (!targetEmail || !targetEmail.includes("@")) {
-      setAuthError("Please enter a valid Google email address.");
-      return;
+  const handleLaunchGooglePopup = () => {
+    setAuthError(null);
+    if (typeof window === "undefined") return;
+
+    // A. Official Google Identity Services OAuth2 token client
+    if ((window as any).google?.accounts?.oauth2) {
+      try {
+        const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: "https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid",
+          prompt: "select_account",
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse?.error) {
+              setAuthError(tokenResponse.error_description || "Google sign-in was cancelled.");
+              return;
+            }
+            if (tokenResponse?.access_token) {
+              setAuthLoading(true);
+              try {
+                const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                  headers: { Authorization: "Bearer " + tokenResponse.access_token },
+                });
+                const user = await res.json();
+                await handleVerifiedGoogleUser(user);
+              } catch (err: any) {
+                setAuthError("Failed to fetch verified profile from Google.");
+              } finally {
+                setAuthLoading(false);
+              }
+            }
+          },
+          error_callback: (err: any) => {
+            setAuthError(err?.message || "Google popup error.");
+          }
+        });
+        tokenClient.requestAccessToken({ prompt: "select_account" });
+        return;
+      } catch (e) {
+        console.warn("initTokenClient fallback:", e);
+      }
     }
 
-    setAuthLoading(true);
-    setAuthError(null);
+    // B. Direct Google OAuth2 popup fallback
+    const width = 500;
+    const height = 620;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const redirectUri = window.location.origin + window.location.pathname;
+    const oauthUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + GOOGLE_CLIENT_ID + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&response_type=token&scope=email%20profile%20openid&prompt=select_account";
 
-    try {
-      const { data: dbUser } = await supabase
-        .from("users")
-        .select("id, name, email, students(id, roll_number, semester, program_id)")
-        .ilike("email", targetEmail)
-        .maybeSingle();
+    const popup = window.open(
+      oauthUrl,
+      "GoogleSignInPopup",
+      "width=" + width + ",height=" + height + ",left=" + left + ",top=" + top + ",status=no,menubar=no,toolbar=no"
+    );
 
-      const sData = (dbUser as any)?.students;
-      const studentObj = Array.isArray(sData) ? sData[0] : sData;
-      const existingRoll = studentObj?.roll_number?.trim();
-      const emailPrefix = targetEmail.split("@")[0].toUpperCase();
-
-      const isRollComplete = Boolean(existingRoll && existingRoll !== emailPrefix && existingRoll.length >= 3);
-
-      if (dbUser && isRollComplete) {
-        const finalName = dbUser.name || "Student";
-        setStudentName(finalName);
-        setRollNo(existingRoll);
-        setStudentEmail(targetEmail);
-        setIsLoggedIn(true);
-
-        localStorage.setItem("smart_attendance_student_profile", JSON.stringify({
-          name: finalName,
-          rollNo: existingRoll,
-          email: targetEmail
-        }));
-
-        loadStudentEnrollments(existingRoll);
-        syncDeviceBinding(existingRoll, finalName, targetEmail);
-
-        const live = await getActiveSessionFromDB();
-        if (live) setActiveSession(live);
-      } else {
-        setProfileEmail(targetEmail);
-        const inferredName = dbUser?.name || targetEmail.split("@")[0].replace(/[._0-9]/g, " ").trim() || "Student";
-        setProfileName(inferredName.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "));
-        setProfileRollNo(isRollComplete ? existingRoll : "");
-        if (studentObj?.semester) {
-          setProfileSemester("Semester " + studentObj.semester);
-        }
-        setShowProfileSetup(true);
-      }
-    } catch (err: any) {
-      setAuthError(err?.message || "Verification failed. Please try again.");
-    } finally {
-      setAuthLoading(false);
+    if (!popup || popup.closed || typeof popup.closed === "undefined") {
+      window.location.href = oauthUrl;
     }
   };
 
@@ -585,8 +626,6 @@ export default function StudentPortal() {
     localStorage.removeItem("smart_attendance_student_profile");
     setIsLoggedIn(false);
     setShowProfileSetup(false);
-    setShowGoogleInput(false);
-    setGoogleEmailInput("");
     setStudentName("");
     setRollNo("");
     setStudentEmail("");
@@ -1215,43 +1254,7 @@ export default function StudentPortal() {
                   </p>
                 </div>
 
-                {showGoogleInput && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleVerifyGoogleAccount();
-                    }}
-                    className="w-full space-y-3 pt-2 border-t border-slate-100 animate-in fade-in"
-                  >
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                        Or enter Google Email manually
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowGoogleInput(false)}
-                        className="text-[10px] text-slate-400 hover:text-slate-700 cursor-pointer"
-                      >
-                        Hide
-                      </button>
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. rahul@gmail.com"
-                      value={googleEmailInput}
-                      onChange={(e) => setGoogleEmailInput(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 focus:border-blue-500 focus:bg-white text-slate-900 text-xs font-medium"
-                    />
-                    <button
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
-                    >
-                      {authLoading ? "Verifying..." : "Verify Google Account →"}
-                    </button>
-                  </form>
-                )}
+                
               </div>
             </div>
           )}
