@@ -2378,8 +2378,9 @@ object SupabaseAttendanceService {
 
     suspend fun fetchCourseOfferings(): Result<List<CourseOfferingOption>> = withContext(Dispatchers.IO) {
         try {
+            val counts = fetchEnrollmentCounts()
             val req = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/classes?select=id,room,join_code,subjects(id,name,code)&limit=20")
+                .url("$SUPABASE_URL/rest/v1/classes?select=id,room,is_active,subjects(id,name,code)&order=created_at.desc&limit=30")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()
@@ -2392,16 +2393,70 @@ object SupabaseAttendanceService {
                 val obj = arr.getJSONObject(i)
                 val id = obj.getString("id")
                 val room = obj.optString("room", "Room A-204")
-                val joinCode = obj.optString("join_code", "")
                 val subObj = obj.optJSONObject("subjects")
                 val name = subObj?.optString("name") ?: "Course $i"
                 val code = subObj?.optString("code") ?: "CS$i"
-                list.add(CourseOfferingOption(id, code, name, room, 0, joinCode))
+                val joinCode = code
+                val count = counts[id]
+                    ?: counts[joinCode.trim().uppercase()]
+                    ?: counts[code.trim().uppercase()]
+                    ?: counts[name.trim().lowercase()]
+                    ?: counts[code.trim().uppercase().substringBefore("-")]
+                    ?: 0
+                list.add(CourseOfferingOption(id, code, name, room, count, joinCode))
             }
             Result.success(list)
         } catch (e: Exception) {
             Result.success(emptyList())
         }
+    }
+
+    suspend fun fetchEnrollmentCounts(): Map<String, Int> = withContext(Dispatchers.IO) {
+        val map = mutableMapOf<String, Int>()
+        try {
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_records?select=student_id,attendance_sessions(class_id,classes(id,subjects(name,code)))")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                val arr = JSONArray(res.body?.string() ?: "[]")
+                val seen = mutableSetOf<String>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val sId = obj.optString("student_id")
+                    val sess = obj.optJSONObject("attendance_sessions") ?: continue
+                    val cId = sess.optString("class_id")
+                    val cls = sess.optJSONObject("classes")
+                    val sub = cls?.optJSONObject("subjects")
+                    val subCode = sub?.optString("code")?.trim()?.uppercase()
+                    val subName = sub?.optString("name")?.trim()?.lowercase()
+
+                    val addKey = { k: String? ->
+                        if (!k.isNullOrBlank()) {
+                            val key = "$k::$sId"
+                            if (seen.add(key)) {
+                                map[k] = (map[k] ?: 0) + 1
+                            }
+                        }
+                    }
+
+                    addKey(cId)
+                    if (!subCode.isNullOrBlank()) {
+                        addKey(subCode)
+                        if (subCode.contains("-")) {
+                            addKey(subCode.substringBefore("-"))
+                        }
+                    }
+                    if (!subName.isNullOrBlank()) {
+                        addKey(subName)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        map
     }
 
     suspend fun fetchCourseRoster(classId: String, joinCode: String = ""): Result<List<EnrolledStudentInfo>> = withContext(Dispatchers.IO) {
@@ -2581,7 +2636,7 @@ object SupabaseAttendanceService {
             var remoteClassObj: JSONObject? = null
             try {
                 val classReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/classes?join_code=ilike.$cleanCode&select=id,is_active,join_code,room,subjects(name,code),teachers(users(name))&limit=1")
+                    .url("$SUPABASE_URL/rest/v1/classes?select=id,is_active,room,subjects!inner(name,code),teachers(users(name))&subjects.code=ilike.$cleanCode&limit=1")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()
@@ -2686,7 +2741,7 @@ object SupabaseAttendanceService {
 
             try {
                 val req = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/course_enrollments?select=class_id,classes(id,join_code,room,subjects(name,code),teachers(users(name))),students!inner(roll_number)&students.roll_number=eq.$cleanRoll&is_active=eq.true")
+                    .url("$SUPABASE_URL/rest/v1/course_enrollments?select=class_id,classes(id,room,subjects(name,code),teachers(users(name))),students!inner(roll_number)&students.roll_number=eq.$cleanRoll&is_active=eq.true")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()

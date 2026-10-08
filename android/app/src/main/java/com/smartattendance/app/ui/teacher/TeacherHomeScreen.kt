@@ -187,40 +187,75 @@ fun TeacherHomeScreen(
         }
     }
 
-    // Check Cloud Sync on entry - load genuine teacher offerings from Supabase
+    // Realtime Cloud Enrollment Count Polling & Cloud Sync
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            try {
-                val cloudOfferingsRes = SupabaseAttendanceService.fetchCourseOfferings()
-                if (cloudOfferingsRes.isSuccess) {
-                    val offerings = cloudOfferingsRes.getOrThrow()
-                    if (offerings.isNotEmpty()) {
-                        val cloudClasses = offerings.mapIndexed { idx, o ->
-                            TeacherClassItem(
-                                id = o.classId,
-                                subjectName = o.subjectName,
-                                subjectCode = o.subjectCode,
-                                program = "B.Tech · Semester 1",
-                                room = o.room,
-                                timeSlot = when (idx % 4) {
-                                    0 -> "10:00 – 11:00 AM"
-                                    1 -> "12:00 – 01:00 PM"
-                                    2 -> "03:00 – 04:00 PM"
-                                    else -> "09:00 – 10:00 AM"
-                                },
-                                enrolledStudents = o.enrolledCount,
-                                isReadyToStart = (idx == 0),
-                                status = ClassScheduleStatus.SCHEDULED,
-                                joinCode = o.joinCode
-                            )
-                        }
+        while (true) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val counts = SupabaseAttendanceService.fetchEnrollmentCounts()
+                    if (counts.isNotEmpty()) {
                         withContext(Dispatchers.Main) {
-                            classList = cloudClasses
-                            savePersistedSchedule(context, cloudClasses)
+                            val updated = classList.map { item ->
+                                val cleanJoin = item.joinCode.trim().uppercase()
+                                val cleanSub = item.subjectCode.trim().uppercase()
+                                val cleanName = item.subjectName.trim().lowercase()
+                                val prefix = cleanSub.substringBefore("-")
+                                val c = counts[item.id]
+                                    ?: counts[cleanJoin]
+                                    ?: counts[cleanSub]
+                                    ?: counts[cleanName]
+                                    ?: counts[prefix]
+                                if (c != null && c != item.enrolledStudents) {
+                                    item.copy(enrolledStudents = c)
+                                } else {
+                                    item
+                                }
+                            }
+                            if (updated != classList) {
+                                updateClassList(updated)
+                            }
                         }
                     }
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
+    LaunchedEffect(classList.isEmpty()) {
+        if (classList.isEmpty()) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val cloudOfferingsRes = SupabaseAttendanceService.fetchCourseOfferings()
+                    if (cloudOfferingsRes.isSuccess) {
+                        val offerings = cloudOfferingsRes.getOrThrow()
+                        if (offerings.isNotEmpty()) {
+                            val cloudClasses = offerings.mapIndexed { idx, o ->
+                                TeacherClassItem(
+                                    id = o.classId,
+                                    subjectName = o.subjectName,
+                                    subjectCode = o.subjectCode,
+                                    program = "B.Tech · Semester 1",
+                                    room = o.room,
+                                    timeSlot = when (idx % 4) {
+                                        0 -> "10:00 – 11:00 AM"
+                                        1 -> "12:00 – 01:00 PM"
+                                        2 -> "03:00 – 04:00 PM"
+                                        else -> "09:00 – 10:00 AM"
+                                    },
+                                    enrolledStudents = o.enrolledCount,
+                                    isReadyToStart = (idx == 0),
+                                    status = ClassScheduleStatus.SCHEDULED,
+                                    joinCode = o.joinCode
+                                )
+                            }
+                            withContext(Dispatchers.Main) {
+                                updateClassList(cloudClasses)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -446,7 +481,7 @@ fun TeacherHomeScreen(
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = "${currentClass.enrolledStudents} students",
+                                text = "${currentClass.enrolledStudents} ${if (currentClass.enrolledStudents == 1) "student" else "students"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary,
                                 fontSize = 12.sp
@@ -641,7 +676,7 @@ fun TeacherHomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "${classItem.subjectCode} · ${classItem.room} · ${classItem.enrolledStudents} students",
+                                    text = "${classItem.subjectCode} · ${classItem.room} · ${classItem.enrolledStudents} ${if (classItem.enrolledStudents == 1) "student" else "students"}",
                                     fontSize = 11.sp,
                                     color = TextSecondary
                                 )

@@ -37,6 +37,8 @@ import com.smartattendance.app.core.network.EnrolledStudentInfo
 import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.ui.theme.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 @Composable
@@ -95,6 +97,47 @@ fun TeacherScheduleScreen(
         }
         context.startActivity(Intent.createChooser(shareIntent, "Share Join Code via"))
     }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val counts = SupabaseAttendanceService.fetchEnrollmentCounts()
+                    if (counts.isNotEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            val updated = classList.map { item ->
+                                val cleanJoin = item.joinCode.trim().uppercase()
+                                val cleanSub = item.subjectCode.trim().uppercase()
+                                val cleanName = item.subjectName.trim().lowercase()
+                                val prefix = cleanSub.substringBefore("-")
+                                val c = counts[item.id]
+                                    ?: counts[cleanJoin]
+                                    ?: counts[cleanSub]
+                                    ?: counts[cleanName]
+                                    ?: counts[prefix]
+                                if (c != null && c != item.enrolledStudents) {
+                                    item.copy(enrolledStudents = c)
+                                } else {
+                                    item
+                                }
+                            }
+                            if (updated != classList) {
+                                updateClassList(updated)
+                                val currentDetail = selectedClassForDetail
+                                if (currentDetail != null) {
+                                    val matched = updated.firstOrNull { it.id == currentDetail.id || it.joinCode == currentDetail.joinCode }
+                                    if (matched != null) {
+                                        selectedClassForDetail = matched
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
     LaunchedEffect(selectedClassForDetail?.id) {
         val current = selectedClassForDetail
         if (current != null) {
@@ -759,7 +802,7 @@ fun TeacherScheduleScreen(
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
                                             ) {
                                                 Text(
-                                                    text = "${item.enrolledStudents} students",
+                                                    text = "${item.enrolledStudents} ${if (item.enrolledStudents == 1) "student" else "students"}",
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = TextPrimary,
