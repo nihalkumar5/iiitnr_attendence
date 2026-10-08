@@ -2407,11 +2407,32 @@ object SupabaseAttendanceService {
     suspend fun fetchCourseRoster(classId: String, joinCode: String = ""): Result<List<EnrolledStudentInfo>> = withContext(Dispatchers.IO) {
         try {
             val list = mutableListOf<EnrolledStudentInfo>()
+            var effectiveClassId = classId
+
+            // Resolve real remote classId from joinCode
+            val cleanJoin = joinCode.trim().uppercase()
+            if (cleanJoin.isNotBlank()) {
+                try {
+                    val subReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=eq.$cleanJoin&limit=1")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .get()
+                        .build()
+                    val subRes = client.newCall(subReq).execute()
+                    if (subRes.isSuccessful) {
+                        val arr = JSONArray(subRes.body?.string() ?: "[]")
+                        if (arr.length() > 0) {
+                            effectiveClassId = arr.getJSONObject(0).getString("id")
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
 
             // 1. Query Supabase course_enrollments for this class
             try {
                 val req = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/course_enrollments?class_id=eq.$classId&is_active=eq.true&select=students(id,roll_number,users(name,email),devices(device_model,status))")
+                    .url("$SUPABASE_URL/rest/v1/course_enrollments?class_id=eq.$effectiveClassId&is_active=eq.true&select=students(id,roll_number,users(name,email),devices(device_model,status))")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()
@@ -2439,7 +2460,7 @@ object SupabaseAttendanceService {
             // 1.1 Also query attendance records for this class
             try {
                 val attReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/attendance_records?select=student_id,students(id,roll_number,users(name,email),devices(device_model,status)),attendance_sessions!inner(class_id)&attendance_sessions.class_id=eq.$classId")
+                    .url("$SUPABASE_URL/rest/v1/attendance_records?select=student_id,students(id,roll_number,users(name,email),devices(device_model,status)),attendance_sessions!inner(class_id)&attendance_sessions.class_id=eq.$effectiveClassId")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()
@@ -2467,7 +2488,6 @@ object SupabaseAttendanceService {
             } catch (_: Exception) {}
 
             // 2. Include any students registered via the local tracking registry
-            val cleanJoin = joinCode.trim().uppercase()
             for ((roll, codes) in localStudentEnrollments) {
                 if (codes.contains(cleanJoin) || codes.contains(classId)) {
                     if (list.none { it.rollNumber.equals(roll, ignoreCase = true) }) {
