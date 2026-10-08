@@ -20,6 +20,7 @@ object GoogleAuthManager {
     const val IIIT_DOMAIN = "iiitnr.edu.in"
     const val STUDENT_DOMAIN = "student.iiitnr.edu.in"
     const val DEMO_DOMAIN = "iitdemo.edu"
+    const val WEB_CLIENT_ID = "969110741767-fuuhi63q3054eq0plg2qi68opgjspsqs.apps.googleusercontent.com"
 
     /**
      * Creates GoogleSignInClient configured for sign-in (any Google account / Gmail permitted).
@@ -37,9 +38,10 @@ object GoogleAuthManager {
             builder.setHostedDomain(IIIT_DOMAIN)
         }
 
-        if (!serverClientId.isNullOrBlank()) {
-            builder.requestIdToken(serverClientId)
-        }
+        val targetClient = if (!serverClientId.isNullOrBlank()) serverClientId else WEB_CLIENT_ID
+        try {
+            builder.requestIdToken(targetClient)
+        } catch (_: Exception) {}
 
         return GoogleSignIn.getClient(context, builder.build())
     }
