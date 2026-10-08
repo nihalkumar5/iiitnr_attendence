@@ -46,13 +46,14 @@ import java.util.TimeZone
 fun ActiveLectureScreen(
     classId: String = "class-01",
     joinCode: String = "",
-    subjectName: String = "Data Structures & Algorithms",
-    subjectCode: String = "CS501",
+    subjectName: String = "",
+    subjectCode: String = "",
     room: String = "Room A-204 (AC Block)",
     timeSlot: String = "10:00 – 11:00 AM",
-    detectedStudents: Int = 5,
-    totalStudents: Int = 22,
-    onEndLecture: (sessionId: String) -> Unit = {}
+    detectedStudents: Int = 0,
+    totalStudents: Int = 0,
+    onEndLecture: (sessionId: String) -> Unit = {},
+    onCancelLecture: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -64,6 +65,7 @@ fun ActiveLectureScreen(
     var isUpdatingWifi by remember { mutableStateOf(false) }
     var showSecurityDetails by remember { mutableStateOf(false) }
     var showSubmitConfirmDialog by remember { mutableStateOf(false) }
+    var showCancelConfirmDialog by remember { mutableStateOf(false) }
 
     val wifiManager = remember { WifiPresenceManager(context) }
     var scannedNetworks by remember { mutableStateOf<List<ScannedWifiNetwork>>(emptyList()) }
@@ -219,33 +221,43 @@ fun ActiveLectureScreen(
                         color = BrandAccent
                     )
 
-                    Surface(
-                        shape = PillShape,
-                        color = StatusPresentBg,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, StatusPresentBorder)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = PillShape,
+                            color = StatusPresentBg,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, StatusPresentBorder)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(StatusPresent.copy(alpha = dotAlpha))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Attendance Active",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = StatusPresent
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "· $elapsedFormatted elapsed",
-                                fontSize = 11.sp,
-                                color = TextSecondary
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(StatusPresent.copy(alpha = dotAlpha))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Active · $elapsedFormatted",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StatusPresent
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        IconButton(
+                            onClick = { showCancelConfirmDialog = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Discard Session",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -797,6 +809,61 @@ fun ActiveLectureScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+
+
+    // CANCEL / DISCARD CONFIRMATION DIALOG
+    if (showCancelConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelConfirmDialog = false },
+            shape = DialogShape,
+            containerColor = CardBackground,
+            title = {
+                Text(
+                    text = "Discard Live Session?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Cancel live attendance for $subjectName? The session will be terminated without recording attendance.",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCancelConfirmDialog = false
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val sId = activeSessionId
+                            if (!sId.isNullOrBlank()) {
+                                SupabaseAttendanceService.endAttendanceSession(sId)
+                            }
+                            SupabaseAttendanceService.endAllActiveSessions()
+                            withContext(Dispatchers.Main) {
+                                onCancelLecture()
+                            }
+                        }
+                    },
+                    shape = ButtonShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusAbsent)
+                ) {
+                    Text("Discard Session", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showCancelConfirmDialog = false },
+                    shape = ButtonShape
+                ) {
+                    Text("Keep Active")
+                }
+            }
+        )
     }
 
     // SUBMIT CONFIRMATION DIALOG

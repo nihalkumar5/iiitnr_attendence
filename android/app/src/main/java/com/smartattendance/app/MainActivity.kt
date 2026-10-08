@@ -117,6 +117,8 @@ class MainActivity : ComponentActivity() {
                 // Teacher Tab Navigation State
                 var currentTeacherTab by remember { mutableStateOf(TeacherTab.HOME) }
                 var teacherStep by remember { mutableStateOf(TeacherSubStep.HOME) }
+                var activeLectureClass by remember { mutableStateOf<com.smartattendance.app.ui.teacher.TeacherClassItem?>(null) }
+                var activeLectureSessionId by remember { mutableStateOf("") }
 
                 val haptic = LocalHapticFeedback.current
 
@@ -126,6 +128,10 @@ class MainActivity : ComponentActivity() {
                             com.smartattendance.app.core.network.SupabaseAttendanceService.endAllActiveSessions()
                         }
                     }
+                    activeLectureClass = null
+                    activeLectureSessionId = ""
+                    currentTeacherTab = TeacherTab.HOME
+                    teacherStep = TeacherSubStep.HOME
                     prefs.edit().putString("logged_in_role", "").apply()
                     currentRole = UserRole.NONE
                 }
@@ -347,8 +353,6 @@ class MainActivity : ComponentActivity() {
                                             .background(CanvasBackground)
                                             .padding(innerPadding)
                                     ) {
-                                        var activeLectureClass by remember { mutableStateOf<com.smartattendance.app.ui.teacher.TeacherClassItem?>(null) }
-                                        var activeLectureSessionId by remember { mutableStateOf("") }
 
                                         Crossfade(
                                             targetState = currentTeacherTab,
@@ -393,51 +397,69 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                                 TeacherTab.ACTIVE_ROLL_CALL -> {
-                                                    when (teacherStep) {
-                                                        TeacherSubStep.HOME,
-                                                        TeacherSubStep.ACTIVE_LECTURE -> {
-                                                             ActiveLectureScreen(
-                                                                classId = activeLectureClass?.id ?: "class-01",
-                                                                joinCode = activeLectureClass?.joinCode ?: "",
-                                                                subjectName = activeLectureClass?.subjectName ?: "Data Structures & Algorithms",
-                                                                subjectCode = activeLectureClass?.subjectCode ?: "CS501",
-                                                                room = activeLectureClass?.room ?: "Room A-204 (AC Block)",
-                                                                timeSlot = activeLectureClass?.timeSlot ?: "10:00 – 11:00 AM",
-                                                                totalStudents = activeLectureClass?.enrolledStudents ?: prefs.getInt("synced_enrolled_student_count", 22),
-                                                                onEndLecture = { endedSessionId ->
-                                                                    activeLectureSessionId = endedSessionId
-                                                                    teacherStep = TeacherSubStep.REVIEW
-                                                                }
-                                                             )
-                                                        }
-                                                        TeacherSubStep.REVIEW -> {
-                                                            AttendanceReviewScreen(
-                                                                classId = activeLectureClass?.id ?: "",
-                                                                joinCode = activeLectureClass?.joinCode ?: "",
-                                                                sessionId = activeLectureSessionId,
-                                                                subjectName = activeLectureClass?.subjectName ?: "Data Structures & Algorithms",
-                                                                subjectCode = activeLectureClass?.subjectCode ?: "CS501",
-                                                                room = activeLectureClass?.room ?: "Room A-204 (AC Block)",
-                                                                onSubmitSuccess = {
-                                                                    val targetClass = activeLectureClass
-                                                                    if (targetClass != null) {
+                                                    val currentActive = activeLectureClass
+                                                    if (currentActive == null) {
+                                                        com.smartattendance.app.ui.teacher.NoActiveLectureScreen(
+                                                            onGoToSchedule = {
+                                                                currentTeacherTab = TeacherTab.SCHEDULE
+                                                            },
+                                                            onStartClass = { selectedClass ->
+                                                                activeLectureClass = selectedClass
+                                                                teacherStep = TeacherSubStep.ACTIVE_LECTURE
+                                                            }
+                                                        )
+                                                    } else {
+                                                        when (teacherStep) {
+                                                            TeacherSubStep.HOME,
+                                                            TeacherSubStep.ACTIVE_LECTURE -> {
+                                                                 ActiveLectureScreen(
+                                                                    classId = currentActive.id,
+                                                                    joinCode = currentActive.joinCode,
+                                                                    subjectName = currentActive.subjectName,
+                                                                    subjectCode = currentActive.subjectCode,
+                                                                    room = currentActive.room,
+                                                                    timeSlot = currentActive.timeSlot,
+                                                                    totalStudents = currentActive.enrolledStudents,
+                                                                    onEndLecture = { endedSessionId ->
+                                                                        activeLectureSessionId = endedSessionId
+                                                                        teacherStep = TeacherSubStep.REVIEW
+                                                                    },
+                                                                    onCancelLecture = {
+                                                                        activeLectureClass = null
+                                                                        activeLectureSessionId = ""
+                                                                        teacherStep = TeacherSubStep.HOME
+                                                                        currentTeacherTab = TeacherTab.HOME
+                                                                    }
+                                                                 )
+                                                            }
+                                                            TeacherSubStep.REVIEW -> {
+                                                                AttendanceReviewScreen(
+                                                                    classId = currentActive.id,
+                                                                    joinCode = currentActive.joinCode,
+                                                                    sessionId = activeLectureSessionId,
+                                                                    subjectName = currentActive.subjectName,
+                                                                    subjectCode = currentActive.subjectCode,
+                                                                    room = currentActive.room,
+                                                                    onSubmitSuccess = {
                                                                         com.smartattendance.app.core.engine.TimetableEngine.lockClassToday(
                                                                             context,
-                                                                            targetClass.id,
+                                                                            currentActive.id,
                                                                             activeLectureSessionId
                                                                         )
                                                                         val currentSaved = com.smartattendance.app.ui.teacher.loadPersistedSchedule(context)
                                                                         val updated = currentSaved.map { item ->
-                                                                            if (item.id == targetClass.id || (item.joinCode.isNotBlank() && item.joinCode == targetClass.joinCode)) {
+                                                                            if (item.id == currentActive.id || (item.joinCode.isNotBlank() && item.joinCode == currentActive.joinCode)) {
                                                                                 item.copy(status = com.smartattendance.app.ui.teacher.ClassScheduleStatus.LOCKED, isLocked = true)
                                                                             } else item
                                                                         }
                                                                         com.smartattendance.app.ui.teacher.savePersistedSchedule(context, updated)
+                                                                        activeLectureClass = null
+                                                                        activeLectureSessionId = ""
+                                                                        teacherStep = TeacherSubStep.HOME
+                                                                        currentTeacherTab = TeacherTab.HOME
                                                                     }
-                                                                    teacherStep = TeacherSubStep.HOME
-                                                                    currentTeacherTab = TeacherTab.HOME
-                                                                }
-                                                            )
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
