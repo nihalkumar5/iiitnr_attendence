@@ -82,18 +82,29 @@ export default function StudentPortal() {
 
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authMode, setAuthMode] = useState<"quick" | "signin" | "register">("quick");
-  const [inputPassword, setInputPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
+
+  // Google Account Entry & Post-Login Profile Completion
+  const [googleEmailInput, setGoogleEmailInput] = useState("");
+  const [showGoogleInput, setShowGoogleInput] = useState(false);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileRollNo, setProfileRollNo] = useState("");
+  const [profileProgram, setProfileProgram] = useState("B.Tech DSAI");
+  const [profileSemester, setProfileSemester] = useState("Semester 5");
+  const [profileSection, setProfileSection] = useState("Section A");
+
+  // Active student profile
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [rollNo, setRollNo] = useState("");
 
-  // Sign In Form Input State (for new phones)
+  // Legacy compatibility states
   const [inputName, setInputName] = useState("");
   const [inputRollNo, setInputRollNo] = useState("");
   const [inputEmail, setInputEmail] = useState("");
@@ -322,185 +333,115 @@ export default function StudentPortal() {
     };
   }, []);
 
-  const handleGoogleSignIn = async () => {
-    setIsSigningInGoogle(true);
-    setOauthError(null);
-    try {
-      const redirectOrigin = typeof window !== "undefined" ? window.location.origin : "https://admin-web-peach-one.vercel.app";
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${redirectOrigin}/student`
-        }
-      });
-      if (error) {
-        console.error("Google sign in error:", error);
-        setOauthError(error.message);
-        setIsSigningInGoogle(false);
-      }
-    } catch (e: any) {
-      console.error("Google OAuth exception:", e);
-      setOauthError(e?.message || "Failed to initiate Google sign in");
-      setIsSigningInGoogle(false);
-    }
-  };
-
-  // Normal Email & Password Authentication Handlers
-  const handleEmailSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthSuccessMsg(null);
-    if (!inputEmail.trim() || !inputPassword.trim()) {
-      setAuthError("Please enter your email and password.");
+  const handleVerifyGoogleAccount = async (emailToVerify?: string) => {
+    const targetEmail = (emailToVerify || googleEmailInput).trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setAuthError("Please enter a valid Google email address.");
       return;
     }
+
     setAuthLoading(true);
+    setAuthError(null);
 
     try {
-      const cleanEmail = inputEmail.trim().toLowerCase();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: inputPassword
-      });
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id, name, email, students(id, roll_number, semester, program_id)")
+        .ilike("email", targetEmail)
+        .maybeSingle();
 
-      if (error) {
-        setAuthError(error.message || "Invalid email or password");
-        setAuthLoading(false);
-        return;
-      }
+      const sData = (dbUser as any)?.students;
+      const studentObj = Array.isArray(sData) ? sData[0] : sData;
+      const existingRoll = studentObj?.roll_number?.trim();
+      const emailPrefix = targetEmail.split("@")[0].toUpperCase();
 
-      if (data.user) {
-        await processUserSession(data.user);
+      const isRollComplete = Boolean(existingRoll && existingRoll !== emailPrefix && existingRoll.length >= 3);
+
+      if (dbUser && isRollComplete) {
+        const finalName = dbUser.name || "Student";
+        setStudentName(finalName);
+        setRollNo(existingRoll);
+        setStudentEmail(targetEmail);
+        setIsLoggedIn(true);
+
+        localStorage.setItem("smart_attendance_student_profile", JSON.stringify({
+          name: finalName,
+          rollNo: existingRoll,
+          email: targetEmail
+        }));
+
+        loadStudentEnrollments(existingRoll);
+        syncDeviceBinding(existingRoll, finalName, targetEmail);
+
+        const live = await getActiveSessionFromDB();
+        if (live) setActiveSession(live);
+      } else {
+        setProfileEmail(targetEmail);
+        const inferredName = dbUser?.name || targetEmail.split("@")[0].replace(/[._0-9]/g, " ").trim() || "Student";
+        setProfileName(inferredName.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "));
+        setProfileRollNo(isRollComplete ? existingRoll : "");
+        if (studentObj?.semester) {
+          setProfileSemester("Semester " + studentObj.semester);
+        }
+        setShowProfileSetup(true);
       }
     } catch (err: any) {
-      setAuthError(err?.message || "Sign in failed");
+      setAuthError(err?.message || "Verification failed. Please try again.");
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleEmailRegister = async (e: React.FormEvent) => {
+  const handleCompleteStudentProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError(null);
-    setAuthSuccessMsg(null);
+    const cleanName = profileName.trim();
+    const cleanRoll = profileRollNo.trim().toUpperCase();
 
-    if (!inputName.trim() || !inputRollNo.trim() || !inputEmail.trim() || !inputPassword.trim()) {
-      setAuthError("Please fill in all registration fields.");
+    if (!cleanName) {
+      setAuthError("Please enter your full name.");
       return;
     }
-
-    if (inputPassword.length < 6) {
-      setAuthError("Password must be at least 6 characters.");
+    if (!cleanRoll) {
+      setAuthError("Please enter your official college roll number.");
       return;
     }
 
     setAuthLoading(true);
-    const cleanName = inputName.trim();
-    const cleanRoll = inputRollNo.trim().toUpperCase();
-    const cleanEmail = inputEmail.trim().toLowerCase();
+    setAuthError(null);
 
     try {
-      // 1. Register with Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: inputPassword,
-        options: {
-          data: {
-            full_name: cleanName,
-            roll_no: cleanRoll
-          }
-        }
-      });
-
-      if (error) {
-        if (error.message.toLowerCase().includes("already registered") || error.message.toLowerCase().includes("exists")) {
-          setAuthError("An account with this email already exists. Please switch to Sign In.");
-        } else {
-          setAuthError(error.message);
-        }
-        setAuthLoading(false);
-        return;
-      }
-
-      // 2. Link in Supabase public students table
       await registerOrGetStudentInDB({
         name: cleanName,
         rollNo: cleanRoll,
-        email: cleanEmail
+        email: profileEmail
       });
 
-      // 3. Set logged in state
       setStudentName(cleanName);
       setRollNo(cleanRoll);
-      setStudentEmail(cleanEmail);
+      setStudentEmail(profileEmail);
       setIsLoggedIn(true);
       autoCheckedInRef.current = false;
-      setMyClasses([]);
 
       localStorage.setItem("smart_attendance_student_profile", JSON.stringify({
         name: cleanName,
         rollNo: cleanRoll,
-        email: cleanEmail
+        email: profileEmail,
+        program: profileProgram,
+        semester: profileSemester,
+        section: profileSection
       }));
 
       loadStudentEnrollments(cleanRoll);
-      setAuthSuccessMsg("Account registered successfully!");
+      await syncDeviceBinding(cleanRoll, cleanName, profileEmail);
 
       const live = await getActiveSessionFromDB();
-      if (live) {
-        setActiveSession(live);
-      }
+      if (live) setActiveSession(live);
     } catch (err: any) {
-      setAuthError(err?.message || "Registration failed");
+      setAuthError(err?.message || "Failed to complete profile.");
     } finally {
       setAuthLoading(false);
     }
   };
-
-  const handleStudentLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputName.trim() || !inputRollNo.trim()) return;
-
-    const cleanName = inputName.trim();
-    const cleanRoll = inputRollNo.trim().toUpperCase();
-    const cleanEmail = inputEmail.trim() || `${cleanRoll.toLowerCase()}@student.iiitnr.edu.in`;
-
-    setStudentName(cleanName);
-    setRollNo(cleanRoll);
-    setStudentEmail(cleanEmail);
-    setIsLoggedIn(true);
-    autoCheckedInRef.current = false;
-    setAttendanceStatus("PENDING");
-    loadStudentEnrollments(cleanRoll);
-
-    localStorage.setItem("smart_attendance_student_profile", JSON.stringify({
-      name: cleanName,
-      rollNo: cleanRoll,
-      email: cleanEmail
-    }));
-
-    // Register into Supabase cloud DB immediately
-    registerOrGetStudentInDB({
-      name: cleanName,
-      rollNo: cleanRoll,
-      email: cleanEmail
-    }).then(() => {
-      const saved = localStorage.getItem(`smart_attendance_enrolled_${cleanRoll}`);
-      let enrolledList: EnrolledClass[] = [];
-      try {
-        if (saved) enrolledList = JSON.parse(saved);
-      } catch (e) {}
-      if (activeSession && enrolledList.some(c => 
-        c.id === activeSession.classId || 
-        c.joinCode.toUpperCase() === activeSession.joinCode.toUpperCase() || 
-        c.subjectCode.toUpperCase() === activeSession.subjectCode.toUpperCase()
-      )) {
-        executePresenceVerification(activeSession, cleanName, cleanRoll, cleanEmail);
-      }
-    }).catch(err => console.warn("Background student register warning:", err));
-  };
-
-
 
   const handleLogout = async () => {
     try {
@@ -508,6 +449,9 @@ export default function StudentPortal() {
     } catch (e) {}
     localStorage.removeItem("smart_attendance_student_profile");
     setIsLoggedIn(false);
+    setShowProfileSetup(false);
+    setShowGoogleInput(false);
+    setGoogleEmailInput("");
     setStudentName("");
     setRollNo("");
     setStudentEmail("");
@@ -912,308 +856,284 @@ export default function StudentPortal() {
     }
   };
 
-  // IF NOT LOGGED IN: SHOW STUDENT SIGN IN / REGISTRATION SCREEN
+  // IF NOT LOGGED IN: SHOW GOOGLE SIGN IN & PROFILE COMPLETION
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 sm:p-6 font-sans">
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 selection:bg-blue-500 selection:text-white">
         <header className="max-w-md mx-auto w-full flex items-center justify-between py-4">
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/" 
-              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-slate-900 font-black text-lg shadow-lg shadow-blue-500/25"
-            >
-              SA
-            </Link>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-600/20">
+              IIIT
+            </div>
             <div>
-              <span className="font-extrabold text-base tracking-tight text-slate-900">IIIT Naya Raipur</span>
-              <span className="text-xs block text-slate-600">Student Sign In</span>
+              <span className="font-black tracking-tight text-slate-900 block text-xs">IIIT NAYA RAIPUR</span>
+              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider block">Student Portal</span>
             </div>
           </div>
-          <Link href="/" className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1">
+          <Link href="/" className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1 font-medium transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Home</span>
           </Link>
         </header>
 
         <div className="max-w-md mx-auto w-full my-auto py-6">
-          <div className="bg-white border border-slate-200 shadow-sm rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-500/20 flex items-center justify-center mx-auto mb-3">
-                <GraduationCap className="w-6 h-6" />
+          {showProfileSetup ? (
+            <div className="bg-white border border-slate-200 shadow-xl rounded-3xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileSetup(false)}
+                  className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-semibold transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Switch Account</span>
+                </button>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                  Step 2 of 2
+                </span>
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Student Login</h1>
-              <p className="text-xs text-slate-600">Enter your details to mark attendance on this device</p>
-            </div>
 
-            {/* Google Sign In Option */}
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isSigningInGoogle}
-                className="w-full py-3.5 px-4 bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-900 rounded-2xl font-bold text-sm shadow-xl flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200"
-              >
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-                <span>{isSigningInGoogle ? "Connecting Google..." : "Sign in with Google"}</span>
-              </button>
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-500/20 flex items-center justify-center mx-auto mb-2">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">Complete Student Profile</h1>
+                <p className="text-xs text-slate-500">Link your official university roll number with your Google account</p>
+              </div>
 
-              {oauthError && (
-                <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 p-3 rounded-2xl space-y-1">
-                  <div className="font-bold flex items-center justify-between">
-                    <span>Google Sign In Notice</span>
-                    <button type="button" onClick={() => setOauthError(null)} className="text-rose-400 hover:text-rose-600 text-xs font-bold px-1">✕</button>
+              {/* Connected Google Account Badge */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center font-black text-blue-600 text-xs shadow-sm">
+                    G
                   </div>
-                  <p className="text-[11px] leading-relaxed text-rose-700">{oauthError}</p>
-                  <p className="text-[10px] text-slate-500 pt-1">Tip: You can use <b>⚡ Quick Roll No</b> or <b>Email Sign In / Register</b> below for instant access.</p>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block truncate max-w-[200px]">{profileEmail}</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Google Account Connected
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{authError}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-3 py-1">
-                <div className="h-px bg-slate-100 flex-1"></div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  or use email & password
-                </span>
-                <div className="h-px bg-slate-100 flex-1"></div>
-              </div>
-            </div>
-
-            {/* Tab Selector: Quick Login vs Sign In vs Create Account */}
-            <div className="grid grid-cols-3 p-1 bg-slate-50 border border-slate-200 rounded-2xl gap-1">
-              <button
-                type="button"
-                onClick={() => { setAuthMode("quick"); setAuthError(null); setAuthSuccessMsg(null); }}
-                className={`py-2 text-[11px] font-bold rounded-xl transition-all cursor-pointer ${
-                  authMode === "quick"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                ⚡ Quick Roll No
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthMode("signin"); setAuthError(null); setAuthSuccessMsg(null); }}
-                className={`py-2 text-[11px] font-bold rounded-xl transition-all cursor-pointer ${
-                  authMode === "signin"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Email Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthMode("register"); setAuthError(null); setAuthSuccessMsg(null); }}
-                className={`py-2 text-[11px] font-bold rounded-xl transition-all cursor-pointer ${
-                  authMode === "register"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Register
-              </button>
-            </div>
-
-            {authError && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            {authSuccessMsg && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                <span>{authSuccessMsg}</span>
-              </div>
-            )}
-
-            {authMode === "quick" ? (
-              <form onSubmit={handleStudentLogin} className="space-y-4">
+              <form onSubmit={handleCompleteStudentProfile} className="space-y-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      Full Name *
-                    </label>
-                    <span className="text-[10px] text-blue-600 font-medium">Instant Verify</span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Pooja Verma or Rahul"
-                    value={inputName}
-                    onChange={(e) => setInputName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                    Institutional Roll Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 26CS042 or 26CS015"
-                    value={inputRollNo}
-                    onChange={(e) => setInputRollNo(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm uppercase font-mono tracking-wider"
-                  />
-                </div>
-
-                
-
-                <button
-                  type="submit"
-                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/25 transition-all hover:scale-[1.01] cursor-pointer"
-                >
-                  Sign In to Console & Mark Attendance →
-                </button>
-              </form>
-            ) : authMode === "signin" ? (
-              <form onSubmit={handleEmailSignIn} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                    College / Personal Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. rahul@student.iiitnr.edu.in"
-                    value={inputEmail}
-                    onChange={(e) => setInputEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={inputPassword}
-                    onChange={(e) => setInputPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/25 transition-all hover:scale-[1.01] cursor-pointer"
-                >
-                  {authLoading ? "Signing In..." : "Sign In to Student Console →"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleEmailRegister} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Full Name *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rahul Kumar or Pooja Verma"
-                    value={inputName}
-                    onChange={(e) => setInputName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm"
+                    placeholder="e.g. Nihal Kumar"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white focus:outline-none text-slate-900 text-sm font-medium transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                    Institutional Roll Number *
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      College Roll Number *
+                    </label>
+                    <span className="text-[10px] text-rose-600 font-bold">Required</span>
+                  </div>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. 26CS042 or 26DSAI001"
-                    value={inputRollNo}
-                    onChange={(e) => setInputRollNo(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm uppercase font-mono tracking-wider"
+                    placeholder="e.g. 263200113 or BT23DSAI001"
+                    value={profileRollNo}
+                    onChange={(e) => setProfileRollNo(e.target.value.toUpperCase())}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white focus:outline-none text-slate-900 text-sm uppercase font-mono tracking-wider font-bold transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                    Email Address *
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Branch / Program
                   </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. rahul@student.iiitnr.edu.in"
-                    value={inputEmail}
-                    onChange={(e) => setInputEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm"
-                  />
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {["B.Tech DSAI", "B.Tech CSE", "B.Tech ECE", "M.Tech CSE"].map((prog) => (
+                      <button
+                        key={prog}
+                        type="button"
+                        onClick={() => setProfileProgram(prog)}
+                        className={
+                          profileProgram === prog
+                            ? "py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer bg-blue-50 border-blue-600 text-blue-600 shadow-sm"
+                            : "py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }
+                      >
+                        {prog}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-                    Create Password * (min 6 characters)
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Semester
                   </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="••••••••"
-                    value={inputPassword}
-                    onChange={(e) => setInputPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:outline-none text-slate-900 text-sm"
-                  />
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {["Semester 1", "Semester 2", "Semester 3", "Semester 4", "Semester 5", "Semester 6", "Semester 7", "Semester 8"].map((sem) => (
+                      <button
+                        key={sem}
+                        type="button"
+                        onClick={() => setProfileSemester(sem)}
+                        className={
+                          profileSemester === sem
+                            ? "py-1.5 px-3 text-xs font-bold rounded-xl border shrink-0 transition-all cursor-pointer bg-blue-50 border-blue-600 text-blue-600 shadow-sm"
+                            : "py-1.5 px-3 text-xs font-bold rounded-xl border shrink-0 transition-all cursor-pointer bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }
+                      >
+                        {sem}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Section
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {["Section A", "Section B", "Section C"].map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => setProfileSection(sec)}
+                        className={
+                          profileSection === sec
+                            ? "py-2 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer bg-blue-50 border-blue-600 text-blue-600 shadow-sm"
+                            : "py-2 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }
+                      >
+                        {sec}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/25 transition-all hover:scale-[1.01] cursor-pointer"
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/25 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {authLoading ? "Creating Account..." : "Register & Create Student Account →"}
+                  {authLoading ? (
+                    <span>Saving Profile...</span>
+                  ) : (
+                    <>
+                      <span>Save Profile & Enter Portal</span>
+                      <Check className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
-            )}
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 shadow-xl rounded-3xl p-6 sm:p-8 space-y-6">
+              <div className="text-center space-y-1">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 border border-blue-500/20 flex items-center justify-center mx-auto mb-3 shadow-sm">
+                  <GraduationCap className="w-7 h-7" />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">Student Login</h1>
+                <p className="text-xs text-slate-500">Sign in with your Google account to access attendance</p>
+              </div>
 
-            <div className="text-center pt-1">
-              {authMode === "signin" ? (
-                <p className="text-xs text-slate-600">
-                  New to IIIT-NR Portal?{" "}
+              {authError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              {/* Primary Google Login Button */}
+              {!showGoogleInput ? (
+                <div className="space-y-4 pt-1">
                   <button
                     type="button"
-                    onClick={() => { setAuthMode("register"); setAuthError(null); setAuthSuccessMsg(null); }}
-                    className="text-blue-600 hover:underline font-bold cursor-pointer"
+                    onClick={() => {
+                      setShowGoogleInput(true);
+                      setAuthError(null);
+                    }}
+                    className="w-full py-4 px-4 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-900 rounded-2xl font-bold text-sm shadow-sm hover:shadow-md flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-300"
                   >
-                    Create an Account
+                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>Sign in with Google</span>
                   </button>
-                </p>
+
+                  <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-center">
+                    <p className="text-[11px] text-blue-700 font-medium">
+                      Institutional (@iiitnr.edu.in) & Personal (@gmail.com) accounts allowed.
+                    </p>
+                  </div>
+                </div>
               ) : (
-                <p className="text-xs text-slate-600">
-                  Already have an account?{" "}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleVerifyGoogleAccount();
+                  }}
+                  className="space-y-4 animate-in fade-in"
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Google Account / Gmail Address
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleInput(false)}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      autoFocus
+                      placeholder="e.g. rahul@gmail.com or rahul@iiitnr.edu.in"
+                      value={googleEmailInput}
+                      onChange={(e) => setGoogleEmailInput(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 focus:border-blue-500 focus:bg-white focus:outline-none text-slate-900 text-sm font-medium transition-all"
+                    />
+                  </div>
+
                   <button
-                    type="button"
-                    onClick={() => { setAuthMode("signin"); setAuthError(null); setAuthSuccessMsg(null); }}
-                    className="text-blue-600 hover:underline font-bold cursor-pointer"
+                    type="submit"
+                    disabled={authLoading}
+                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
-                    Sign In here
+                    {authLoading ? (
+                      <span>Verifying Google Account...</span>
+                    ) : (
+                      <>
+                        <span>Continue with Google →</span>
+                      </>
+                    )}
                   </button>
-                </p>
+                </form>
               )}
             </div>
-
-
-          </div>
+          )}
         </div>
 
-        <footer className="text-center text-xs text-slate-600 py-4">
-          IIIT-NR Smart Attendance System • Student Verification
+        <footer className="text-center text-xs text-slate-500 py-4">
+          IIIT-NR Smart Attendance System • Cryptographic Presence
         </footer>
       </div>
     );
