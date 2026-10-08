@@ -134,6 +134,19 @@ data class EnrolledStudentInfo(
     val enrollmentType: String = "CORE"
 )
 
+data class TeacherSessionHistoryRecord(
+    val sessionId: String,
+    val subjectName: String,
+    val subjectCode: String,
+    val room: String,
+    val startTime: String,
+    val endTime: String?,
+    val status: String,
+    val totalPresent: Int,
+    val totalAbsent: Int,
+    val records: List<LiveStudentAttendanceItem>
+)
+
 data class FinalRollCallRecord(
     val studentId: String,
     val rollNumber: String,
@@ -424,6 +437,30 @@ object SupabaseAttendanceService {
             } catch (e: Exception) {
                 Log.w(TAG, "Non-fatal event insert note: ${e.message}")
             }
+
+            // 2.8 Duplicate Attendance Check: Once marked PRESENT, prevent re-submitting
+            try {
+                val checkReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/attendance_records?session_id=eq.$sessionId&student_id=eq.$resolvedStudentId&status=eq.PRESENT&select=id&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+                val checkRes = client.newCall(checkReq).execute()
+                val checkArr = JSONArray(checkRes.body?.string() ?: "[]")
+                if (checkArr.length() > 0) {
+                    Log.d(TAG, "Student $roll is ALREADY marked PRESENT in session $sessionId. Skipping duplicate insertion.")
+                    return@withContext Result.success(
+                        QrAttendanceResult(
+                            success = true,
+                            studentName = resolvedStudentName,
+                            rollNumber = roll,
+                            sessionId = sessionId,
+                            message = "Attendance already recorded for this lecture."
+                        )
+                    )
+                }
+            } catch (_: Exception) {}
 
             // 3. Upsert record into attendance_records as PRESENT
             val recordPayload = JSONArray().apply {
@@ -3389,6 +3426,133 @@ object SupabaseAttendanceService {
     /**
      * Authenticates faculty via Google Sign-In with temporary domain bypass for testing.
      */
+    /**
+     * Check if student is already marked PRESENT in the specified session
+     */
+    suspend fun isStudentMarkedPresent(sessionId: String, rollNumber: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            if (sessionId.isBlank() || rollNumber.isBlank()) return@withContext false
+            val cleanRoll = rollNumber.trim()
+            val encodedRoll = java.net.URLEncoder.encode(cleanRoll, "UTF-8")
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_records?session_id=eq.$sessionId&status=eq.PRESENT&students!inner(roll_number)&students.roll_number=eq.$encodedRoll&select=id&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val res = client.newCall(req).execute()
+            val arr = JSONArray(res.body?.string() ?: "[]")
+            arr.length() > 0
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking isStudentMarkedPresent", e)
+            false
+        }
+    }
+
+    /**
+     * Fetch complete attendance history of all sessions conducted by teacher
+     */
+    suspend fun fetchTeacherAttendanceHistory(): Result<List<TeacherSessionHistoryRecord>> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?select=id,status,start_time,end_time,classes(id,room,subjects(name,code)),attendance_records(id,student_id,status,presence_percentage,verification_method,marked_at,notes,students(roll_number,users(name)))&order=created_at.desc&limit=50")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+
+            val res = client.newCall(req).execute()
+            val body = res.body?.string() ?: "[]"
+            val arr = JSONArray(body)
+
+            val list = mutableListOf<TeacherSessionHistoryRecord>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val sId = obj.getString("id")
+                val status = obj.optString("status", "COMPLETED")
+                val startTime = obj.optString("start_time", "")
+                val endTime = if (obj.has("end_time") && !obj.isNull("end_time")) obj.getString("end_time") else null
+
+                var room = "Room A-302"
+                var subCode = "CS"
+                var subName = "Course Lecture"
+
+                if (obj.has("classes") && !obj.isNull("classes")) {
+                    val clsObj = obj.getJSONObject("classes")
+                    room = clsObj.optString("room", room)
+                    if (clsObj.has("subjects") && !clsObj.isNull("subjects")) {
+                        val subObj = clsObj.getJSONObject("subjects")
+                        subCode = subObj.optString("code", subCode)
+                        subName = subObj.optString("name", subName)
+                    }
+                }
+
+                val recordsList = mutableListOf<LiveStudentAttendanceItem>()
+                var presentCount = 0
+                var absentCount = 0
+
+                if (obj.has("attendance_records") && !obj.isNull("attendance_records")) {
+                    val recArr = obj.getJSONArray("attendance_records")
+                    for (j in 0 until recArr.length()) {
+                        val rObj = recArr.getJSONObject(j)
+                        val rId = rObj.getString("id")
+                        val stId = rObj.optString("student_id", "")
+                        val rStatus = rObj.optString("status", "PRESENT")
+                        val rPct = rObj.optDouble("presence_percentage", 100.0)
+                        val rMethod = rObj.optString("verification_method", "BLE_AUTO")
+                        val rMarked = rObj.optString("marked_at", "")
+                        val rNotes = if (rObj.has("notes") && !rObj.isNull("notes")) rObj.getString("notes") else null
+
+                        var name = "Student"
+                        var roll = "N/A"
+                        if (rObj.has("students") && !rObj.isNull("students")) {
+                            val stObj = rObj.getJSONObject("students")
+                            roll = stObj.optString("roll_number", "N/A")
+                            if (stObj.has("users") && !stObj.isNull("users")) {
+                                name = stObj.getJSONObject("users").optString("name", "Student")
+                            }
+                        }
+
+                        if (rStatus == "PRESENT") presentCount++ else absentCount++
+
+                        recordsList.add(
+                            LiveStudentAttendanceItem(
+                                id = rId,
+                                studentId = stId,
+                                studentName = name,
+                                rollNumber = roll,
+                                status = rStatus,
+                                presencePercentage = rPct,
+                                verificationMethod = rMethod,
+                                markedAtIso = rMarked,
+                                notes = rNotes
+                            )
+                        )
+                    }
+                }
+
+                list.add(
+                    TeacherSessionHistoryRecord(
+                        sessionId = sId,
+                        subjectName = subName,
+                        subjectCode = subCode,
+                        room = room,
+                        startTime = startTime,
+                        endTime = endTime,
+                        status = status,
+                        totalPresent = presentCount,
+                        totalAbsent = absentCount,
+                        records = recordsList
+                    )
+                )
+            }
+            Result.success(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching teacher attendance history", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun authenticateFacultyWithGoogle(
         googleProfile: GoogleUserProfile,
         allowAnyDomainForTesting: Boolean = true

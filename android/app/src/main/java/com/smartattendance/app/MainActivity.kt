@@ -18,11 +18,13 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.FactCheck
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +42,7 @@ import com.smartattendance.app.ui.student.StudentHomeScreen
 import com.smartattendance.app.ui.teacher.ActiveLectureScreen
 import com.smartattendance.app.ui.teacher.AttendanceReviewScreen
 import com.smartattendance.app.ui.teacher.TeacherHomeScreen
+import com.smartattendance.app.ui.teacher.TeacherAttendanceHistoryScreen
 import com.smartattendance.app.ui.teacher.TeacherScheduleScreen
 import com.smartattendance.app.ui.theme.*
 
@@ -57,7 +60,8 @@ enum class StudentTab {
 enum class TeacherTab {
     HOME,
     SCHEDULE,
-    ACTIVE_ROLL_CALL
+    ACTIVE_ROLL_CALL,
+    RECORDS
 }
 
 enum class TeacherSubStep {
@@ -304,6 +308,19 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 )
+
+                                                AppllamaTabItem(
+                                                    selected = currentTeacherTab == TeacherTab.RECORDS,
+                                                    label = "Records",
+                                                    selectedIcon = Icons.Filled.FactCheck,
+                                                    unselectedIcon = Icons.Outlined.FactCheck,
+                                                    onClick = {
+                                                        if (currentTeacherTab != TeacherTab.RECORDS) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentTeacherTab = TeacherTab.RECORDS
+                                                        }
+                                                    }
+                                                )
                                             }
                                         }
                                     }
@@ -389,6 +406,12 @@ class MainActivity : ComponentActivity() {
                                                             )
                                                         }
                                                     }
+                                                }
+                                                TeacherTab.RECORDS -> {
+                                                    TeacherAttendanceHistoryScreen(
+                                                        facultyName = facultyName,
+                                                        onLogout = { logout() }
+                                                    )
                                                 }
                                             }
                                         }

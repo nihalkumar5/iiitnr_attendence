@@ -607,17 +607,33 @@ export default function StudentPortal() {
 
       // Student wifi is maintained from hardware or simulation selection
 
-      // ZERO-TOUCH WI-FI SYNC: Check if student is already marked present via classroom Wi-Fi AP in DB
+      // ZERO-TOUCH WI-FI SYNC: Check if student is already marked present via classroom Wi-Fi AP or Android app in DB
       if (rollNo) {
         try {
-          const { data: rec } = await supabase
+          let isDbMarked = false;
+          const { data: recByStudent } = await supabase
             .from("attendance_records")
-            .select("id, status, verification_method, wifi_ap_verified")
+            .select("id, status, students!inner(roll_number)")
             .eq("session_id", dbSession.id)
-            .eq("sensor_details->>roll_number", rollNo)
+            .eq("students.roll_number", rollNo)
+            .eq("status", "PRESENT")
+            .limit(1)
             .maybeSingle();
 
-          if (rec?.status === "PRESENT") {
+          if (recByStudent?.id) {
+            isDbMarked = true;
+          } else {
+            const { data: rec } = await supabase
+              .from("attendance_records")
+              .select("id, status")
+              .eq("session_id", dbSession.id)
+              .eq("sensor_details->>roll_number", rollNo)
+              .eq("status", "PRESENT")
+              .maybeSingle();
+            if (rec?.id) isDbMarked = true;
+          }
+
+          if (isDbMarked) {
             setAttendanceStatus("PRESENT");
             autoCheckedInRef.current = true;
             markedPresentSessionsRef.current.add(dbSession.id);

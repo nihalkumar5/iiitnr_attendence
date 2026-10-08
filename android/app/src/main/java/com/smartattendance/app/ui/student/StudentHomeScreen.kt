@@ -164,6 +164,14 @@ fun StudentHomeScreen(
                     return@launch
                 }
 
+                // Database check: Once marked PRESENT, lock status and prevent duplicate submissions
+                val isDbPresent = SupabaseAttendanceService.isStudentMarkedPresent(session.sessionId, activeRoll)
+                if (isDbPresent) {
+                    isVerifiedPresent = true
+                    prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
+                    return@launch
+                }
+
                 val requiredSsid = session.requiredWifiSsid.ifBlank { "Pranjal, IIIT-NR-Campus, IIITNR_STUDENTS" }
                 val currentSsid = snap.ssid?.replace("\"", "")?.trim() ?: ""
                 val isWifiMatched = snap.isConnected && isWifiSsidAllowed(currentSsid, requiredSsid)
@@ -447,6 +455,35 @@ fun StudentHomeScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = if (isVerifiedPresent) StatusPresent else StatusReview,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (isVerifiedPresent) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = BadgeShape,
+                            color = StatusPresentBg,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, StatusPresentBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = StatusPresent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Attendance Recorded • Re-marking locked",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = StatusPresent
                                 )
                             }
                         }
