@@ -287,39 +287,93 @@ export default function StudentPortal() {
       setTimeout(initializeGoogleGSI, 300);
     }
     // 0. Handle OAuth callback tokens from URL hash (popup or redirect)
-    if (typeof window !== "undefined" && window.location.hash.includes("access_token=")) {
+    if (typeof window !== "undefined" && (window.location.hash.includes("id_token=") || window.location.hash.includes("access_token="))) {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const idToken = hashParams.get("id_token");
       const accessToken = hashParams.get("access_token");
-      if (accessToken) {
+
+      if (idToken || accessToken) {
         if (window.opener && window.opener !== window) {
           try {
-            window.opener.postMessage({ type: "GOOGLE_OAUTH_TOKEN", token: accessToken }, window.location.origin);
+            window.opener.postMessage({ type: "GOOGLE_OAUTH_TOKEN", idToken, accessToken }, window.location.origin);
             window.close();
             return;
           } catch (e) {}
         }
         window.history.replaceState({}, document.title, window.location.pathname);
         setAuthLoading(true);
-        fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: "Bearer " + accessToken },
-        })
-          .then(r => r.json())
-          .then(handleVerifiedGoogleUser)
-          .catch(() => setAuthError("Failed to fetch Google profile."))
+
+        (async () => {
+          if (idToken) {
+            try {
+              await supabase.auth.signInWithIdToken({
+                provider: "google",
+                token: idToken,
+              });
+            } catch (e) {
+              console.warn("Supabase ID token sign in:", e);
+            }
+          }
+
+          if (accessToken) {
+            const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+              headers: { Authorization: "Bearer " + accessToken },
+            });
+            const user = await res.json();
+            await handleVerifiedGoogleUser(user);
+          } else if (idToken) {
+            const base64Url = idToken.split(".")[1];
+            const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+            const jsonPayload = decodeURIComponent(
+              atob(base64)
+                .split("")
+                .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+                .join("")
+            );
+            const user = JSON.parse(jsonPayload);
+            await handleVerifiedGoogleUser(user);
+          }
+        })()
+          .catch(() => setAuthError("Failed to complete Google authentication."))
           .finally(() => setAuthLoading(false));
       }
     }
 
     const handleOAuthMessage = async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      if (event.data?.type === "GOOGLE_OAUTH_TOKEN" && event.data?.token) {
+      if (event.data?.type === "GOOGLE_OAUTH_TOKEN") {
+        const { idToken, accessToken } = event.data;
         setAuthLoading(true);
         try {
-          const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-            headers: { Authorization: "Bearer " + event.data.token },
-          });
-          const user = await res.json();
-          await handleVerifiedGoogleUser(user);
+          if (idToken) {
+            try {
+              await supabase.auth.signInWithIdToken({
+                provider: "google",
+                token: idToken,
+              });
+            } catch (e) {
+              console.warn("Supabase ID token sign in:", e);
+            }
+          }
+
+          if (accessToken) {
+            const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+              headers: { Authorization: "Bearer " + accessToken },
+            });
+            const user = await res.json();
+            await handleVerifiedGoogleUser(user);
+          } else if (idToken) {
+            const base64Url = idToken.split(".")[1];
+            const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+            const jsonPayload = decodeURIComponent(
+              atob(base64)
+                .split("")
+                .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+                .join("")
+            );
+            const user = JSON.parse(jsonPayload);
+            await handleVerifiedGoogleUser(user);
+          }
         } catch (e) {
           setAuthError("Failed to verify Google account from popup.");
         } finally {
@@ -491,7 +545,22 @@ export default function StudentPortal() {
 
   const handleGoogleCredentialResponse = async (response: any) => {
     if (!response?.credential) return;
+    setAuthLoading(true);
+    setAuthError(null);
     try {
+      // 1. Authenticate with Supabase Auth so user is created in auth.users with Provider = Google!
+      try {
+        const { error: sbAuthErr } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: response.credential,
+        });
+        if (sbAuthErr) {
+          console.warn("Supabase auth.signInWithIdToken note:", sbAuthErr.message);
+        }
+      } catch (sbErr) {
+        console.warn("Supabase auth exception:", sbErr);
+      }
+
       const base64Url = response.credential.split(".")[1];
       const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
       const jsonPayload = decodeURIComponent(
@@ -504,6 +573,8 @@ export default function StudentPortal() {
       await handleVerifiedGoogleUser(googleUser);
     } catch (err: any) {
       setAuthError("Failed to parse Google credential token.");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -555,7 +626,8 @@ export default function StudentPortal() {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
     const redirectUri = window.location.origin + window.location.pathname;
-    const oauthUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + GOOGLE_CLIENT_ID + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&response_type=token&scope=email%20profile%20openid&prompt=select_account";
+    const nonce = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const oauthUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + GOOGLE_CLIENT_ID + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&response_type=id_token%20token&scope=openid%20email%20profile&nonce=" + nonce + "&prompt=select_account";
 
     const popup = window.open(
       oauthUrl,

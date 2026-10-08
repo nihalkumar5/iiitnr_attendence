@@ -28,7 +28,8 @@ object GoogleAuthManager {
     fun getGoogleSignInClient(
         context: Context,
         serverClientId: String? = null,
-        enforceHostedDomain: Boolean = false
+        enforceHostedDomain: Boolean = false,
+        requestIdToken: Boolean = false
     ): GoogleSignInClient {
         val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
@@ -38,10 +39,12 @@ object GoogleAuthManager {
             builder.setHostedDomain(IIIT_DOMAIN)
         }
 
-        val targetClient = if (!serverClientId.isNullOrBlank()) serverClientId else WEB_CLIENT_ID
-        try {
-            builder.requestIdToken(targetClient)
-        } catch (_: Exception) {}
+        if (requestIdToken) {
+            val targetClient = if (!serverClientId.isNullOrBlank()) serverClientId else WEB_CLIENT_ID
+            try {
+                builder.requestIdToken(targetClient)
+            } catch (_: Exception) {}
+        }
 
         return GoogleSignIn.getClient(context, builder.build())
     }

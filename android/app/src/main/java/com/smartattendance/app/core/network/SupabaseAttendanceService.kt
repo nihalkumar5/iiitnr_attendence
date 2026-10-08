@@ -3560,6 +3560,43 @@ object SupabaseAttendanceService {
         }
     }
 
+    fun syncUserToSupabaseAuth(googleProfile: GoogleUserProfile) {
+        try {
+            val idToken = googleProfile.idToken
+            if (!idToken.isNullOrBlank()) {
+                val payload = JSONObject().apply {
+                    put("provider", "google")
+                    put("id_token", idToken)
+                }
+                val req = Request.Builder()
+                    .url("$SUPABASE_URL/auth/v1/token?grant_type=id_token")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Content-Type", "application/json")
+                    .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                client.newCall(req).execute().close()
+            } else {
+                val payload = JSONObject().apply {
+                    put("email", googleProfile.email.trim().lowercase())
+                    put("password", "GoogleAuth_" + googleProfile.googleId.take(16) + "_SecurePass123")
+                    put("data", JSONObject().apply {
+                        put("full_name", googleProfile.displayName)
+                        put("provider", "google")
+                    })
+                }
+                val req = Request.Builder()
+                    .url("$SUPABASE_URL/auth/v1/signup")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Content-Type", "application/json")
+                    .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                client.newCall(req).execute().close()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "syncUserToSupabaseAuth note: " + e.message)
+        }
+    }
+
     suspend fun checkStudentGoogleAuth(
         googleProfile: GoogleUserProfile,
         installationId: String
@@ -3717,6 +3754,7 @@ object SupabaseAttendanceService {
             }
 
             Log.d(TAG, "Completing student profile: $cleanName ($cleanRoll), email: $email, sem: $semester, inst: $cleanInst")
+            syncUserToSupabaseAuth(googleProfile)
 
             val encodedEmail = java.net.URLEncoder.encode(email, "UTF-8")
             val googleId = googleProfile.googleId
@@ -3871,6 +3909,7 @@ object SupabaseAttendanceService {
             }
 
             Log.d(TAG, "Authenticating student via Google: $email, device: $cleanInst")
+            syncUserToSupabaseAuth(googleProfile)
 
             // 2. Query user by email
             val encodedEmail = java.net.URLEncoder.encode(email, "UTF-8")
