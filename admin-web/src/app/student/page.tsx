@@ -131,6 +131,7 @@ export default function StudentPortal() {
   const [autoCheckInToast, setAutoCheckInToast] = useState<string | null>(null);
   const [isDbSynced, setIsDbSynced] = useState(false);
   const autoCheckedInRef = useRef<boolean>(false);
+  const markedPresentSessionsRef = useRef<Set<string>>(new Set());
 
   const syncDeviceBinding = async (r: string, n: string, e?: string) => {
     try {
@@ -619,6 +620,7 @@ export default function StudentPortal() {
           if (rec?.status === "PRESENT") {
             setAttendanceStatus("PRESENT");
             autoCheckedInRef.current = true;
+            markedPresentSessionsRef.current.add(dbSession.id);
           }
         } catch (e) {}
       }
@@ -630,6 +632,7 @@ export default function StudentPortal() {
     setActiveSessionCode(null);
     setAttendanceStatus("PENDING");
     autoCheckedInRef.current = false;
+    markedPresentSessionsRef.current.clear();
     localStorage.removeItem("smart_attendance_active_session_code");
   };
 
@@ -643,9 +646,13 @@ export default function StudentPortal() {
     )
   );
 
-  // AUTOMATIC ATTENDANCE EXECUTION (Only triggers if enrolled!)
+  // AUTOMATIC ATTENDANCE EXECUTION (Only triggers if enrolled and not yet marked!)
   useEffect(() => {
-    if (!isLoggedIn || !activeSessionCode || !activeSession || !isEnrolledInActive || isVerifyingPresence) {
+    if (!isLoggedIn || !activeSession || !isEnrolledInActive || isVerifyingPresence) {
+      return;
+    }
+    // Prevent repeated verification if already marked PRESENT for this session
+    if (markedPresentSessionsRef.current.has(activeSession.id) || attendanceStatus === "PRESENT") {
       return;
     }
 
@@ -654,7 +661,7 @@ export default function StudentPortal() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [isLoggedIn, activeSessionCode, activeSession, isEnrolledInActive, geoMode, studentConnectedWifi]);
+  }, [isLoggedIn, activeSession?.id, isEnrolledInActive, geoMode, studentConnectedWifi, attendanceStatus]);
 
   const executePresenceVerification = async (
     sess: DBSession,
@@ -688,21 +695,26 @@ export default function StudentPortal() {
       const isPresent = geoResult.isInside && isWifiMatched;
 
       if (isPresent) {
-        autoCheckedInRef.current = true;
         setAttendanceStatus("PRESENT");
-        setAutoCheckInToast(`⚡ Automatic Attendance Recorded for ${sess.subjectName}!`);
-        setTimeout(() => setAutoCheckInToast(null), 4000);
+        autoCheckedInRef.current = true;
 
-        await recordStudentAttendanceInDB({
-          sessionId: sess.id,
-          rollNo: activeRollNo,
-          name: activeStudentName,
-          email: activeEmail,
-          status: "PRESENT",
-          distanceMeters: geoResult.distanceMeters,
-          wifiSsid: currentWifi || "Pranjal",
-          isWifiMatched: true
-        });
+        // ONLY fire toast notification and record to DB ONCE per session!
+        if (!markedPresentSessionsRef.current.has(sess.id)) {
+          markedPresentSessionsRef.current.add(sess.id);
+          setAutoCheckInToast(`⚡ Automatic Attendance Recorded for ${sess.subjectName}!`);
+          setTimeout(() => setAutoCheckInToast(null), 4000);
+
+          await recordStudentAttendanceInDB({
+            sessionId: sess.id,
+            rollNo: activeRollNo,
+            name: activeStudentName,
+            email: activeEmail,
+            status: "PRESENT",
+            distanceMeters: geoResult.distanceMeters,
+            wifiSsid: currentWifi || "Pranjal",
+            isWifiMatched: true
+          });
+        }
       } else {
         // MONOTONIC ATTENDANCE: Once marked PRESENT, do NOT flip back to ABSENT
         // when phone screen dims, Wi-Fi scans or user switches tabs!
