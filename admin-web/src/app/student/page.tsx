@@ -720,53 +720,38 @@ export default function StudentPortal() {
     setJoinErrorMsg(null);
     setJoinSuccessMsg(null);
 
-    const rawEntered = joinCodeInput.trim();
-    const entered = rawEntered.toUpperCase();
+    const entered = joinCodeInput.trim().toUpperCase();
     if (!entered) return;
 
     if (myClasses.some(c => 
       c.joinCode.toUpperCase() === entered || 
-      c.subjectCode.toUpperCase() === entered ||
-      c.id === entered
+      c.subjectCode.toUpperCase() === entered
     )) {
       setJoinErrorMsg("You are already enrolled in this subject!");
       return;
     }
 
-    let pool = availableDbClasses;
-    if (pool.length === 0) {
-      pool = await fetchLiveClassesFromDB();
-      setAvailableDbClasses(pool);
-    }
+    // 1. Fetch live classes from DB
+    const pool = await fetchLiveClassesFromDB();
+    setAvailableDbClasses(pool);
 
-    // Prefix match (e.g. CS50 from CS50-6375)
-    const enteredPrefix = entered.split("-")[0].replace(/[^A-Z0-9]/g, "");
-
+    // 2. Exact match check (NO loose prefix matching)
     let matched = pool.find(c => {
-      const subCodeClean = c.subjectCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      const joinClean = c.joinCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
       const androidCode = getAndroidJoinCode(c.subjectCode, c.id).toUpperCase();
       return (
         c.joinCode.toUpperCase() === entered ||
-        androidCode === entered ||
         c.subjectCode.toUpperCase() === entered ||
-        c.id.toUpperCase() === entered ||
-        joinClean === entered.replace(/[^A-Z0-9]/g, "") ||
-        subCodeClean.startsWith(enteredPrefix) ||
-        enteredPrefix.startsWith(subCodeClean.slice(0, 4)) ||
-        c.subjectName.toUpperCase().includes(entered) ||
-        c.subjectName.toUpperCase().includes(enteredPrefix)
+        androidCode === entered
       );
     });
 
+    // 3. Exact match against active live lecture
     if (!matched && activeSession) {
       const activeAndroidCode = getAndroidJoinCode(activeSession.subjectCode, activeSession.classId).toUpperCase();
       if (
         activeSession.joinCode.toUpperCase() === entered ||
-        activeAndroidCode === entered ||
         activeSession.subjectCode.toUpperCase() === entered ||
-        entered.includes(activeSession.subjectCode.toUpperCase()) ||
-        activeSession.joinCode.toUpperCase().startsWith(enteredPrefix)
+        activeAndroidCode === entered
       ) {
         matched = {
           id: activeSession.classId,
@@ -786,50 +771,47 @@ export default function StudentPortal() {
       }
     }
 
-    // Deep Supabase DB query fallback if created recently on Android
+    // 4. Exact query to Supabase database for subjects with exact matching code
     if (!matched) {
       try {
-        const { data: dbClasses } = await supabase
-          .from("classes")
-          .select("id, room, is_active, subjects(id, name, code), teachers(id, users(name))")
-          .limit(20);
+        const { data: dbSub } = await supabase
+          .from("subjects")
+          .select(`
+            id, name, code,
+            classes (
+              id, room, is_active,
+              teachers ( id, users ( name ) )
+            )
+          `)
+          .ilike("code", entered)
+          .maybeSingle();
 
-        if (dbClasses && dbClasses.length > 0) {
-          for (const item of dbClasses) {
-            const sub: any = Array.isArray(item.subjects) ? item.subjects[0] : item.subjects;
-            const t: any = Array.isArray(item.teachers) ? item.teachers[0] : item.teachers;
-            const tUser: any = t?.users || {};
-            const subCode = sub?.code || "CS301";
-            const aCode = getAndroidJoinCode(subCode, item.id);
-            const subPrefix = subCode.toUpperCase().slice(0, 4);
+        if (dbSub) {
+          const clsList: any[] = dbSub.classes || [];
+          const cls = clsList.find((x: any) => x.is_active) || clsList[0];
+          const t = cls?.teachers;
+          const tUser = Array.isArray(t) ? t[0]?.users : t?.users;
 
-            if (
-              aCode.toUpperCase() === entered ||
-              subCode.toUpperCase() === entered ||
-              subPrefix === enteredPrefix ||
-              entered.startsWith(subPrefix)
-            ) {
-              matched = {
-                id: item.id,
-                subjectCode: subCode,
-                subjectName: sub?.name || "Subject Batch",
-                section: "Section A",
-                joinCode: aCode,
-                roomNo: item.room || "Room A-204",
-                wifiSsid: "Pranjal",
-                latitude: 21.128456,
-                longitude: 81.766184,
-                teacherId: t?.id || "",
-                teacherName: tUser.name || "Dr. S. Sharma",
-                students: [],
-                createdAt: new Date().toISOString()
-              };
-              break;
-            }
+          if (cls) {
+            matched = {
+              id: cls.id,
+              subjectCode: dbSub.code,
+              subjectName: dbSub.name,
+              section: "Section A",
+              joinCode: dbSub.code,
+              roomNo: cls.room || "Room A-204 (AC Block)",
+              wifiSsid: "Pranjal",
+              latitude: 21.128456,
+              longitude: 81.766184,
+              teacherId: t?.id || "",
+              teacherName: tUser?.name || "Dr. Sharma",
+              students: [],
+              createdAt: new Date().toISOString()
+            };
           }
         }
-      } catch (err) {
-        console.warn("Deep DB subject search warning:", err);
+      } catch (e) {
+        console.warn("DB search error:", e);
       }
     }
 
