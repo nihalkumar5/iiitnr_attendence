@@ -590,6 +590,85 @@ object SupabaseAttendanceService {
     }
 
     /**
+     * Faculty starts live attendance session in Supabase for a specific class.
+     * Guarantees all prior sessions are closed first and returns genuine new session ID.
+     */
+    suspend fun startClassAttendanceSession(
+        classId: String,
+        subjectName: String,
+        subjectCode: String,
+        room: String,
+        chosenWifiSsid: String = "Pranjal",
+        teacherId: String = "977d23e7-4b43-4a7a-af74-b3fb2855beae"
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            endAllActiveSessions()
+
+            var effectiveClassId = classId
+            try {
+                val checkReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/classes?id=eq.$classId&select=id&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+                val checkRes = client.newCall(checkReq).execute()
+                val checkArr = JSONArray(checkRes.body?.string() ?: "[]")
+                if (checkArr.length() == 0) {
+                    val cleanSub = subjectCode.trim().uppercase()
+                    val subMatchReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.$cleanSub&limit=1")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .get()
+                        .build()
+                    val subMatchRes = client.newCall(subMatchReq).execute()
+                    val subMatchArr = JSONArray(subMatchRes.body?.string() ?: "[]")
+                    if (subMatchArr.length() > 0) {
+                        effectiveClassId = subMatchArr.getJSONObject(0).getString("id")
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val nowIso = sdf.format(Date())
+
+            val cleanWifi = chosenWifiSsid.trim().ifBlank { "Pranjal" }
+            val payload = JSONObject().apply {
+                put("class_id", effectiveClassId)
+                put("teacher_id", teacherId)
+                put("status", "ACTIVE")
+                put("start_time", nowIso)
+                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+            }
+
+            val insertReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=representation")
+                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val insertRes = client.newCall(insertReq).execute()
+            val insertBody = insertRes.body?.string() ?: "[]"
+            val insertArr = JSONArray(insertBody)
+            if (insertArr.length() > 0) {
+                val newSessId = insertArr.getJSONObject(0).getString("id")
+                Result.success(newSessId)
+            } else {
+                Result.failure(IllegalStateException("Failed to create attendance session in Supabase"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in startClassAttendanceSession", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Faculty starts live attendance session in Supabase with chosen Wi-Fi AP requirement and class details
      */
     suspend fun startAttendanceSession(

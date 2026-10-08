@@ -681,7 +681,7 @@ export async function enrollStudentInClassInDB(params: {
           class_id: params.classId,
           teacher_id: teacherId,
           session_secret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-          status: "ACTIVE",
+          status: "SCHEDULED",
           start_time: new Date().toISOString()
         })
         .select()

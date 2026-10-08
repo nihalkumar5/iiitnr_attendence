@@ -625,28 +625,12 @@ export default function StudentPortal() {
       return;
     }
 
-    const localCode = localStorage.getItem("smart_attendance_active_session_code");
-    const localRoom = localStorage.getItem("smart_attendance_active_room") || "Room A-204";
-    const localWifi = localStorage.getItem("smart_attendance_active_wifi_ssid") || "Pranjal";
-    
-    if (localCode) {
-      setActiveSessionCode(localCode);
-      setActiveSession({
-        id: "local-sess-" + localCode,
-        classId: "cls-1",
-        teacherId: "t-1",
-        status: "ACTIVE",
-        startTime: new Date().toISOString(),
-        joinCode: localCode,
-        subjectCode: localCode.split("-")[0] || "CS301",
-        subjectName: "Data Mining & Warehousing",
-        roomNo: localRoom,
-        wifiSsid: localWifi
-      });
-    } else {
-      setActiveSession(null);
-      setActiveSessionCode(null);
-    }
+    // Attendance is ONLY open when teacher has explicitly started it in Supabase DB
+    setActiveSession(null);
+    setActiveSessionCode(null);
+    setAttendanceStatus("PENDING");
+    autoCheckedInRef.current = false;
+    localStorage.removeItem("smart_attendance_active_session_code");
   };
 
   // Enrolled check: student must have joined the class to take attendance!
@@ -1422,6 +1406,23 @@ export default function StudentPortal() {
             )}
           </section>
         ) : null}
+
+        {!activeSession && (
+          <section className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Attendance Not Started</h3>
+                <p className="text-xs text-slate-500">Your professor has not opened attendance yet. When teacher clicks &quot;Start Attendance&quot;, verification will pop up automatically.</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full shrink-0 self-start sm:self-auto">
+              Waiting for Professor
+            </span>
+          </section>
+        )}
 
         {/* Join Subject Card */}
         <section className="bg-white border border-slate-200 shadow-sm rounded-3xl p-6 space-y-4 shadow-sm">

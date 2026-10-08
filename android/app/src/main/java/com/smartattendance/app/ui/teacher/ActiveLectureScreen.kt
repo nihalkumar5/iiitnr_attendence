@@ -67,7 +67,7 @@ fun ActiveLectureScreen(
     var scannedNetworks by remember { mutableStateOf<List<ScannedWifiNetwork>>(emptyList()) }
     var isScanningWifi by remember { mutableStateOf(false) }
 
-    val activeSessionId = "c921ca2a-bddf-487f-a5c8-55c05929655f"
+    var activeSessionId by remember { mutableStateOf<String?>(null) }
 
     fun refreshWifiScan() {
         isScanningWifi = true
@@ -114,6 +114,30 @@ fun ActiveLectureScreen(
 
     LaunchedEffect(classId) {
         loadRoster()
+        coroutineScope.launch {
+            val res = SupabaseAttendanceService.startClassAttendanceSession(
+                classId = classId,
+                subjectName = subjectName,
+                subjectCode = subjectCode,
+                room = room,
+                chosenWifiSsid = activeWifiSsid
+            )
+            res.onSuccess { newId ->
+                activeSessionId = newId
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                val sId = activeSessionId
+                if (!sId.isNullOrBlank()) {
+                    SupabaseAttendanceService.endAttendanceSession(sId)
+                }
+                SupabaseAttendanceService.endAllActiveSessions()
+            }
+        }
     }
 
     // Timer ticker
@@ -125,10 +149,11 @@ fun ActiveLectureScreen(
     }
 
     // Continuous Live Supabase Attendance Polling (Every 2.5 Seconds)
-    LaunchedEffect(Unit) {
+    LaunchedEffect(activeSessionId) {
+        val sId = activeSessionId ?: return@LaunchedEffect
         while (true) {
             try {
-                val result = SupabaseAttendanceService.fetchLiveSessionAttendance(activeSessionId)
+                val result = SupabaseAttendanceService.fetchLiveSessionAttendance(sId)
                 result.onSuccess { records ->
                     liveAttendanceRecords = records
                 }
@@ -638,7 +663,7 @@ fun ActiveLectureScreen(
 
                                                 coroutineScope.launch {
                                                     SupabaseAttendanceService.markStudentManualAttendance(
-                                                        sessionId = activeSessionId,
+                                                        sessionId = activeSessionId ?: "",
                                                         studentId = student.id,
                                                         isPresent = true
                                                     )
@@ -816,9 +841,15 @@ fun ActiveLectureScreen(
                         showSubmitConfirmDialog = false
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         coroutineScope.launch(Dispatchers.IO) {
-                            SupabaseAttendanceService.endAttendanceSession(activeSessionId)
+                            val sId = activeSessionId
+                            if (!sId.isNullOrBlank()) {
+                                SupabaseAttendanceService.endAttendanceSession(sId)
+                            }
+                            SupabaseAttendanceService.endAllActiveSessions()
+                            withContext(Dispatchers.Main) {
+                                onEndLecture()
+                            }
                         }
-                        onEndLecture()
                     },
                     shape = ButtonShape,
                     colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
@@ -882,7 +913,10 @@ fun ActiveLectureScreen(
                                     prefs.edit().putString("faculty_chosen_wifi_ssid", ssid).apply()
                                     isUpdatingWifi = true
                                     coroutineScope.launch {
-                                        SupabaseAttendanceService.updateClassroomWifiForSession(activeSessionId, ssid)
+                                        val sId = activeSessionId
+                                        if (!sId.isNullOrBlank()) {
+                                            SupabaseAttendanceService.updateClassroomWifiForSession(sId, ssid)
+                                        }
                                         isUpdatingWifi = false
                                         showChangeWifiDialog = false
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
