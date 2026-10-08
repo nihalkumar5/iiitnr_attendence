@@ -3,6 +3,7 @@ package com.smartattendance.app.ui.auth
 import android.accounts.AccountManager
 import android.app.Activity
 import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -167,6 +168,15 @@ fun LoginScreen(
     var showManualEmailInput by remember { mutableStateOf(false) }
     var manualEmailText by remember { mutableStateOf("") }
 
+    var showUnbindDialog by remember { mutableStateOf(false) }
+    var unbindRollInput by remember { mutableStateOf("") }
+    var unbindReasonInput by remember { mutableStateOf("") }
+    var isSubmittingUnbind by remember { mutableStateOf(false) }
+
+    val lockedRoll = remember { prefs.getString("device_locked_student_roll", null) }
+    val lockedName = remember { prefs.getString("device_locked_student_name", null) }
+    val lockedEmail = remember { prefs.getString("device_locked_student_email", null)?.trim()?.lowercase() }
+
     // Post-Login Profile Completion States (for students)
     var showProfileCompletion by remember { mutableStateOf(false) }
     var pendingGoogleProfile by remember { mutableStateOf<GoogleUserProfile?>(null) }
@@ -192,6 +202,17 @@ fun LoginScreen(
 
         coroutineScope.launch {
             if (selectedPortal == LoginPortal.STUDENT) {
+                // 1. Hardware Device Lock Protection (1 Student = 1 Device)
+                val cleanEmail = profile.email.trim().lowercase()
+                if (!lockedEmail.isNullOrBlank()) {
+                    val isSame = cleanEmail == lockedEmail || cleanEmail.substringBefore("@").equals(lockedEmail.substringBefore("@"), ignoreCase = true)
+                    if (!isSame) {
+                        isLoading = false
+                        securityWarning = "DEVICE LOCKED (Anti-Proxy Violation):\nThis phone is hardware-locked to student $lockedName ($lockedRoll).\nDifferent student IDs cannot be opened on this device. Contact faculty administration to request a device unbind."
+                        return@launch
+                    }
+                }
+
                 val checkRes = SupabaseAttendanceService.checkStudentGoogleAuth(
                     googleProfile = profile,
                     installationId = installationId
@@ -210,6 +231,9 @@ fun LoginScreen(
                             .putString("student_id", student.studentId)
                             .putString("user_id", student.userId)
                             .putString("device_id", student.deviceId)
+                            .putString("device_locked_student_email", profile.email)
+                            .putString("device_locked_student_roll", student.rollNumber)
+                            .putString("device_locked_student_name", student.name)
                             .putBoolean("is_device_bound", true)
                             .putBoolean("is_profile_completed", true)
                             .apply()
@@ -717,6 +741,9 @@ fun LoginScreen(
                                             .putString("student_id", student.studentId)
                                             .putString("user_id", student.userId)
                                             .putString("device_id", student.deviceId)
+                                            .putString("device_locked_student_email", googleProf.email)
+                                            .putString("device_locked_student_roll", cleanRoll)
+                                            .putString("device_locked_student_name", cleanName)
                                             .putBoolean("is_device_bound", true)
                                             .putBoolean("is_profile_completed", true)
                                             .apply()
@@ -944,6 +971,30 @@ fun LoginScreen(
                                     color = Color(0xFF991B1B),
                                     lineHeight = 16.sp
                                 )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = {
+                                        unbindRollInput = prefs.getString("device_locked_student_roll", "") ?: ""
+                                        showUnbindDialog = true
+                                    },
+                                    shape = ButtonShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = StatusAbsent),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LockOpen,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Request Device Unbind from Teacher",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -1238,4 +1289,72 @@ fun LoginScreen(
             }
         }
     }
+
+    // DEVICE UNBIND REQUEST DIALOG
+    if (showUnbindDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isSubmittingUnbind) showUnbindDialog = false },
+            shape = DialogShape,
+            containerColor = CardBackground,
+            title = {
+                Text("Request Device Unbind", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Submit an unbind request to faculty. Once approved in the Faculty Devices Console, this phone will be unlocked for a new ID.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = unbindRollInput,
+                        onValueChange = { unbindRollInput = it },
+                        label = { Text("Student Roll Number") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = unbindReasonInput,
+                        onValueChange = { unbindReasonInput = it },
+                        label = { Text("Reason (e.g. Phone Reset / Device Transfer)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (unbindRollInput.isBlank()) return@Button
+                        isSubmittingUnbind = true
+                        coroutineScope.launch {
+                            val res = SupabaseAttendanceService.requestDeviceUnbind(unbindRollInput, unbindReasonInput)
+                            isSubmittingUnbind = false
+                            showUnbindDialog = false
+                            if (res.isSuccess) {
+                                Toast.makeText(context, "✓ Unbind request sent to teacher. Wait for faculty approval.", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(context, "Error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    shape = ButtonShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                    enabled = !isSubmittingUnbind && unbindRollInput.isNotBlank()
+                ) {
+                    if (isSubmittingUnbind) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Submit Request", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showUnbindDialog = false }, shape = ButtonShape) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 }

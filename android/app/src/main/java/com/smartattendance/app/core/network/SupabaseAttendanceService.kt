@@ -1444,13 +1444,14 @@ object SupabaseAttendanceService {
 
                 if (boundStudentId != studentId) {
                     // This device belongs to a different student!
-                    if (boundStatus == "ACTIVE") {
+                    if (boundStatus == "ACTIVE" || boundStatus == "PENDING_APPROVAL") {
                         val boundRoll = devObj.optJSONObject("students")?.optString("roll_number") ?: "another student"
-                        Log.e(TAG, "ANTI_PROXY_LOCK: Hardware $cleanInst is bound to $boundRoll, attempted by $cleanRoll")
+                        val boundName = devObj.optJSONObject("students")?.optJSONObject("users")?.optString("name") ?: ""
+                        Log.e(TAG, "ANTI_PROXY_LOCK: Hardware $cleanInst is bound to $boundRoll ($boundName), attempted by $cleanRoll")
                         return@withContext Result.failure(
-                            SecurityException("ANTI_PROXY_LOCK: This phone is hardware-bound to student $boundRoll. Proxy attendance or multi-account usage is strictly blocked.")
+                            SecurityException("DEVICE LOCKED (Anti-Proxy Violation): This phone is hardware-bound to student $boundName ($boundRoll). Multiple student accounts on a single phone are strictly prohibited.")
                         )
-                    } else {
+                    } else if (boundStatus == "UNBOUND" || boundStatus == "REVOKED") {
                         // Previous student had an approved unbind or revoked status -> reassign hardware to this student
                         val currentModel = android.os.Build.MODEL ?: "Android Device"
                         val updatePayload = JSONObject().apply {
@@ -3610,6 +3611,38 @@ object SupabaseAttendanceService {
                 )
             }
 
+            // 0. HARDWARE DEVICE LOCK: 1 Student = 1 Device
+            if (cleanInst.isNotBlank()) {
+                val devCheckReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/devices?installation_id=eq.$cleanInst&status=eq.ACTIVE&select=id,student_id,status,device_model,students(id,roll_number,user_id,users(id,name,email))&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+
+                val devCheckRes = client.newCall(devCheckReq).execute()
+                val devCheckBody = devCheckRes.body?.string() ?: "[]"
+                val devCheckArr = JSONArray(devCheckBody)
+
+                if (devCheckArr.length() > 0) {
+                    val devObj = devCheckArr.getJSONObject(0)
+                    val sObj = devObj.optJSONObject("students")
+                    val uObj = sObj?.optJSONObject("users")
+                    val boundRoll = sObj?.optString("roll_number", "")?.trim() ?: ""
+                    val boundEmail = uObj?.optString("email", "")?.trim()?.lowercase() ?: ""
+                    val boundName = uObj?.optString("name", "")?.trim() ?: "Registered Student"
+
+                    val isSameEmail = email == boundEmail || (boundEmail.isNotBlank() && email.substringBefore("@").equals(boundEmail.substringBefore("@"), ignoreCase = true))
+
+                    if (!isSameEmail) {
+                        Log.e(TAG, "DEVICE_LOCK: Hardware $cleanInst is bound to $boundName ($boundRoll, $boundEmail). Blocked login attempt from $email")
+                        return@withContext Result.failure(
+                            SecurityException("DEVICE LOCKED (Anti-Proxy Violation):\nThis device is hardware-locked to student $boundName ($boundRoll).\nDifferent student IDs cannot be opened on this device.")
+                        )
+                    }
+                }
+            }
+
             val encodedEmail = java.net.URLEncoder.encode(email, "UTF-8")
             val googleId = googleProfile.googleId
             val userReq = Request.Builder()
@@ -3742,6 +3775,37 @@ object SupabaseAttendanceService {
             val cleanRoll = rollNumber.trim().uppercase()
             val email = googleProfile.email.trim().lowercase()
             val cleanInst = installationId.trim()
+
+            // 0. HARDWARE DEVICE LOCK CHECK: 1 Student = 1 Device
+            if (cleanInst.isNotBlank()) {
+                val devCheckReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/devices?installation_id=eq.$cleanInst&status=eq.ACTIVE&select=id,student_id,status,device_model,students(id,roll_number,user_id,users(id,name,email))&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+
+                val devCheckRes = client.newCall(devCheckReq).execute()
+                val devCheckBody = devCheckRes.body?.string() ?: "[]"
+                val devCheckArr = JSONArray(devCheckBody)
+
+                if (devCheckArr.length() > 0) {
+                    val devObj = devCheckArr.getJSONObject(0)
+                    val sObj = devObj.optJSONObject("students")
+                    val uObj = sObj?.optJSONObject("users")
+                    val boundRoll = sObj?.optString("roll_number", "")?.trim() ?: ""
+                    val boundEmail = uObj?.optString("email", "")?.trim()?.lowercase() ?: ""
+                    val boundName = uObj?.optString("name", "")?.trim() ?: "Registered Student"
+
+                    val isSameEmail = email == boundEmail || (boundEmail.isNotBlank() && email.substringBefore("@").equals(boundEmail.substringBefore("@"), ignoreCase = true))
+
+                    if (!isSameEmail) {
+                        return@withContext Result.failure(
+                            SecurityException("DEVICE LOCKED (Anti-Proxy Violation):\nThis device is hardware-locked to student $boundName ($boundRoll).\nDifferent student profiles cannot be created or opened on this device.")
+                        )
+                    }
+                }
+            }
 
             if (cleanName.isBlank()) {
                 return@withContext Result.failure(Exception("Full Name cannot be empty."))
