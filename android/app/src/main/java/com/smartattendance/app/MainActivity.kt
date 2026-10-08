@@ -361,6 +361,7 @@ class MainActivity : ComponentActivity() {
                                                         TeacherSubStep.ACTIVE_LECTURE -> {
                                                              ActiveLectureScreen(
                                                                 classId = activeLectureClass?.id ?: "class-01",
+                                                                joinCode = activeLectureClass?.joinCode ?: "",
                                                                 subjectName = activeLectureClass?.subjectName ?: "Data Structures & Algorithms",
                                                                 subjectCode = activeLectureClass?.subjectCode ?: "CS501",
                                                                 room = activeLectureClass?.room ?: "Room A-204 (AC Block)",

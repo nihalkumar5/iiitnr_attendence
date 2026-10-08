@@ -595,9 +595,10 @@ object SupabaseAttendanceService {
      */
     suspend fun startClassAttendanceSession(
         classId: String,
-        subjectName: String,
-        subjectCode: String,
-        room: String,
+        joinCode: String = "",
+        subjectName: String = "",
+        subjectCode: String = "",
+        room: String = "Room A-302",
         chosenWifiSsid: String = "Pranjal",
         teacherId: String = "977d23e7-4b43-4a7a-af74-b3fb2855beae"
     ): Result<String> = withContext(Dispatchers.IO) {
@@ -605,30 +606,97 @@ object SupabaseAttendanceService {
             endAllActiveSessions()
 
             var effectiveClassId = classId
-            try {
-                val checkReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/classes?id=eq.$classId&select=id&limit=1")
-                    .addHeader("apikey", ANON_KEY)
-                    .addHeader("Authorization", "Bearer $ANON_KEY")
-                    .get()
-                    .build()
-                val checkRes = client.newCall(checkReq).execute()
-                val checkArr = JSONArray(checkRes.body?.string() ?: "[]")
-                if (checkArr.length() == 0) {
-                    val cleanSub = subjectCode.trim().uppercase()
-                    val subMatchReq = Request.Builder()
-                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.$cleanSub&limit=1")
+            var resolved = false
+
+            // 1. Resolve by joinCode
+            val cleanJoin = joinCode.trim().uppercase()
+            if (cleanJoin.isNotBlank()) {
+                try {
+                    val subReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.$cleanJoin&limit=1")
                         .addHeader("apikey", ANON_KEY)
                         .addHeader("Authorization", "Bearer $ANON_KEY")
                         .get()
                         .build()
-                    val subMatchRes = client.newCall(subMatchReq).execute()
-                    val subMatchArr = JSONArray(subMatchRes.body?.string() ?: "[]")
-                    if (subMatchArr.length() > 0) {
-                        effectiveClassId = subMatchArr.getJSONObject(0).getString("id")
+                    val subRes = client.newCall(subReq).execute()
+                    val arr = JSONArray(subRes.body?.string() ?: "[]")
+                    if (arr.length() > 0) {
+                        effectiveClassId = arr.getJSONObject(0).getString("id")
+                        resolved = true
                     }
+                } catch (_: Exception) {}
+            }
+
+            // 2. Resolve by subjectCode prefix (e.g. ML*)
+            if (!resolved) {
+                val cleanSub = subjectCode.trim().uppercase()
+                if (cleanSub.isNotBlank()) {
+                    try {
+                        val subMatchReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.${cleanSub}*&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val subMatchRes = client.newCall(subMatchReq).execute()
+                        val subMatchArr = JSONArray(subMatchRes.body?.string() ?: "[]")
+                        if (subMatchArr.length() > 0) {
+                            effectiveClassId = subMatchArr.getJSONObject(0).getString("id")
+                            resolved = true
+                        }
+                    } catch (_: Exception) {}
                 }
-            } catch (_: Exception) {}
+            }
+
+            // 3. Resolve by subjectName
+            if (!resolved) {
+                val cleanName = subjectName.trim().replace(" ", "*")
+                if (cleanName.isNotBlank()) {
+                    try {
+                        val nameMatchReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(name)&subjects.name=ilike.*${cleanName}*&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val nameMatchRes = client.newCall(nameMatchReq).execute()
+                        val nameMatchArr = JSONArray(nameMatchRes.body?.string() ?: "[]")
+                        if (nameMatchArr.length() > 0) {
+                            effectiveClassId = nameMatchArr.getJSONObject(0).getString("id")
+                            resolved = true
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 4. Fallback: check if classId exists directly
+            if (!resolved) {
+                try {
+                    val checkReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classes?id=eq.$classId&select=id&limit=1")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .get()
+                        .build()
+                    val checkRes = client.newCall(checkReq).execute()
+                    val checkArr = JSONArray(checkRes.body?.string() ?: "[]")
+                    if (checkArr.length() > 0) {
+                        effectiveClassId = checkArr.getJSONObject(0).getString("id")
+                    } else {
+                        val firstReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val firstRes = client.newCall(firstReq).execute()
+                        val firstArr = JSONArray(firstRes.body?.string() ?: "[]")
+                        if (firstArr.length() > 0) {
+                            effectiveClassId = firstArr.getJSONObject(0).getString("id")
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
 
             val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
@@ -2538,17 +2606,22 @@ object SupabaseAttendanceService {
         map
     }
 
-    suspend fun fetchCourseRoster(classId: String, joinCode: String = ""): Result<List<EnrolledStudentInfo>> = withContext(Dispatchers.IO) {
+    suspend fun fetchCourseRoster(
+        classId: String,
+        joinCode: String = "",
+        subjectCode: String = "",
+        subjectName: String = ""
+    ): Result<List<EnrolledStudentInfo>> = withContext(Dispatchers.IO) {
         try {
             val list = mutableListOf<EnrolledStudentInfo>()
             var effectiveClassId = classId
+            var resolved = false
 
-            // Resolve real remote classId from joinCode
             val cleanJoin = joinCode.trim().uppercase()
             if (cleanJoin.isNotBlank()) {
                 try {
                     val subReq = Request.Builder()
-                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=eq.$cleanJoin&limit=1")
+                        .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.$cleanJoin&limit=1")
                         .addHeader("apikey", ANON_KEY)
                         .addHeader("Authorization", "Bearer $ANON_KEY")
                         .get()
@@ -2558,9 +2631,50 @@ object SupabaseAttendanceService {
                         val arr = JSONArray(subRes.body?.string() ?: "[]")
                         if (arr.length() > 0) {
                             effectiveClassId = arr.getJSONObject(0).getString("id")
+                            resolved = true
                         }
                     }
                 } catch (_: Exception) {}
+            }
+
+            if (!resolved) {
+                val cleanSub = subjectCode.trim().uppercase()
+                if (cleanSub.isNotBlank()) {
+                    try {
+                        val subMatchReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(code)&subjects.code=ilike.${cleanSub}*&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val subMatchRes = client.newCall(subMatchReq).execute()
+                        val subMatchArr = JSONArray(subMatchRes.body?.string() ?: "[]")
+                        if (subMatchArr.length() > 0) {
+                            effectiveClassId = subMatchArr.getJSONObject(0).getString("id")
+                            resolved = true
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            if (!resolved) {
+                val cleanName = subjectName.trim().replace(" ", "*")
+                if (cleanName.isNotBlank()) {
+                    try {
+                        val nameMatchReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id,subjects!inner(name)&subjects.name=ilike.*${cleanName}*&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val nameMatchRes = client.newCall(nameMatchReq).execute()
+                        val nameMatchArr = JSONArray(nameMatchRes.body?.string() ?: "[]")
+                        if (nameMatchArr.length() > 0) {
+                            effectiveClassId = nameMatchArr.getJSONObject(0).getString("id")
+                            resolved = true
+                        }
+                    } catch (_: Exception) {}
+                }
             }
 
             // 1. Query Supabase course_enrollments for this class

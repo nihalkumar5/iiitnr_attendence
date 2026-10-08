@@ -44,6 +44,7 @@ import java.util.TimeZone
 @Composable
 fun ActiveLectureScreen(
     classId: String = "class-01",
+    joinCode: String = "",
     subjectName: String = "Data Structures & Algorithms",
     subjectCode: String = "CS501",
     room: String = "Room A-204 (AC Block)",
@@ -101,7 +102,7 @@ fun ActiveLectureScreen(
     // Load full enrolled roster from Supabase
     fun loadRoster() {
         coroutineScope.launch {
-            val res = SupabaseAttendanceService.fetchCourseRoster(classId)
+            val res = SupabaseAttendanceService.fetchCourseRoster(classId, joinCode, subjectCode, subjectName)
             res.onSuccess { list ->
                 enrolledRoster = list
                 prefs.edit().putInt("synced_enrolled_student_count", list.size).apply()
@@ -117,6 +118,7 @@ fun ActiveLectureScreen(
         coroutineScope.launch {
             val res = SupabaseAttendanceService.startClassAttendanceSession(
                 classId = classId,
+                joinCode = joinCode,
                 subjectName = subjectName,
                 subjectCode = subjectCode,
                 room = room,
