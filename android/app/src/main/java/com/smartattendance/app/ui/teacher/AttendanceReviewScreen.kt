@@ -595,6 +595,7 @@ fun AttendanceReviewScreen(
                     }
                     if (targetId.isNotBlank()) {
                         SupabaseAttendanceService.commitFinalAttendanceRollCall(targetId, finalRecords)
+                        com.smartattendance.app.core.engine.TimetableEngine.lockClassToday(context, classId, targetId)
                     }
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         isSubmittingCloud = false

@@ -400,6 +400,21 @@ class MainActivity : ComponentActivity() {
                                                                 subjectCode = activeLectureClass?.subjectCode ?: "CS501",
                                                                 room = activeLectureClass?.room ?: "Room A-204 (AC Block)",
                                                                 onSubmitSuccess = {
+                                                                    val targetClass = activeLectureClass
+                                                                    if (targetClass != null) {
+                                                                        com.smartattendance.app.core.engine.TimetableEngine.lockClassToday(
+                                                                            context,
+                                                                            targetClass.id,
+                                                                            activeLectureSessionId
+                                                                        )
+                                                                        val currentSaved = com.smartattendance.app.ui.teacher.loadPersistedSchedule(context)
+                                                                        val updated = currentSaved.map { item ->
+                                                                            if (item.id == targetClass.id || (item.joinCode.isNotBlank() && item.joinCode == targetClass.joinCode)) {
+                                                                                item.copy(status = com.smartattendance.app.ui.teacher.ClassScheduleStatus.LOCKED, isLocked = true)
+                                                                            } else item
+                                                                        }
+                                                                        com.smartattendance.app.ui.teacher.savePersistedSchedule(context, updated)
+                                                                    }
                                                                     teacherStep = TeacherSubStep.HOME
                                                                     currentTeacherTab = TeacherTab.HOME
                                                                 }

@@ -31,6 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartattendance.app.core.engine.TimetableEngine
+import com.smartattendance.app.core.engine.TimetableSlotState
+import androidx.compose.foundation.horizontalScroll
 import com.smartattendance.app.core.network.ActiveSessionInfo
 import com.smartattendance.app.core.network.EnrolledCourseInfo
 import com.smartattendance.app.core.network.LiveStudentAttendanceItem
@@ -169,6 +172,8 @@ fun StudentHomeScreen(
                 if (isDbPresent) {
                     isVerifiedPresent = true
                     prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
+                    TimetableEngine.lockStudentSubjectToday(context, session.subjectName, "PRESENT")
+                    TimetableEngine.lockStudentSubjectToday(context, session.classId, "PRESENT")
                     return@launch
                 }
 
@@ -191,6 +196,8 @@ fun StudentHomeScreen(
                     result.onSuccess {
                         isVerifiedPresent = true
                         prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
+                        TimetableEngine.lockStudentSubjectToday(context, session.subjectName, "PRESENT")
+                        TimetableEngine.lockStudentSubjectToday(context, session.classId, "PRESENT")
                         refreshStatsAndHistory()
 
                         val lastCelebrated = prefs.getString("last_celebrated_session_id", null)
@@ -240,11 +247,12 @@ fun StudentHomeScreen(
             try {
                 val s = SupabaseAttendanceService.fetchActiveSession()
                 if (s == null) {
-                    if (activeSession != null || isVerifiedPresent) {
+                    if (activeSession != null) {
+                        if (isVerifiedPresent) {
+                            TimetableEngine.lockStudentSubjectToday(context, activeSession?.subjectName ?: "", "PRESENT")
+                            TimetableEngine.lockStudentSubjectToday(context, activeSession?.classId ?: "", "PRESENT")
+                        }
                         activeSession = null
-                        isVerifiedPresent = false
-                        prefs.edit().remove("last_verified_session_id").apply()
-                        showSimpleCelebration = false
                         refreshStatsAndHistory()
                     }
                 } else {
@@ -274,6 +282,37 @@ fun StudentHomeScreen(
         (userAttendedClasses.toDouble() / userTotalClasses.toDouble()) * 100.0
     } else {
         attendanceRate
+    }
+
+    // Live Clock & Real Date State
+    var liveDateStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveDate()) }
+    var liveTimeStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveTime()) }
+    var currentIsoDay by remember { mutableStateOf(TimetableEngine.getIsoDayOfWeek()) }
+    var selectedDayFilter by remember { mutableStateOf("TODAY") }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L)
+            liveDateStr = TimetableEngine.formatCurrentLiveDate()
+            liveTimeStr = TimetableEngine.formatCurrentLiveTime()
+            currentIsoDay = TimetableEngine.getIsoDayOfWeek()
+        }
+    }
+
+    val filteredEnrolledCourses = remember(enrolledCourses, selectedDayFilter, currentIsoDay) {
+        when (selectedDayFilter) {
+            "TODAY" -> {
+                val list = enrolledCourses.filter { it.dayOfWeek == currentIsoDay }
+                if (list.isNotEmpty()) list else enrolledCourses
+            }
+            "MON" -> enrolledCourses.filter { it.dayOfWeek == 1 }
+            "TUE" -> enrolledCourses.filter { it.dayOfWeek == 2 }
+            "WED" -> enrolledCourses.filter { it.dayOfWeek == 3 }
+            "THU" -> enrolledCourses.filter { it.dayOfWeek == 4 }
+            "FRI" -> enrolledCourses.filter { it.dayOfWeek == 5 }
+            "SAT" -> enrolledCourses.filter { it.dayOfWeek == 6 }
+            else -> enrolledCourses
+        }
     }
 
     val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
@@ -346,6 +385,113 @@ fun StudentHomeScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // INSTITUTIONAL LIVE CLOCK & DATE BAR
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, BorderHairline, CardShape),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = CardShape
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(BrandAccent)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = liveDateStr,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Live Student Timetable",
+                            fontSize = 10.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = PillShape,
+                    color = AccentPill,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = BrandAccent,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = liveTimeStr,
+                            fontSize = 11.sp,
+                            style = TabularCodeStyle,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // DAY SELECTOR TABS
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val todayCount = enrolledCourses.count { it.dayOfWeek == currentIsoDay }
+            val days = listOf(
+                "TODAY" to "Today ($todayCount)",
+                "MON" to "Mon",
+                "TUE" to "Tue",
+                "WED" to "Wed",
+                "THU" to "Thu",
+                "FRI" to "Fri",
+                "SAT" to "Sat",
+                "ALL" to "All (${enrolledCourses.size})"
+            )
+            days.forEach { (code, label) ->
+                val isSelected = selectedDayFilter == code
+                Surface(
+                    shape = PillShape,
+                    color = if (isSelected) BrandAccent else SurfaceNeutral,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) BrandAccent else BorderHairline),
+                    modifier = Modifier.clickable { selectedDayFilter = code }
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color.White else TextSecondary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         // 2. TODAY'S CLASSES
         Card(
@@ -488,55 +634,91 @@ fun StudentHomeScreen(
                             }
                         }
                     }
-                } else if (enrolledCourses.isNotEmpty()) {
-                    val firstCourse = enrolledCourses.first()
-                    Surface(
-                        shape = BadgeShape,
-                        color = SurfaceNeutral,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "10:00 – 11:00 AM",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = BrandAccent
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = firstCourse.subjectName,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = firstCourse.room.ifBlank { "Room A-204" },
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                            }
+                } else if (filteredEnrolledCourses.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        filteredEnrolledCourses.forEach { course ->
+                            val isCourseLocked = TimetableEngine.isStudentSubjectLockedToday(context, course.subjectCode) ||
+                                TimetableEngine.isStudentSubjectLockedToday(context, course.classId)
+                            val slotState = TimetableEngine.evaluateSlotState(course.dayOfWeek, course.startTime, course.endTime, isCourseLocked)
+                            val isSessionActiveForCourse = activeSession != null &&
+                                (activeSession?.classId == course.classId || activeSession?.subjectName?.contains(course.subjectCode, ignoreCase = true) == true)
 
                             Surface(
                                 shape = BadgeShape,
-                                color = AccentPill,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
+                                color = if (isCourseLocked) StatusPresentBg.copy(alpha = 0.35f) else SurfaceNeutral,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isCourseLocked) StatusPresentBorder else BorderHairline
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = "Upcoming",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextSecondary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = TimetableEngine.formatDisplaySlot(course.startTime, course.endTime),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isCourseLocked) StatusPresent else BrandAccent
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = course.subjectName,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${course.subjectCode} · ${course.room.ifBlank { "Room A-204" }} · ${course.teacherName}",
+                                            fontSize = 11.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = BadgeShape,
+                                        color = when {
+                                            isCourseLocked -> StatusPresentBg
+                                            isSessionActiveForCourse -> StatusReviewBg
+                                            slotState == TimetableSlotState.LIVE_NOW -> BrandAccent.copy(alpha = 0.15f)
+                                            else -> AccentPill
+                                        },
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            when {
+                                                isCourseLocked -> StatusPresentBorder
+                                                isSessionActiveForCourse -> StatusReviewBorder
+                                                slotState == TimetableSlotState.LIVE_NOW -> BrandAccent.copy(alpha = 0.4f)
+                                                else -> BorderHairline
+                                            }
+                                        )
+                                    ) {
+                                        Text(
+                                            text = when {
+                                                isCourseLocked -> "✓ Present 🔒"
+                                                isSessionActiveForCourse -> "● Live"
+                                                slotState == TimetableSlotState.LIVE_NOW -> "● Now"
+                                                slotState == TimetableSlotState.UPCOMING -> "Upcoming"
+                                                else -> "Done"
+                                            },
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = when {
+                                                isCourseLocked -> StatusPresent
+                                                isSessionActiveForCourse -> StatusReview
+                                                slotState == TimetableSlotState.LIVE_NOW -> BrandAccent
+                                                else -> TextSecondary
+                                            },
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

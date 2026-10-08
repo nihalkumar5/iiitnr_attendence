@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartattendance.app.core.network.EnrolledStudentInfo
+import com.smartattendance.app.core.engine.TimetableEngine
 import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -75,6 +76,7 @@ fun TeacherScheduleScreen(
     var roomInput by remember { mutableStateOf("Room A-302") }
     var timeSlotInput by remember { mutableStateOf("10:00 – 11:00 AM") }
     var selectedDayOfWeek by remember { mutableStateOf("Monday") }
+    var selectedDayFilter by remember { mutableStateOf("ALL") }
     var isCreatingSubject by remember { mutableStateOf(false) }
     var addClassError by remember { mutableStateOf<String?>(null) }
     var createdClassSuccess by remember { mutableStateOf<TeacherClassItem?>(null) }
@@ -653,7 +655,18 @@ fun TeacherScheduleScreen(
             }
         } else {
             // VIEW 2: MY SUBJECTS LIST SCREEN
+            val currentIsoDay = remember { TimetableEngine.getIsoDayOfWeek() }
             val activeClasses = classList.filter { it.status != ClassScheduleStatus.CANCELLED }
+            val filteredSubjectClasses = when (selectedDayFilter) {
+                "TODAY" -> activeClasses.filter { it.dayOfWeek == currentIsoDay }
+                "MON" -> activeClasses.filter { it.dayOfWeek == 1 }
+                "TUE" -> activeClasses.filter { it.dayOfWeek == 2 }
+                "WED" -> activeClasses.filter { it.dayOfWeek == 3 }
+                "THU" -> activeClasses.filter { it.dayOfWeek == 4 }
+                "FRI" -> activeClasses.filter { it.dayOfWeek == 5 }
+                "SAT" -> activeClasses.filter { it.dayOfWeek == 6 }
+                else -> activeClasses
+            }
 
             Card(
                 modifier = Modifier
@@ -701,9 +714,48 @@ fun TeacherScheduleScreen(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // DAY SELECTOR TABS
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val todayCount = activeClasses.count { it.dayOfWeek == currentIsoDay }
+                        val dayTabs = listOf(
+                            "ALL" to "All (${activeClasses.size})",
+                            "TODAY" to "Today ($todayCount)",
+                            "MON" to "Mon",
+                            "TUE" to "Tue",
+                            "WED" to "Wed",
+                            "THU" to "Thu",
+                            "FRI" to "Fri",
+                            "SAT" to "Sat"
+                        )
+                        dayTabs.forEach { (code, label) ->
+                            val isSelected = selectedDayFilter == code
+                            Surface(
+                                shape = PillShape,
+                                color = if (isSelected) BrandAccent else SurfaceNeutral,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) BrandAccent else BorderHairline),
+                                modifier = Modifier.clickable { selectedDayFilter = code }
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (activeClasses.isEmpty()) {
+                    if (filteredSubjectClasses.isEmpty()) {
                         Surface(
                             shape = BadgeShape,
                             color = SurfaceNeutral,
@@ -747,7 +799,7 @@ fun TeacherScheduleScreen(
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            activeClasses.forEach { item ->
+                            filteredSubjectClasses.forEach { item ->
                                 Surface(
                                     shape = BadgeShape,
                                     color = SurfaceNeutral,
@@ -1038,17 +1090,35 @@ fun TeacherScheduleScreen(
                             val fullProgramString = "$programInput · $semesterInput · $sectionInput"
                             val generatedJoinCode = "${cleanCode.take(4).filter { it.isLetterOrDigit() }}-${UUID.randomUUID().toString().take(4).uppercase()}"
 
+                            val dayOfWeekInt = when (selectedDayOfWeek) {
+                                "Monday" -> 1
+                                "Tuesday" -> 2
+                                "Wednesday" -> 3
+                                "Thursday" -> 4
+                                "Friday" -> 5
+                                "Saturday" -> 6
+                                "Sunday" -> 7
+                                else -> 1
+                            }
+                            val startMinutes = TimetableEngine.parseTimeToMinutes(timeSlotInput)
+                            val endMinutes = TimetableEngine.parseEndTimeToMinutes(timeSlotInput, startMinutes)
+                            val startIsoTime = String.format(java.util.Locale.US, "%02d:%02d:00", startMinutes / 60, startMinutes % 60)
+                            val endIsoTime = String.format(java.util.Locale.US, "%02d:%02d:00", endMinutes / 60, endMinutes % 60)
+
                             val newClass = TeacherClassItem(
                                 id = UUID.randomUUID().toString(),
                                 subjectName = cleanName,
                                 subjectCode = cleanCode,
                                 program = fullProgramString,
                                 room = cleanRoom,
-                                timeSlot = "$selectedDayOfWeek, $timeSlotInput",
+                                timeSlot = "$selectedDayOfWeek, ${TimetableEngine.formatDisplaySlot(startIsoTime, endIsoTime)}",
                                 enrolledStudents = 0,
                                 isReadyToStart = true,
                                 status = ClassScheduleStatus.SCHEDULED,
-                                joinCode = generatedJoinCode
+                                joinCode = generatedJoinCode,
+                                dayOfWeek = dayOfWeekInt,
+                                startTime = startIsoTime,
+                                endTime = endIsoTime
                             )
 
                             isCreatingSubject = true
@@ -1062,7 +1132,10 @@ fun TeacherScheduleScreen(
                                     room = cleanRoom,
                                     program = fullProgramString,
                                     timeSlot = timeSlotInput.trim(),
-                                    customJoinCode = newClass.joinCode
+                                    customJoinCode = newClass.joinCode,
+                                    dayOfWeek = dayOfWeekInt,
+                                    startTime = startIsoTime,
+                                    endTime = endIsoTime
                                 )
                                 isCreatingSubject = false
                                 showAddClassDialog = false

@@ -111,7 +111,10 @@ data class CourseOfferingOption(
     val subjectName: String,
     val room: String,
     val enrolledCount: Int = 0,
-    val joinCode: String = ""
+    val joinCode: String = "",
+    val dayOfWeek: Int = 1,
+    val startTime: String = "10:00:00",
+    val endTime: String = "11:00:00"
 )
 
 data class EnrolledCourseInfo(
@@ -121,7 +124,11 @@ data class EnrolledCourseInfo(
     val teacherName: String,
     val room: String,
     val joinCode: String = "",
-    val attendancePercentage: Float = 100f
+    val attendancePercentage: Float = 100f,
+    val dayOfWeek: Int = 1,
+    val startTime: String = "10:00:00",
+    val endTime: String = "11:00:00",
+    val isSessionLocked: Boolean = false
 )
 
 data class EnrolledStudentInfo(
@@ -437,6 +444,24 @@ object SupabaseAttendanceService {
             } catch (e: Exception) {
                 Log.w(TAG, "Non-fatal event insert note: ${e.message}")
             }
+
+            // 2.7 Verify Session Status is not COMPLETED/CANCELLED
+            try {
+                val sessReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId&select=status&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+                val sessRes = client.newCall(sessReq).execute()
+                val sessArr = JSONArray(sessRes.body?.string() ?: "[]")
+                if (sessArr.length() > 0) {
+                    val sStatus = sessArr.getJSONObject(0).optString("status", "ACTIVE")
+                    if (sStatus == "COMPLETED" || sStatus == "CANCELLED") {
+                        return@withContext Result.failure(Exception("Attendance session has ended and is locked."))
+                    }
+                }
+            } catch (_: Exception) {}
 
             // 2.8 Duplicate Attendance Check: Once marked PRESENT, prevent re-submitting
             try {
@@ -2361,7 +2386,10 @@ object SupabaseAttendanceService {
         room: String = "Room A-204",
         program: String = "B.Tech DSAI · Semester 5",
         timeSlot: String = "10:00 – 11:00 AM",
-        customJoinCode: String = ""
+        customJoinCode: String = "",
+        dayOfWeek: Int = 1,
+        startTime: String = "10:00:00",
+        endTime: String = "11:00:00"
     ): Result<JSONObject> = withContext(Dispatchers.IO) {
         try {
             val cleanName = subjectName.trim()
@@ -2427,9 +2455,9 @@ object SupabaseAttendanceService {
                     put("teacher_id", teacherId)
                     put("section_id", "b7bd5c04-a4bf-478b-b822-1ca0982b55f4")
                     put("room", cleanRoom)
-                    put("day_of_week", 1)
-                    put("start_time", "10:00:00")
-                    put("end_time", "11:00:00")
+                    put("day_of_week", dayOfWeek)
+                    put("start_time", startTime)
+                    put("end_time", endTime)
                     put("is_active", true)
                 }
                 val classRes = client.newCall(
@@ -2710,7 +2738,7 @@ object SupabaseAttendanceService {
         try {
             val counts = fetchEnrollmentCounts()
             val req = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/classes?select=id,room,is_active,subjects(id,name,code)&order=created_at.desc&limit=30")
+                .url("$SUPABASE_URL/rest/v1/classes?select=id,room,day_of_week,start_time,end_time,is_active,subjects(id,name,code)&order=created_at.desc&limit=30")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()
@@ -2723,6 +2751,9 @@ object SupabaseAttendanceService {
                 val obj = arr.getJSONObject(i)
                 val id = obj.getString("id")
                 val room = obj.optString("room", "Room A-204")
+                val dayOfWeek = obj.optInt("day_of_week", 1)
+                val startTime = obj.optString("start_time", "10:00:00")
+                val endTime = obj.optString("end_time", "11:00:00")
                 val subObj = obj.optJSONObject("subjects")
                 val name = subObj?.optString("name") ?: "Course $i"
                 val code = subObj?.optString("code") ?: "CS$i"
@@ -2733,7 +2764,7 @@ object SupabaseAttendanceService {
                     ?: counts[name.trim().lowercase()]
                     ?: counts[code.trim().uppercase().substringBefore("-")]
                     ?: 0
-                list.add(CourseOfferingOption(id, code, name, room, count, joinCode))
+                list.add(CourseOfferingOption(id, code, name, room, count, joinCode, dayOfWeek, startTime, endTime))
             }
             Result.success(list)
         } catch (e: Exception) {
@@ -3117,7 +3148,7 @@ object SupabaseAttendanceService {
 
             try {
                 val req = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/course_enrollments?select=class_id,classes(id,room,subjects(name,code),teachers(users(name))),students!inner(roll_number)&students.roll_number=eq.$cleanRoll&is_active=eq.true")
+                    .url("$SUPABASE_URL/rest/v1/course_enrollments?select=class_id,classes(id,room,day_of_week,start_time,end_time,subjects(name,code),teachers(users(name))),students!inner(roll_number)&students.roll_number=eq.$cleanRoll&is_active=eq.true")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()
@@ -3131,6 +3162,9 @@ object SupabaseAttendanceService {
                         val classId = cObj.getString("id")
                         val joinCode = cObj.optString("join_code", "")
                         val room = cObj.optString("room", "Room A-204")
+                        val dayOfWeek = cObj.optInt("day_of_week", 1)
+                        val startTime = cObj.optString("start_time", "10:00:00")
+                        val endTime = cObj.optString("end_time", "11:00:00")
                         val subObj = cObj.optJSONObject("subjects")
                         val subName = subObj?.optString("name") ?: "Course $i"
                         val subCode = subObj?.optString("code") ?: "CS$i"
@@ -3145,7 +3179,10 @@ object SupabaseAttendanceService {
                                 teacherName = teacherName,
                                 room = room,
                                 joinCode = joinCode,
-                                attendancePercentage = 88.0f
+                                attendancePercentage = 88.0f,
+                                dayOfWeek = dayOfWeek,
+                                startTime = startTime,
+                                endTime = endTime
                             )
                         )
                     }

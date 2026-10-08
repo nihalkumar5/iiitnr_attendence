@@ -28,10 +28,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartattendance.app.core.engine.TimetableEngine
+import com.smartattendance.app.core.engine.TimetableSlotState
 import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.core.sensor.ScannedWifiNetwork
 import com.smartattendance.app.core.sensor.WifiPresenceManager
 import com.smartattendance.app.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,6 +46,8 @@ import java.util.UUID
 enum class ClassScheduleStatus {
     SCHEDULED,
     ACTIVE,
+    LOCKED,
+    COMPLETED,
     CANCELLED,
     RESCHEDULED
 }
@@ -60,7 +65,11 @@ data class TeacherClassItem(
     val originalTimeSlot: String? = null,
     val cancelReason: String? = null,
     val rescheduleNote: String? = null,
-    val joinCode: String = ""
+    val joinCode: String = "",
+    val dayOfWeek: Int = 1,
+    val startTime: String = "10:00:00",
+    val endTime: String = "11:00:00",
+    val isLocked: Boolean = false
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -76,6 +85,10 @@ data class TeacherClassItem(
         put("cancelReason", cancelReason ?: "")
         put("rescheduleNote", rescheduleNote ?: "")
         put("joinCode", joinCode)
+        put("dayOfWeek", dayOfWeek)
+        put("startTime", startTime)
+        put("endTime", endTime)
+        put("isLocked", isLocked)
     }
 
     companion object {
@@ -101,7 +114,11 @@ data class TeacherClassItem(
                 originalTimeSlot = obj.optString("originalTimeSlot", "").ifEmpty { null },
                 cancelReason = obj.optString("cancelReason", "").ifEmpty { null },
                 rescheduleNote = obj.optString("rescheduleNote", "").ifEmpty { null },
-                joinCode = cleanCode
+                joinCode = cleanCode,
+                dayOfWeek = obj.optInt("dayOfWeek", 1),
+                startTime = obj.optString("startTime", "10:00:00"),
+                endTime = obj.optString("endTime", "11:00:00"),
+                isLocked = obj.optBoolean("isLocked", false)
             )
         }
 
@@ -165,14 +182,59 @@ fun TeacherHomeScreen(
         savePersistedSchedule(context, newList)
     }
 
-    // Identify active and upcoming classes
-    val activeClasses = remember(classList) { classList.filter { it.status != ClassScheduleStatus.CANCELLED } }
-    val currentClass = remember(classList) {
-        classList.firstOrNull { it.status == ClassScheduleStatus.ACTIVE }
-            ?: classList.firstOrNull { it.status == ClassScheduleStatus.SCHEDULED }
-            ?: classList.firstOrNull()
+    // Live clock and real date state
+    var liveDateStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveDate()) }
+    var liveTimeStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveTime()) }
+    var currentIsoDay by remember { mutableStateOf(TimetableEngine.getIsoDayOfWeek()) }
+    var selectedDayFilter by remember { mutableStateOf("TODAY") }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L)
+            liveDateStr = TimetableEngine.formatCurrentLiveDate()
+            liveTimeStr = TimetableEngine.formatCurrentLiveTime()
+            currentIsoDay = TimetableEngine.getIsoDayOfWeek()
+        }
+    }
+
+    // Synchronize lock status for today
+    val synchronizedClassList = remember(classList, currentIsoDay, liveTimeStr) {
+        classList.map { item ->
+            val isLocked = item.isLocked || TimetableEngine.isClassLockedToday(context, item.id) || item.status == ClassScheduleStatus.LOCKED
+            val slotState = TimetableEngine.evaluateSlotState(item.dayOfWeek, item.startTime, item.endTime, isLocked)
+            val status = when {
+                isLocked -> ClassScheduleStatus.LOCKED
+                item.status == ClassScheduleStatus.ACTIVE -> ClassScheduleStatus.ACTIVE
+                slotState == TimetableSlotState.LIVE_NOW -> ClassScheduleStatus.ACTIVE
+                else -> item.status
+            }
+            item.copy(isLocked = isLocked, status = status)
+        }
+    }
+
+    val filteredClasses = remember(synchronizedClassList, selectedDayFilter, currentIsoDay) {
+        when (selectedDayFilter) {
+            "TODAY" -> {
+                val todayList = synchronizedClassList.filter { it.dayOfWeek == currentIsoDay }
+                if (todayList.isNotEmpty()) todayList else synchronizedClassList
+            }
+            "MON" -> synchronizedClassList.filter { it.dayOfWeek == 1 }
+            "TUE" -> synchronizedClassList.filter { it.dayOfWeek == 2 }
+            "WED" -> synchronizedClassList.filter { it.dayOfWeek == 3 }
+            "THU" -> synchronizedClassList.filter { it.dayOfWeek == 4 }
+            "FRI" -> synchronizedClassList.filter { it.dayOfWeek == 5 }
+            "SAT" -> synchronizedClassList.filter { it.dayOfWeek == 6 }
+            else -> synchronizedClassList
+        }
+    }
+
+    val currentClass = remember(filteredClasses) {
+        filteredClasses.firstOrNull { it.status == ClassScheduleStatus.ACTIVE }
+            ?: filteredClasses.firstOrNull { it.status == ClassScheduleStatus.SCHEDULED && !it.isLocked }
+            ?: filteredClasses.firstOrNull()
     }
     val isSessionLive = currentClass?.status == ClassScheduleStatus.ACTIVE
+    val isCurrentClassLocked = currentClass?.isLocked == true || currentClass?.status == ClassScheduleStatus.LOCKED
 
     // Wi-Fi Whitelist State (preserves underlying functionality)
     val selectedSsids = remember {
@@ -230,23 +292,29 @@ fun TeacherHomeScreen(
                     if (cloudOfferingsRes.isSuccess) {
                         val offerings = cloudOfferingsRes.getOrThrow()
                         if (offerings.isNotEmpty()) {
-                            val cloudClasses = offerings.mapIndexed { idx, o ->
+                            val cloudClasses = offerings.map { o ->
+                                val isLocked = TimetableEngine.isClassLockedToday(context, o.classId)
+                                val slotState = TimetableEngine.evaluateSlotState(o.dayOfWeek, o.startTime, o.endTime, isLocked)
+                                val status = when {
+                                    isLocked -> ClassScheduleStatus.LOCKED
+                                    slotState == TimetableSlotState.LIVE_NOW -> ClassScheduleStatus.ACTIVE
+                                    else -> ClassScheduleStatus.SCHEDULED
+                                }
                                 TeacherClassItem(
                                     id = o.classId,
                                     subjectName = o.subjectName,
                                     subjectCode = o.subjectCode,
-                                    program = "B.Tech · Semester 1",
+                                    program = "B.Tech · Semester 5",
                                     room = o.room,
-                                    timeSlot = when (idx % 4) {
-                                        0 -> "10:00 – 11:00 AM"
-                                        1 -> "12:00 – 01:00 PM"
-                                        2 -> "03:00 – 04:00 PM"
-                                        else -> "09:00 – 10:00 AM"
-                                    },
+                                    timeSlot = TimetableEngine.formatDisplaySlot(o.startTime, o.endTime),
                                     enrolledStudents = o.enrolledCount,
-                                    isReadyToStart = (idx == 0),
-                                    status = ClassScheduleStatus.SCHEDULED,
-                                    joinCode = o.joinCode
+                                    isReadyToStart = (slotState == TimetableSlotState.LIVE_NOW && !isLocked),
+                                    status = status,
+                                    joinCode = o.joinCode,
+                                    dayOfWeek = o.dayOfWeek,
+                                    startTime = o.startTime,
+                                    endTime = o.endTime,
+                                    isLocked = isLocked
                                 )
                             }
                             withContext(Dispatchers.Main) {
@@ -275,9 +343,9 @@ fun TeacherHomeScreen(
         if (clean.isNotBlank()) clean else "Faculty Member"
     }
 
-    val upcomingClasses = remember(activeClasses, currentClass) {
+    val upcomingClasses: List<TeacherClassItem> = remember(filteredClasses, currentClass) {
         if (currentClass != null) {
-            activeClasses.filter { it.id != currentClass.id }
+            filteredClasses.filter { it.id != currentClass.id }
         } else emptyList()
     }
 
@@ -637,13 +705,14 @@ fun TeacherHomeScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 upcomingClasses.forEach { classItem ->
+                    val isRowLocked = classItem.isLocked || classItem.status == ClassScheduleStatus.LOCKED || TimetableEngine.isClassLockedToday(context, classItem.id)
                     Surface(
                         shape = CardShape,
                         color = CardBackground,
                         border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .clickable(enabled = !isRowLocked) {
                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                                 val effectiveSsid = selectedSsids.joinToString(",").ifBlank { teacherCleanSsid }
                                 prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
@@ -665,7 +734,7 @@ fun TeacherHomeScreen(
                                     text = classItem.timeSlot,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = BrandAccent
+                                    color = if (isRowLocked) TextMuted else BrandAccent
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
@@ -682,12 +751,29 @@ fun TeacherHomeScreen(
                                 )
                             }
 
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Start",
-                                tint = TextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            if (isRowLocked) {
+                                Surface(
+                                    shape = PillShape,
+                                    color = SurfaceNeutral,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(10.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("Locked", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                    }
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Start",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }

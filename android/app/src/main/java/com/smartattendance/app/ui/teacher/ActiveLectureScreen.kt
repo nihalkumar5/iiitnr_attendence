@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartattendance.app.core.network.EnrolledStudentInfo
 import com.smartattendance.app.core.network.LiveStudentAttendanceItem
+import com.smartattendance.app.core.engine.TimetableEngine
 import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.core.sensor.ScannedWifiNetwork
 import com.smartattendance.app.core.sensor.WifiPresenceManager
@@ -848,6 +849,7 @@ fun ActiveLectureScreen(
                                 SupabaseAttendanceService.endAttendanceSession(sId)
                             }
                             SupabaseAttendanceService.endAllActiveSessions()
+                            TimetableEngine.lockClassToday(context, classId, sId)
                             withContext(Dispatchers.Main) {
                                 onEndLecture(sId ?: "")
                             }
