@@ -298,10 +298,25 @@ export default function StudentPortal() {
     };
     window.addEventListener("storage", handleStorage);
 
+    const classesInterval = setInterval(loadClassesFromDB, 3000);
+
+    const classesChannel = supabase
+      .channel("student-realtime-classes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "classes" },
+        () => {
+          loadClassesFromDB();
+        }
+      )
+      .subscribe();
+
     return () => {
       clearInterval(interval);
+      clearInterval(classesInterval);
       authListener?.subscription?.unsubscribe();
       supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(classesChannel);
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
@@ -522,11 +537,32 @@ export default function StudentPortal() {
     }
   };
 
-  // 2. Load Real Classes pool from Supabase
+  // 2. Load Real Classes pool from Supabase and auto-prune deleted subjects
   const loadClassesFromDB = async () => {
     const dbClasses = await fetchLiveClassesFromDB();
     if (dbClasses.length > 0) {
       setAvailableDbClasses(dbClasses);
+
+      // Auto-prune: If teacher deleted a class from DB, remove it from student view automatically!
+      setMyClasses(prev => {
+        const liveClassIds = new Set(dbClasses.map(c => c.id));
+        const liveSubjectCodes = new Set(dbClasses.map(c => c.subjectCode.toUpperCase()));
+        const liveJoinCodes = new Set(dbClasses.map(c => c.joinCode.toUpperCase()));
+
+        const valid = prev.filter(c => 
+          liveClassIds.has(c.id) || 
+          liveSubjectCodes.has(c.subjectCode.toUpperCase()) || 
+          liveJoinCodes.has(c.joinCode.toUpperCase())
+        );
+
+        if (valid.length !== prev.length) {
+          const currentRoll = rollNo || (typeof window !== "undefined" ? localStorage.getItem("smart_attendance_student_roll") : null);
+          if (currentRoll) {
+            localStorage.setItem("smart_attendance_enrolled_" + currentRoll, JSON.stringify(valid));
+          }
+        }
+        return valid;
+      });
     }
   };
 
