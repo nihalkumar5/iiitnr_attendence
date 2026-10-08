@@ -467,10 +467,11 @@ object SupabaseAttendanceService {
                 Log.w(TAG, "Non-fatal event insert note: ${e.message}")
             }
 
-            // 2.7 Verify Session Status is not COMPLETED/CANCELLED
+            // 2.7 Verify Session Status & Strict Server-Side Wi-Fi Validation
+            val cleanStudentWifi = wifiSsid.replace("\"", "").trim()
             try {
                 val sessReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId&select=status&limit=1")
+                    .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId&select=status,session_secret&limit=1")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()
@@ -478,12 +479,31 @@ object SupabaseAttendanceService {
                 val sessRes = client.newCall(sessReq).execute()
                 val sessArr = JSONArray(sessRes.body?.string() ?: "[]")
                 if (sessArr.length() > 0) {
-                    val sStatus = sessArr.getJSONObject(0).optString("status", "ACTIVE")
+                    val sessObj = sessArr.getJSONObject(0)
+                    val sStatus = sessObj.optString("status", "ACTIVE")
                     if (sStatus == "COMPLETED" || sStatus == "CANCELLED") {
                         return@withContext Result.failure(Exception("Attendance session has ended and is locked."))
                     }
+
+                    val secret = sessObj.optString("session_secret", "")
+                    val expectedWifi = if (secret.startsWith("wifi:")) {
+                        secret.substringAfter("wifi:").substringBefore("|").trim()
+                    } else ""
+
+                    if (expectedWifi.isNotBlank()) {
+                        val allowedList = expectedWifi.split(",").map { it.replace("\"", "").trim() }.filter { it.isNotBlank() }
+                        val isMatched = allowedList.any { it.equals(cleanStudentWifi, ignoreCase = true) }
+                        if (!isMatched) {
+                            Log.w(TAG, "Server Wi-Fi gatekeeper rejected attendance: Student on '$cleanStudentWifi', Session requires '$expectedWifi'")
+                            return@withContext Result.failure(
+                                SecurityException("WIFI_MISMATCH: Connected to Wi-Fi '$cleanStudentWifi', but classroom requires '$expectedWifi'. Please connect to the classroom Wi-Fi network.")
+                            )
+                        }
+                    }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                if (e is SecurityException) return@withContext Result.failure(e)
+            }
 
             // 2.8 Duplicate Attendance Check: Once marked PRESENT, prevent re-submitting
             try {
@@ -572,7 +592,7 @@ object SupabaseAttendanceService {
     suspend fun fetchActiveSession(): ActiveSessionInfo? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/attendance_sessions?status=eq.ACTIVE&order=start_time.desc&select=id,class_id,status,start_time,classes(room,subjects(name,code),classrooms(name,wifi_ssid,wifi_bssid))&limit=1")
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?status=eq.ACTIVE&order=start_time.desc&select=id,class_id,status,start_time,session_secret,classes(room,subjects(name,code),classrooms(name,wifi_ssid,wifi_bssid))&limit=1")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()
@@ -612,8 +632,13 @@ object SupabaseAttendanceService {
 
                 var subject = "Data Structures & Algorithms (CS501)"
                 var room = "Room A-204"
-                var requiredWifi = "Pranjal"
+                var requiredWifi = ""
                 var requiredBssid: String? = null
+
+                val sessionSecret = obj.optString("session_secret", "")
+                if (sessionSecret.startsWith("wifi:")) {
+                    requiredWifi = sessionSecret.substringAfter("wifi:").substringBefore("|").trim()
+                }
 
                 if (obj.has("classes") && !obj.isNull("classes")) {
                     val classObj = obj.getJSONObject("classes")
@@ -624,11 +649,15 @@ object SupabaseAttendanceService {
                         val name = subjObj.optString("name", "Data Structures & Algorithms")
                         subject = "$name ($code)"
                     }
-                    if (classObj.has("classrooms") && !classObj.isNull("classrooms")) {
+                    if (requiredWifi.isBlank() && classObj.has("classrooms") && !classObj.isNull("classrooms")) {
                         val roomObj = classObj.getJSONObject("classrooms")
-                        requiredWifi = roomObj.optString("wifi_ssid", "Pranjal")
+                        requiredWifi = roomObj.optString("wifi_ssid", "").trim()
                         requiredBssid = if (roomObj.has("wifi_bssid") && !roomObj.isNull("wifi_bssid")) roomObj.getString("wifi_bssid") else null
                     }
+                }
+
+                if (requiredWifi.isBlank()) {
+                    requiredWifi = "Pranjal"
                 }
 
                 return@withContext ActiveSessionInfo(
@@ -943,51 +972,78 @@ object SupabaseAttendanceService {
      * Updates the required classroom Wi-Fi SSID in Supabase for the given session.
      */
     suspend fun updateClassroomWifiForSession(
-        newWifiSsid: String,
-        sessionId: String = "c921ca2a-bddf-487f-a5c8-55c05929655f"
+        sessionId: String,
+        newWifiSsid: String
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val sessionReq = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId&select=class_id,classes(classroom_id)")
+            val cleanWifi = newWifiSsid.trim().ifBlank { "Pranjal" }
+            Log.d(TAG, "Updating classroom Wi-Fi for session $sessionId to '$cleanWifi'")
+
+            // 1. Direct update on attendance_sessions.session_secret
+            val patchSessionPayload = JSONObject().apply {
+                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+            }
+            val patchSessionReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
-                .get()
+                .addHeader("Content-Type", "application/json")
+                .patch(patchSessionPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
+            client.newCall(patchSessionReq).execute()
 
-            val sessionRes = client.newCall(sessionReq).execute()
-            val sessionBody = sessionRes.body?.string() ?: "[]"
-            val sessionArr = JSONArray(sessionBody)
-
-            var classroomId: String? = null
-            if (sessionArr.length() > 0) {
-                val sObj = sessionArr.getJSONObject(0)
-                if (sObj.has("classes") && !sObj.isNull("classes")) {
-                    val cObj = sObj.getJSONObject("classes")
-                    classroomId = if (cObj.has("classroom_id") && !cObj.isNull("classroom_id")) cObj.getString("classroom_id") else null
-                }
-            }
-
-            if (classroomId != null) {
-                val patchPayload = JSONObject().apply {
-                    put("wifi_ssid", newWifiSsid)
-                }
-
-                val patchReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/classrooms?id=eq.$classroomId")
+            // 2. Also update classroom table if linked
+            try {
+                val sessionReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId&select=class_id,classes(classroom_id)")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
-                    .addHeader("Content-Type", "application/json")
-                    .patch(patchPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .get()
                     .build()
 
-                val patchRes = client.newCall(patchReq).execute()
-                Log.d(TAG, "Updated classroom $classroomId Wi-Fi to $newWifiSsid (Status: ${patchRes.code})")
-                return@withContext patchRes.isSuccessful
-            }
-            false
+                val sessionRes = client.newCall(sessionReq).execute()
+                val sessionBody = sessionRes.body?.string() ?: "[]"
+                val sessionArr = JSONArray(sessionBody)
+
+                var classroomId: String? = null
+                if (sessionArr.length() > 0) {
+                    val sObj = sessionArr.getJSONObject(0)
+                    if (sObj.has("classes") && !sObj.isNull("classes")) {
+                        val cObj = sObj.getJSONObject("classes")
+                        classroomId = if (cObj.has("classroom_id") && !cObj.isNull("classroom_id")) cObj.getString("classroom_id") else null
+                    }
+                }
+
+                if (classroomId != null) {
+                    val patchPayload = JSONObject().apply {
+                        put("wifi_ssid", cleanWifi)
+                    }
+
+                    val patchReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classrooms?id=eq.$classroomId")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .addHeader("Content-Type", "application/json")
+                        .patch(patchPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                        .build()
+
+                    client.newCall(patchReq).execute()
+                }
+            } catch (_: Exception) {}
+
+            true
         } catch (e: Exception) {
             Log.e(TAG, "Error updating classroom Wi-Fi", e)
             false
+        }
+    }
+
+    suspend fun updateClassroomWifiForSession(newWifiSsid: String): Boolean = withContext(Dispatchers.IO) {
+        val active = fetchActiveSession()
+        if (active != null) {
+            updateClassroomWifiForSession(active.sessionId, newWifiSsid)
+        } else {
+            true
         }
     }
 

@@ -54,24 +54,20 @@ import java.util.UUID
 private fun isWifiSsidAllowed(currentSsid: String?, requiredSsidConfig: String?): Boolean {
     if (currentSsid.isNullOrBlank()) return false
     val cleanCurrent = currentSsid.replace("\"", "").trim()
+    if (cleanCurrent.equals("<unknown ssid>", ignoreCase = true) ||
+        cleanCurrent.equals("Unknown Wi-Fi", ignoreCase = true) ||
+        cleanCurrent.isEmpty()) {
+        return false
+    }
+
     val rawConfig = requiredSsidConfig?.trim().orEmpty()
+    if (rawConfig.isBlank()) return false
 
-    val allowedList = if (rawConfig.isNotBlank()) {
-        rawConfig.split(",").map { it.replace("\"", "").trim() }.filter { it.isNotBlank() }
-    } else {
-        emptyList()
-    }
+    val allowedList = rawConfig.split(",").map { it.replace("\"", "").trim() }.filter { it.isNotBlank() }
+    if (allowedList.isEmpty()) return false
 
-    if (allowedList.isEmpty()) {
-        return listOf("Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS", "eduroam").any {
-            it.equals(cleanCurrent, ignoreCase = true)
-        }
-    }
-
-    return allowedList.any {
-        it.equals(cleanCurrent, ignoreCase = true) ||
-        (it.equals("Pranjal", ignoreCase = true) && listOf("Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS").any { c -> c.equals(cleanCurrent, ignoreCase = true) })
-    }
+    // STRICT MATCH ONLY: Active presence requires device to be connected to teacher's classroom AP
+    return allowedList.any { it.equals(cleanCurrent, ignoreCase = true) }
 }
 
 @Composable
@@ -172,13 +168,24 @@ fun StudentHomeScreen(
                     return@launch
                 }
 
+                val requiredSsid = session.requiredWifiSsid.ifBlank { "Pranjal" }
+                val currentSsid = snap.ssid?.replace("\"", "")?.trim() ?: ""
+                val isWifiMatched = snap.isConnected && isWifiSsidAllowed(currentSsid, requiredSsid)
+
+                // STRICT GATEKEEPER: If device is connected to a different Wi-Fi or disconnected, reject active presence
+                if (!isWifiMatched) {
+                    isVerifiedPresent = false
+                    return@launch
+                }
+
+                // If on the correct classroom Wi-Fi, check if already verified in this session
                 val lastVerifiedId = prefs.getString("last_verified_session_id", null)
                 if (lastVerifiedId == session.sessionId) {
                     isVerifiedPresent = true
                     return@launch
                 }
 
-                // Database check: Once marked PRESENT, lock status and prevent duplicate submissions
+                // Database check: If verified present in DB, lock status
                 val isDbPresent = SupabaseAttendanceService.isStudentMarkedPresent(session.sessionId, activeRoll)
                 if (isDbPresent) {
                     isVerifiedPresent = true
@@ -188,54 +195,52 @@ fun StudentHomeScreen(
                     return@launch
                 }
 
-                val requiredSsid = session.requiredWifiSsid.ifBlank { "Pranjal, IIIT-NR-Campus, IIITNR_STUDENTS" }
-                val currentSsid = snap.ssid?.replace("\"", "")?.trim() ?: ""
-                val isWifiMatched = snap.isConnected && isWifiSsidAllowed(currentSsid, requiredSsid)
+                // Device is on classroom Wi-Fi and not yet recorded: submit presence now
+                val result = SupabaseAttendanceService.submitBleWifiPresence(
+                    sessionId = session.sessionId,
+                    studentRollNumber = activeRoll,
+                    studentName = activeName,
+                    bleToken = "GPS_30M_VERIFIED",
+                    bleRssi = -50,
+                    wifiSsid = currentSsid,
+                    wifiBssid = snap.bssid ?: "classroom-ap",
+                    wifiRssi = snap.rssi ?: -45,
+                    installationId = installationId
+                )
+                result.onSuccess {
+                    isVerifiedPresent = true
+                    prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
+                    TimetableEngine.lockStudentSubjectToday(context, session.subjectName, "PRESENT")
+                    TimetableEngine.lockStudentSubjectToday(context, session.classId, "PRESENT")
+                    refreshStatsAndHistory()
 
-                if (isWifiMatched) {
-                    val result = SupabaseAttendanceService.submitBleWifiPresence(
-                        sessionId = session.sessionId,
-                        studentRollNumber = activeRoll,
-                        studentName = activeName,
-                        bleToken = "GPS_30M_VERIFIED",
-                        bleRssi = -50,
-                        wifiSsid = currentSsid,
-                        wifiBssid = snap.bssid ?: "classroom-ap",
-                        wifiRssi = snap.rssi ?: -45,
-                        installationId = installationId
-                    )
-                    result.onSuccess {
+                    val lastCelebrated = prefs.getString("last_celebrated_session_id", null)
+                    if (lastCelebrated != session.sessionId) {
+                        prefs.edit().putString("last_celebrated_session_id", session.sessionId).apply()
+                        showSimpleCelebration = true
+                    }
+                }.onFailure { err ->
+                    val msg = err.message ?: ""
+                    if (err is SecurityException || msg.contains("ANTI_PROXY") || msg.contains("DEVICE_MISMATCH")) {
+                        android.util.Log.e("StudentHome", "Anti-proxy security rejection: $msg")
+                        deviceLockSecurityError = msg
+                        showDeviceLockDialog = true
+                    } else if (msg.contains("WIFI") || msg.contains("WIFI_MISMATCH")) {
+                        android.util.Log.w("StudentHome", "Wi-Fi gatekeeper rejection: $msg")
+                        isVerifiedPresent = false
+                    } else {
+                        offlineStore.enqueueRecord(
+                            sessionId = session.sessionId,
+                            studentRoll = activeRoll,
+                            studentName = activeName,
+                            verificationMethod = "WIFI_GPS_GEOFENCE",
+                            bleToken = "GPS_30M_VERIFIED",
+                            wifiSsid = currentSsid,
+                            wifiBssid = snap.bssid ?: "classroom-ap",
+                            installationId = installationId
+                        )
                         isVerifiedPresent = true
                         prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
-                        TimetableEngine.lockStudentSubjectToday(context, session.subjectName, "PRESENT")
-                        TimetableEngine.lockStudentSubjectToday(context, session.classId, "PRESENT")
-                        refreshStatsAndHistory()
-
-                        val lastCelebrated = prefs.getString("last_celebrated_session_id", null)
-                        if (lastCelebrated != session.sessionId) {
-                            prefs.edit().putString("last_celebrated_session_id", session.sessionId).apply()
-                            showSimpleCelebration = true
-                        }
-                    }.onFailure { err ->
-                        val msg = err.message ?: ""
-                        if (err is SecurityException || msg.contains("ANTI_PROXY") || msg.contains("DEVICE_MISMATCH")) {
-                            android.util.Log.e("StudentHome", "Anti-proxy security rejection: $msg")
-                            deviceLockSecurityError = msg
-                            showDeviceLockDialog = true
-                        } else {
-                            offlineStore.enqueueRecord(
-                                sessionId = session.sessionId,
-                                studentRoll = activeRoll,
-                                studentName = activeName,
-                                verificationMethod = "WIFI_GPS_GEOFENCE",
-                                bleToken = "GPS_30M_VERIFIED",
-                                wifiSsid = currentSsid,
-                                wifiBssid = snap.bssid ?: "classroom-ap",
-                                installationId = installationId
-                            )
-                            isVerifiedPresent = true
-                            prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
-                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -649,6 +654,38 @@ fun StudentHomeScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     color = StatusPresent
                                 )
+                            }
+                        }
+                    } else {
+                        val currentSsid = wifiSnapshot.ssid?.replace("\"", "")?.trim().orEmpty()
+                        val reqSsid = activeSession?.requiredWifiSsid ?: ""
+                        val isWrongWifi = currentSsid.isNotBlank() && currentSsid != "Unknown Wi-Fi" && !isWifiSsidAllowed(currentSsid, reqSsid)
+                        if (isWrongWifi) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                shape = BadgeShape,
+                                color = StatusAbsentBg,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, StatusAbsentBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = StatusAbsent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Wrong Wi-Fi ($currentSsid). Connect to '$reqSsid' for attendance.",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = StatusAbsent
+                                    )
+                                }
                             }
                         }
                     }
