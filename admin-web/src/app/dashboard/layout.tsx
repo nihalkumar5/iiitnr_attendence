@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -9,7 +12,8 @@ import {
   Wifi, 
   Settings, 
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -17,6 +21,13 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
+  // If on attendance screen, render clean mobile-parity faculty console without SaaS admin sidebar
+  if (pathname === "/dashboard/attendance") {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen flex bg-canvas">
       {/* Sidebar */}
@@ -36,10 +47,21 @@ export default function DashboardLayout({
           {/* Navigation Links */}
           <nav className="space-y-1">
             <Link
-              href="/dashboard"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-pill text-primary"
+              href="/dashboard/demo"
+              className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-bold bg-primary text-white shadow-sm mb-3"
             >
-              <LayoutDashboard className="w-4 h-4 text-primary" />
+              <div className="flex items-center gap-3">
+                <Sparkles className="w-4 h-4 text-warning" />
+                <span>Live Demo Studio</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">NEW</span>
+            </Link>
+
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-secondary hover:text-primary hover:bg-pill/60 transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" />
               <span>Overview</span>
             </Link>
 
@@ -52,11 +74,16 @@ export default function DashboardLayout({
             </Link>
 
             <Link
-              href="/dashboard/reports"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-secondary hover:text-primary hover:bg-pill/60 transition-colors"
+              href="/dashboard/attendance?tab=report"
+              className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-secondary hover:text-primary hover:bg-pill/60 transition-colors"
             >
-              <BarChart3 className="w-4 h-4" />
-              <span>Reports & Exports</span>
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-4 h-4 text-blue-600" />
+                <span>Daily Attendance Report</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                IN-CONSOLE
+              </span>
             </Link>
 
             <div className="pt-4 pb-2 px-3 text-[11px] font-semibold text-secondary uppercase tracking-wider">

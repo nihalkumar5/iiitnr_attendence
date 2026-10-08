@@ -124,20 +124,13 @@ object AttendanceCalculator {
         val avgRtt = if (rttSamples.isNotEmpty()) rttSamples.average() else null
 
         val isWifiVerified = wifiRatio >= 40.0
-        val isBleVerified = bleRatio >= 40.0
+        val isGeofenceVerified = bleRatio >= 40.0 // Repurposed for 30m GPS geofence
 
-        // Multi-modal weighted score
-        var finalScore: Double
-        if (hasRoomWifiInfrastructure) {
-            // 50% Wi-Fi AP + 50% BLE
-            finalScore = (0.50 * wifiRatio) + (0.50 * bleRatio)
-            // RTT bonus (up to +10%) if within classroom radius
-            if (avgRtt != null && avgRtt <= 8.0) {
-                finalScore = min(100.0, finalScore + 10.0)
-            }
+        // Weighted presence score based on Wi-Fi AP & 30m GPS geofence
+        var finalScore: Double = if (hasRoomWifiInfrastructure) {
+            wifiRatio
         } else {
-            // Standalone BLE mode
-            finalScore = bleRatio
+            bleRatio
         }
 
         finalScore = min(100.0, String.format("%.2f", finalScore).toDouble())
@@ -147,14 +140,8 @@ object AttendanceCalculator {
             finalScore >= (presentThreshold * 100.0) -> {
                 AttendanceStatus.PRESENT
             }
-            isWifiVerified && !isBleVerified -> {
-                // Connected to classroom AP, but BLE signal absent (e.g. bluetooth turned off)
-                reviewReason = "Wi-Fi AP verified (Room A-204), but Bluetooth proximity signal was not detected"
-                AttendanceStatus.REVIEW
-            }
-            !isWifiVerified && isBleVerified -> {
-                // BLE detected near teacher, but not connected to Room AP (e.g. student on cellular data)
-                reviewReason = "BLE proximity detected, but student was not connected to Classroom Wi-Fi"
+            !isWifiVerified -> {
+                reviewReason = "Student was not connected to designated Classroom Wi-Fi AP"
                 AttendanceStatus.REVIEW
             }
             finalScore >= (reviewThreshold * 100.0) -> {
@@ -172,7 +159,7 @@ object AttendanceCalculator {
             totalWindows = totalWindows,
             status = status,
             wifiVerified = isWifiVerified,
-            bleVerified = isBleVerified,
+            bleVerified = isGeofenceVerified,
             rttDistanceMeters = avgRtt,
             reviewReason = reviewReason
         )

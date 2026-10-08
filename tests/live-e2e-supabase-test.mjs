@@ -145,11 +145,11 @@ async function runLiveE2ETest() {
     const s4Id = crypto.randomUUID();
 
     const users = await post("users", [
-        { id: teacherId, institution_id: inst.id, name: "Dr. Sharma", email: `sharma_${testRunId}@iit.edu`, role: "TEACHER" },
-        { id: s1Id, institution_id: inst.id, name: "Rahul Kumar", email: `rahul_${testRunId}@student.edu`, role: "STUDENT" },
-        { id: s2Id, institution_id: inst.id, name: "Aman Singh", email: `aman_${testRunId}@student.edu`, role: "STUDENT" },
-        { id: s3Id, institution_id: inst.id, name: "Priya Sharma", email: `priya_${testRunId}@student.edu`, role: "STUDENT" },
-        { id: s4Id, institution_id: inst.id, name: "Karan Verma", email: `karan_${testRunId}@student.edu`, role: "STUDENT" }
+        { id: teacherId, institution_id: inst.id, name: "Dr. Sharma", email: `sharma_${testRunId}@iiitnr.edu.in`, role: "TEACHER" },
+        { id: s1Id, institution_id: inst.id, name: "Rahul Kumar", email: `rahul_${testRunId}@iiitnr.edu.in`, role: "STUDENT" },
+        { id: s2Id, institution_id: inst.id, name: "Aman Singh", email: `aman_${testRunId}@iiitnr.edu.in`, role: "STUDENT" },
+        { id: s3Id, institution_id: inst.id, name: "Priya Sharma", email: `priya_${testRunId}@iiitnr.edu.in`, role: "STUDENT" },
+        { id: s4Id, institution_id: inst.id, name: "Karan Verma", email: `karan_${testRunId}@iiitnr.edu.in`, role: "STUDENT" }
     ]);
     console.log(` ✓ ${users.length} Users registered in database`);
 

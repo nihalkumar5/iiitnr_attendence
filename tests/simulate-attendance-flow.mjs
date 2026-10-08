@@ -18,36 +18,31 @@ function evaluateHybridStudentPresence({
 }) {
     // Multi-modal presence fusion
     let finalScore = 0;
-    
-    // 50% Wi-Fi AP + 50% BLE
-    const wifiRatio = wifiConnectedToRoomAp ? rawPresencePercentage : 0;
-    const bleRatio = bleSignalDetected ? rawPresencePercentage : 0;
-    
-    finalScore = (0.50 * wifiRatio) + (0.50 * bleRatio);
-    
-    // RTT bonus if inside 10m
-    if (rttDistanceMeters !== null && rttDistanceMeters <= 10.0 && (wifiConnectedToRoomAp || bleSignalDetected)) {
-        finalScore = Math.min(100.0, finalScore + 5.0);
-    }
-    
-    finalScore = Number(finalScore.toFixed(1));
-
     let status = 'ABSENT';
     let reviewReason = null;
 
-    if (finalScore >= 60.0 && wifiConnectedToRoomAp && bleSignalDetected) {
+    // WI-FI FIRST ARCHITECTURE:
+    // When connected to Classroom Wi-Fi AP (Room A-204), presence is 100% verified.
+    // iPhone & Android compatible without background Bluetooth restrictions.
+    if (wifiConnectedToRoomAp && rawPresencePercentage >= 60.0) {
+        finalScore = 100.0;
         status = 'PRESENT';
-    } else if (wifiConnectedToRoomAp && !bleSignalDetected) {
+    } else if (wifiConnectedToRoomAp && rawPresencePercentage < 60.0) {
+        finalScore = rawPresencePercentage;
         status = 'REVIEW';
-        reviewReason = 'Connected to Room AP (BSSID match), but BLE was not detected (Bluetooth off)';
-    } else if (!wifiConnectedToRoomAp && bleSignalDetected) {
+        reviewReason = `Short stay in classroom (${rawPresencePercentage}% timeline). Left early.`;
+    } else if (bleSignalDetected && rawPresencePercentage >= 60.0) {
+        finalScore = rawPresencePercentage;
+        status = 'PRESENT';
+        reviewReason = 'Secondary BLE beacon detected (Student was on mobile data, not on classroom Wi-Fi)';
+    } else if (bleSignalDetected && rawPresencePercentage < 60.0) {
+        finalScore = rawPresencePercentage;
         status = 'REVIEW';
-        reviewReason = 'BLE detected near teacher, but not connected to Classroom Wi-Fi AP';
-    } else if (finalScore >= 20.0 || (wifiConnectedToRoomAp && bleSignalDetected && rawPresencePercentage < 60.0)) {
-        status = 'REVIEW';
-        reviewReason = `Partial presence coverage (${rawPresencePercentage}%). Ambiguous duration.`;
+        reviewReason = `Weak/transient BLE signal (${rawPresencePercentage}% timeline).`;
     } else {
+        finalScore = 0.0;
         status = 'ABSENT';
+        reviewReason = 'No classroom Wi-Fi AP or BLE signals detected (Outside classroom)';
     }
 
     return {

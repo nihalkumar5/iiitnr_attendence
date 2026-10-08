@@ -1,30 +1,94 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #F8F8F6;
-  --foreground: #111111;
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --brand: #2563EB;
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--background);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom utility styles for card containers */
-.card-clean {
-  background-color: #FFFFFF;
-  border: 1px solid #E5E5E5;
-  border-radius: 14px;
+/* Appollama Unified Design System Utilities */
+.app-canvas {
+  background-color: #F8FAFC;
 }
 
-.pill-badge {
-  background-color: #EFEFE9;
-  border-radius: 6px;
-  padding: 4px 8px;
+.app-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.app-card-elevated {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+}
+
+.app-badge {
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #E2E8F0;
+  background-color: #F1F5F9;
+  color: #475569;
+}
+
+.app-pill {
+  border-radius: 9999px;
+  padding: 4px 12px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.app-btn-primary {
+  background-color: #2563EB;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 10px 18px;
+  transition: all 0.15s ease;
+}
+.app-btn-primary:hover {
+  background-color: #1D4ED8;
+}
+
+.app-btn-secondary {
+  background-color: #F1F5F9;
+  color: #0F172A;
+  font-weight: 600;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 18px;
+  transition: all 0.15s ease;
+}
+.app-btn-secondary:hover {
+  background-color: #E2E8F0;
+}
+
+.app-input {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: #0F172A;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.app-input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
