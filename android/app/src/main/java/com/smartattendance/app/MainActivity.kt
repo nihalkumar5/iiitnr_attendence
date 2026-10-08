@@ -6,7 +6,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import kotlinx.coroutines.launch
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.automirrored.outlined.FactCheck
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -183,21 +196,18 @@ class MainActivity : ComponentActivity() {
                                 Scaffold(
                                     bottomBar = {
                                         Surface(
-                                            color = CardBackground,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .border(
-                                                    width = 1.dp,
-                                                    color = BorderHairline,
-                                                    shape = SheetShape
-                                                )
+                                            color = Color.White.copy(alpha = 0.98f),
+                                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                                            shadowElevation = 14.dp,
+                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0).copy(alpha = 0.8f)),
+                                            modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .navigationBarsPadding()
-                                                    .padding(vertical = 8.dp, horizontal = 24.dp),
-                                                horizontalArrangement = Arrangement.SpaceAround,
+                                                    .padding(vertical = 8.dp, horizontal = 36.dp),
+                                                horizontalArrangement = Arrangement.SpaceEvenly,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 AppllamaTabItem(
@@ -262,20 +272,17 @@ class MainActivity : ComponentActivity() {
                                 Scaffold(
                                     bottomBar = {
                                         Surface(
-                                            color = CardBackground,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .border(
-                                                    width = 1.dp,
-                                                    color = BorderHairline,
-                                                    shape = SheetShape
-                                                )
+                                            color = Color.White.copy(alpha = 0.98f),
+                                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                                            shadowElevation = 14.dp,
+                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0).copy(alpha = 0.8f)),
+                                            modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .navigationBarsPadding()
-                                                    .padding(vertical = 8.dp, horizontal = 24.dp),
+                                                    .padding(vertical = 6.dp, horizontal = 6.dp),
                                                 horizontalArrangement = Arrangement.SpaceAround,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -308,8 +315,10 @@ class MainActivity : ComponentActivity() {
                                                 AppllamaTabItem(
                                                     selected = currentTeacherTab == TeacherTab.ACTIVE_ROLL_CALL,
                                                     label = "Live Lecture",
-                                                    selectedIcon = Icons.Filled.Assessment,
-                                                    unselectedIcon = Icons.Outlined.Assessment,
+                                                    selectedIcon = Icons.Filled.Radio,
+                                                    unselectedIcon = Icons.Outlined.Radio,
+                                                    isSpecialCenterTab = true,
+                                                    badgeText = if (activeLectureClass != null) "●" else null,
                                                     onClick = {
                                                         if (currentTeacherTab != TeacherTab.ACTIVE_ROLL_CALL) {
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -321,8 +330,8 @@ class MainActivity : ComponentActivity() {
                                                 AppllamaTabItem(
                                                     selected = currentTeacherTab == TeacherTab.RECORDS,
                                                     label = "Records",
-                                                    selectedIcon = Icons.Filled.FactCheck,
-                                                    unselectedIcon = Icons.Outlined.FactCheck,
+                                                    selectedIcon = Icons.AutoMirrored.Filled.FactCheck,
+                                                    unselectedIcon = Icons.AutoMirrored.Outlined.FactCheck,
                                                     onClick = {
                                                         if (currentTeacherTab != TeacherTab.RECORDS) {
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -494,34 +503,103 @@ private fun AppllamaTabItem(
     label: String,
     selectedIcon: ImageVector,
     unselectedIcon: ImageVector,
+    badgeText: String? = null,
+    isSpecialCenterTab: Boolean = false,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
+    val animatedColor by animateColorAsState(
+        targetValue = if (selected) BrandAccent else Color(0xFF64748B),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tabColor"
+    )
+
+    val activePillBg by animateColorAsState(
+        targetValue = when {
+            selected && isSpecialCenterTab -> BrandAccent.copy(alpha = 0.14f)
+            selected -> BrandAccent.copy(alpha = 0.10f)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(durationMillis = 180),
+        label = "tabBg"
+    )
+
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "tabScale"
+    )
+
+    val indicatorWidth by animateDpAsState(
+        targetValue = if (selected) 16.dp else 0.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "indicatorWidth"
+    )
+
     Column(
         modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 4.dp, horizontal = 16.dp),
+            .padding(vertical = 4.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = if (selected) selectedIcon else unselectedIcon,
-            contentDescription = label,
-            tint = if (selected) BrandAccent else TextMuted,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(activePillBg)
+                .padding(horizontal = if (isSpecialCenterTab) 12.dp else 10.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (selected) selectedIcon else unselectedIcon,
+                contentDescription = label,
+                tint = animatedColor,
+                modifier = Modifier
+                    .size(21.dp)
+                    .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
+            )
+
+            if (!badgeText.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 4.dp, y = (-2).dp)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(StatusPresent)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(3.dp))
+
         Text(
             text = label,
-            fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) BrandAccent else TextSecondary,
-            letterSpacing = 0.1.sp
+            fontSize = 10.5.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = animatedColor,
+            letterSpacing = (-0.2).sp,
+            maxLines = 1
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Active glowing underline pill
+        Box(
+            modifier = Modifier
+                .height(2.5.dp)
+                .width(indicatorWidth)
+                .clip(CircleShape)
+                .background(if (selected) BrandAccent else Color.Transparent)
         )
     }
 }
