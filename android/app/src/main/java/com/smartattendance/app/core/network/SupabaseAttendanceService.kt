@@ -74,6 +74,18 @@ data class StudentAuthResult(
     val deviceModel: String
 )
 
+data class StudentGoogleAuthCheck(
+    val isProfileComplete: Boolean,
+    val authResult: StudentAuthResult? = null,
+    val email: String,
+    val displayName: String,
+    val existingName: String? = null,
+    val existingRoll: String? = null,
+    val existingProgram: String? = null,
+    val existingSemester: Int? = null,
+    val existingSection: String? = null
+)
+
 data class FacultyAuthResult(
     val teacherId: String,
     val userId: String,
@@ -3545,6 +3557,297 @@ object SupabaseAttendanceService {
             Result.success(list.distinctBy { it.classId })
         } catch (e: Exception) {
             Result.success(emptyList())
+        }
+    }
+
+    suspend fun checkStudentGoogleAuth(
+        googleProfile: GoogleUserProfile,
+        installationId: String
+    ): Result<StudentGoogleAuthCheck> = withContext(Dispatchers.IO) {
+        try {
+            val email = googleProfile.email.trim().lowercase()
+            val cleanInst = installationId.trim()
+            if (email.isBlank() || !email.contains("@")) {
+                return@withContext Result.failure(
+                    SecurityException("Please sign in with a valid Google account.")
+                )
+            }
+
+            val encodedEmail = java.net.URLEncoder.encode(email, "UTF-8")
+            val googleId = googleProfile.googleId
+            val userReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/users?or=(email.eq.$encodedEmail,google_sub.eq.$googleId)&select=id,name,email,role,students(id,roll_number,program_id,semester,section_id)&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+
+            val userRes = client.newCall(userReq).execute()
+            val userBody = userRes.body?.string() ?: "[]"
+            val userArr = JSONArray(userBody)
+
+            if (userArr.length() == 0) {
+                return@withContext Result.success(
+                    StudentGoogleAuthCheck(
+                        isProfileComplete = false,
+                        email = email,
+                        displayName = googleProfile.displayName
+                    )
+                )
+            }
+
+            val userObj = userArr.getJSONObject(0)
+            val userId = userObj.getString("id")
+            val userName = userObj.optString("name", googleProfile.displayName)
+            val sObj = userObj.optJSONObject("students")
+                ?: userObj.optJSONArray("students")?.optJSONObject(0)
+
+            val studentObj = if (sObj != null) {
+                sObj
+            } else {
+                val sReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/students?user_id=eq.$userId&select=id,roll_number,semester,program_id,section_id&limit=1")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .get()
+                    .build()
+                val sRes = client.newCall(sReq).execute()
+                val sArr = JSONArray(sRes.body?.string() ?: "[]")
+                if (sArr.length() > 0) sArr.getJSONObject(0) else null
+            }
+
+            if (studentObj == null) {
+                return@withContext Result.success(
+                    StudentGoogleAuthCheck(
+                        isProfileComplete = false,
+                        email = email,
+                        displayName = userName
+                    )
+                )
+            }
+
+            val roll = studentObj.optString("roll_number", "").trim()
+            val emailPrefix = email.substringBefore("@").uppercase()
+
+            if (roll.isBlank() || roll.equals(emailPrefix, ignoreCase = true)) {
+                return@withContext Result.success(
+                    StudentGoogleAuthCheck(
+                        isProfileComplete = false,
+                        email = email,
+                        displayName = userName,
+                        existingRoll = if (roll.equals(emailPrefix, ignoreCase = true)) "" else roll,
+                        existingSemester = studentObj.optInt("semester", 1)
+                    )
+                )
+            }
+
+            val studentId = studentObj.getString("id")
+            val devBindRes = verifyAndBindDevice(studentId, roll, cleanInst)
+            if (devBindRes.isFailure) {
+                return@withContext Result.failure(
+                    devBindRes.exceptionOrNull() ?: Exception("Device verification rejected.")
+                )
+            }
+
+            val deviceId = devBindRes.getOrNull() ?: "363f16ce-7a65-4679-b863-828d79d16b6b"
+            val deviceModel = android.os.Build.MODEL ?: "Android Device"
+
+            try {
+                val updatePayload = JSONObject().apply {
+                    put("google_sub", googleProfile.googleId)
+                    if (googleProfile.photoUrl != null) put("avatar_url", googleProfile.photoUrl)
+                }
+                val updateReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/users?id=eq.$userId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                client.newCall(updateReq).execute()
+            } catch (_: Exception) {}
+
+            Result.success(
+                StudentGoogleAuthCheck(
+                    isProfileComplete = true,
+                    authResult = StudentAuthResult(
+                        studentId = studentId,
+                        userId = userId,
+                        name = userName,
+                        rollNumber = roll,
+                        email = email,
+                        deviceId = deviceId,
+                        deviceModel = deviceModel
+                    ),
+                    email = email,
+                    displayName = userName,
+                    existingRoll = roll,
+                    existingSemester = studentObj.optInt("semester", 1)
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in checkStudentGoogleAuth", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun completeStudentProfile(
+        googleProfile: GoogleUserProfile,
+        fullName: String,
+        rollNumber: String,
+        programName: String = "B.Tech DSAI",
+        semester: Int = 1,
+        sectionName: String = "Section A",
+        installationId: String
+    ): Result<StudentAuthResult> = withContext(Dispatchers.IO) {
+        try {
+            val cleanName = fullName.trim()
+            val cleanRoll = rollNumber.trim().uppercase()
+            val email = googleProfile.email.trim().lowercase()
+            val cleanInst = installationId.trim()
+
+            if (cleanName.isBlank()) {
+                return@withContext Result.failure(Exception("Full Name cannot be empty."))
+            }
+            if (cleanRoll.isBlank()) {
+                return@withContext Result.failure(Exception("Roll Number cannot be empty."))
+            }
+            if (cleanInst.isBlank()) {
+                return@withContext Result.failure(Exception("Missing phone hardware identifier."))
+            }
+
+            Log.d(TAG, "Completing student profile: $cleanName ($cleanRoll), email: $email, sem: $semester, inst: $cleanInst")
+
+            val encodedEmail = java.net.URLEncoder.encode(email, "UTF-8")
+            val googleId = googleProfile.googleId
+            val userReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/users?or=(email.eq.$encodedEmail,google_sub.eq.$googleId)&select=id,name,email&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+
+            val userRes = client.newCall(userReq).execute()
+            val userArr = JSONArray(userRes.body?.string() ?: "[]")
+
+            val userId: String
+            if (userArr.length() > 0) {
+                userId = userArr.getJSONObject(0).getString("id")
+                val updatePayload = JSONObject().apply {
+                    put("name", cleanName)
+                    put("google_sub", googleProfile.googleId)
+                    if (googleProfile.photoUrl != null) put("avatar_url", googleProfile.photoUrl)
+                }
+                val uPatchReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/users?id=eq.$userId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                client.newCall(uPatchReq).execute()
+            } else {
+                val userPayload = JSONObject().apply {
+                    put("institution_id", "c2fcf1e8-075b-4156-bc0e-27c9b23404f5")
+                    put("name", cleanName)
+                    put("email", email)
+                    put("role", "STUDENT")
+                    put("is_active", true)
+                    put("google_sub", googleProfile.googleId)
+                    if (googleProfile.photoUrl != null) put("avatar_url", googleProfile.photoUrl)
+                }
+                val createUReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/users")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("Prefer", "return=representation")
+                    .post(userPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                val createURes = client.newCall(createUReq).execute()
+                val createdUArr = JSONArray(createURes.body?.string() ?: "[]")
+                if (createdUArr.length() == 0) {
+                    return@withContext Result.failure(Exception("Failed to register user in Supabase."))
+                }
+                userId = createdUArr.getJSONObject(0).getString("id")
+            }
+
+            val encodedRoll = java.net.URLEncoder.encode(cleanRoll, "UTF-8")
+            val sCheckReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/students?or=(user_id.eq.$userId,roll_number.eq.$encodedRoll)&select=id,user_id,roll_number&limit=1")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val sCheckRes = client.newCall(sCheckReq).execute()
+            val sCheckArr = JSONArray(sCheckRes.body?.string() ?: "[]")
+
+            val studentId: String
+            if (sCheckArr.length() > 0) {
+                studentId = sCheckArr.getJSONObject(0).getString("id")
+                val sUpdatePayload = JSONObject().apply {
+                    put("user_id", userId)
+                    put("roll_number", cleanRoll)
+                    put("semester", semester)
+                    put("status", "ACTIVE")
+                }
+                val sPatchReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/students?id=eq.$studentId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(sUpdatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                client.newCall(sPatchReq).execute()
+            } else {
+                val studentPayload = JSONObject().apply {
+                    put("user_id", userId)
+                    put("roll_number", cleanRoll)
+                    put("program_id", "a0b5cbed-5dad-4998-83f1-bab35271d01f")
+                    put("section_id", "b7bd5c04-a4bf-478b-b822-1ca0982b55f4")
+                    put("semester", semester)
+                    put("status", "ACTIVE")
+                }
+                val createSReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/students")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("Prefer", "return=representation")
+                    .post(studentPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                val createSRes = client.newCall(createSReq).execute()
+                val createdSArr = JSONArray(createSRes.body?.string() ?: "[]")
+                if (createdSArr.length() == 0) {
+                    return@withContext Result.failure(Exception("Failed to save student record in Supabase."))
+                }
+                studentId = createdSArr.getJSONObject(0).getString("id")
+            }
+
+            val devBindRes = verifyAndBindDevice(studentId, cleanRoll, cleanInst)
+            if (devBindRes.isFailure) {
+                return@withContext Result.failure(
+                    devBindRes.exceptionOrNull() ?: Exception("Device verification rejected.")
+                )
+            }
+            val deviceId = devBindRes.getOrNull() ?: "363f16ce-7a65-4679-b863-828d79d16b6b"
+            val deviceModel = android.os.Build.MODEL ?: "Android Device"
+
+            Log.d(TAG, "Student Profile Completed: $cleanName ($cleanRoll) bound to device $deviceId ($cleanInst)")
+            Result.success(
+                StudentAuthResult(
+                    studentId = studentId,
+                    userId = userId,
+                    name = cleanName,
+                    rollNumber = cleanRoll,
+                    email = email,
+                    deviceId = deviceId,
+                    deviceModel = deviceModel
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in completeStudentProfile", e)
+            Result.failure(e)
         }
     }
 
