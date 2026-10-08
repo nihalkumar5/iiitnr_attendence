@@ -2035,7 +2035,7 @@ object SupabaseAttendanceService {
                     val newSubPayload = JSONObject().apply {
                         put("department_id", "c0ae2447-0c28-4525-80ae-6b80c418245b")
                         put("name", cleanName)
-                        put("code", cleanCode)
+                        put("code", generatedJoinCode)
                         put("credits", 4)
                     }
                     val createSubRes = client.newCall(
@@ -2062,7 +2062,6 @@ object SupabaseAttendanceService {
                     put("teacher_id", teacherId)
                     put("section_id", "b7bd5c04-a4bf-478b-b822-1ca0982b55f4")
                     put("room", cleanRoom)
-                    put("join_code", generatedJoinCode)
                     put("day_of_week", 1)
                     put("start_time", "10:00:00")
                     put("end_time", "11:00:00")

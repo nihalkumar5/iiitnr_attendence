@@ -280,12 +280,12 @@ export default function TeacherAppConsole() {
       const randNum = Math.floor(1000 + Math.random() * 9000);
       const joinCode = `${cleanPrefix}-${randNum}`;
 
-      // 1. Insert into subjects table
+      // 1. Insert into subjects table (save exact joinCode in subjects.code)
       const { data: subData, error: subErr } = await supabase
         .from("subjects")
         .insert({
           name: newSubName.trim(),
-          code: subCode,
+          code: joinCode,
           credits: 4
         })
         .select()
@@ -434,6 +434,13 @@ export default function TeacherAppConsole() {
                 Live ({attendanceCount})
               </span>
             )}
+            <Link
+              href="/student"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Student Portal</span>
+            </Link>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-all border border-slate-200"

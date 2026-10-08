@@ -1,5 +1,9 @@
 
 export function getAndroidJoinCode(subCode: string, classId: string): string {
+  if (!subCode) return "CS50-1000";
+  if (subCode.includes("-")) {
+    return subCode.trim().toUpperCase();
+  }
   if (!classId) return `${subCode.slice(0, 4).toUpperCase()}-1000`;
   let hash = 0;
   for (let i = 0; i < classId.length; i++) {
