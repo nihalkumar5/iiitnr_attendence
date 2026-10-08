@@ -98,11 +98,16 @@ fun TeacherScheduleScreen(
     LaunchedEffect(selectedClassForDetail?.id) {
         val current = selectedClassForDetail
         if (current != null) {
-            isLoadingRoster = true
-            val res = SupabaseAttendanceService.fetchCourseRoster(current.id, current.joinCode)
-            isLoadingRoster = false
-            if (res.isSuccess) {
-                rosterList = res.getOrThrow()
+            var firstLoad = true
+            while (true) {
+                if (firstLoad) isLoadingRoster = true
+                val res = SupabaseAttendanceService.fetchCourseRoster(current.id, current.joinCode)
+                if (firstLoad) isLoadingRoster = false
+                firstLoad = false
+                if (res.isSuccess) {
+                    rosterList = res.getOrThrow()
+                }
+                kotlinx.coroutines.delay(2000)
             }
         }
     }

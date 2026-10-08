@@ -680,7 +680,8 @@ export async function enrollStudentInClassInDB(params: {
         .insert({
           class_id: params.classId,
           teacher_id: teacherId,
-          status: "COMPLETED",
+          session_secret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          status: "ACTIVE",
           start_time: new Date().toISOString()
         })
         .select()
