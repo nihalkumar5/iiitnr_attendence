@@ -778,6 +778,59 @@ fun TeacherScheduleScreen(
             }
         }
 
+        // DIALOG: DELETE SUBJECT CONFIRMATION
+        if (showDeleteDialog && selectedClassForDetail != null) {
+            val target = selectedClassForDetail!!
+            AlertDialog(
+                onDismissRequest = { if (!isDeletingSubject) showDeleteDialog = false },
+                shape = DialogShape,
+                containerColor = CardBackground,
+                title = {
+                    Text(
+                        text = "Delete " + target.subjectName + "?",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextPrimary
+                    )
+                },
+                text = {
+                    Text(
+                        text = "This will permanently delete join code " + target.joinCode + " and remove this subject from your schedule.",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isDeletingSubject = true
+                                SupabaseAttendanceService.deleteCourse(target.id, target.joinCode)
+                                val updated = classList.filter { it.id != target.id && !it.joinCode.equals(target.joinCode, ignoreCase = true) }
+                                updateClassList(updated)
+                                selectedClassForDetail = null
+                                showDeleteDialog = false
+                                isDeletingSubject = false
+                                Toast.makeText(context, "Subject deleted successfully", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFDC2626)),
+                        enabled = !isDeletingSubject
+                    ) {
+                        Text(if (isDeletingSubject) "Deleting..." else "Yes, Delete", color = androidx.compose.ui.graphics.Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showDeleteDialog = false },
+                        enabled = !isDeletingSubject
+                    ) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                }
+            )
+        }
+
         // DIALOG: CREATE SUBJECT MODAL FORM
         if (showAddClassDialog) {
             val programs = listOf("B.Tech DSAI", "B.Tech CSE", "B.Tech ECE", "M.Tech AI", "PhD CSE")
