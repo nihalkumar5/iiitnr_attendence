@@ -1205,3 +1205,76 @@ export async function fetchStudentEnrolledClassesFromDB(rollNo: string): Promise
     return [];
   }
 }
+
+
+/**
+ * Permanently delete a subject/class, including its sessions and attendance records
+ */
+export async function deleteClassFromDB(classId: string, subjectCode?: string): Promise<boolean> {
+  try {
+    // 1. Find all attendance_sessions for this class
+    const { data: sessions } = await supabase
+      .from("attendance_sessions")
+      .select("id")
+      .eq("class_id", classId);
+
+    if (sessions && sessions.length > 0) {
+      const sessionIds = sessions.map(s => s.id);
+      // 2. Delete attendance records for these sessions
+      await supabase
+        .from("attendance_records")
+        .delete()
+        .in("session_id", sessionIds);
+
+      // 3. Delete the attendance sessions
+      await supabase
+        .from("attendance_sessions")
+        .delete()
+        .eq("class_id", classId);
+    }
+
+    // 4. Get subject_id from classes before deleting class
+    const { data: clsData } = await supabase
+      .from("classes")
+      .select("subject_id")
+      .eq("id", classId)
+      .maybeSingle();
+
+    const subjectId = clsData?.subject_id;
+
+    // 5. Delete class from classes table
+    const { error: clsDelErr } = await supabase
+      .from("classes")
+      .delete()
+      .eq("id", classId);
+
+    if (clsDelErr) {
+      console.error("Failed to delete class:", clsDelErr);
+    }
+
+    // 6. Delete subject if exists and no other classes reference it
+    if (subjectId) {
+      const { data: otherClasses } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("subject_id", subjectId);
+
+      if (!otherClasses || otherClasses.length === 0) {
+        await supabase
+          .from("subjects")
+          .delete()
+          .eq("id", subjectId);
+      }
+    } else if (subjectCode) {
+      await supabase
+        .from("subjects")
+        .delete()
+        .ilike("code", subjectCode);
+    }
+
+    return true;
+  } catch (err) {
+    console.error("deleteClassFromDB error:", err);
+    return false;
+  }
+}

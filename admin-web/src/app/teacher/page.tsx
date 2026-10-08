@@ -30,7 +30,8 @@ import {
   GraduationCap,
   Layers,
   Settings,
-  UserCheck
+  UserCheck,
+  Trash2
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { 
@@ -42,7 +43,8 @@ import {
   DBClass, 
   DBSession, 
   DBStudent,
-  getAndroidJoinCode
+  getAndroidJoinCode,
+  deleteClassFromDB
 } from "@/lib/attendanceService";
 import { LiveWifiSearchSelector } from "@/components/LiveWifiSearchSelector";
 
@@ -88,6 +90,30 @@ export default function TeacherAppConsole() {
   const [newRoom, setNewRoom] = useState("Room A-204 (AC Block)");
   const [newSchedule, setNewSchedule] = useState("10:00 – 11:00 AM");
   const [isCreatingClass, setIsCreatingClass] = useState(false);
+  const [subjectToDelete, setSubjectToDelete] = useState<DBClass | null>(null);
+  const [isDeletingSubject, setIsDeletingSubject] = useState(false);
+
+  const handleDeleteSubject = async (cls: DBClass) => {
+    setIsDeletingSubject(true);
+    try {
+      const ok = await deleteClassFromDB(cls.id, cls.subjectCode);
+      if (ok) {
+        setClasses(prev => prev.filter(c => c.id !== cls.id));
+        if (selectedSubject?.id === cls.id) {
+          setSelectedSubject(null);
+        }
+        showToast(`🗑️ Subject "${cls.subjectName}" deleted successfully`);
+      } else {
+        showToast("❌ Failed to delete subject");
+      }
+    } catch (e) {
+      console.error("Delete error:", e);
+      showToast("❌ Error deleting subject");
+    } finally {
+      setIsDeletingSubject(false);
+      setSubjectToDelete(null);
+    }
+  };
 
   // Feedback notifications
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -668,7 +694,7 @@ export default function TeacherAppConsole() {
                     Accepting Students
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="flex items-center justify-between py-2 border-b border-slate-100">
                   <div>
                     <div className="font-bold text-slate-900">Anti-Proxy Hardware Verification</div>
                     <div className="text-slate-500 text-[11px]">Wi-Fi BSSID + GPS 30m Boundary</div>
@@ -676,6 +702,27 @@ export default function TeacherAppConsole() {
                   <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full font-bold text-[10px]">
                     Active
                   </span>
+                </div>
+
+                {/* DANGER ZONE: DELETE SUBJECT */}
+                <div className="pt-2">
+                  <div className="text-[11px] font-bold text-rose-600 uppercase tracking-wider mb-2">
+                    DANGER ZONE
+                  </div>
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200">
+                    <div>
+                      <div className="font-bold text-rose-950">Delete Subject Batch</div>
+                      <div className="text-rose-700 text-[11px]">Permanently remove this subject, join code, and lecture logs</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSubjectToDelete(selectedSubject)}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Subject</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -743,9 +790,20 @@ export default function TeacherAppConsole() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 text-slate-400 group-hover:text-blue-600 transition-colors">
-                          <span className="text-xs font-bold hidden sm:inline">Open Detail</span>
-                          <ChevronRight className="w-4 h-4" />
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <span className="text-xs font-bold hidden sm:inline text-slate-500 group-hover:text-blue-600 transition-colors">Open Detail</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSubjectToDelete(cls);
+                            }}
+                            title="Delete Subject"
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
                         </div>
                       </div>
                     ))}
@@ -953,6 +1011,52 @@ export default function TeacherAppConsole() {
           </button>
         </div>
       </nav>
+
+      {/* ==================================================================== */}
+      {/* MODAL: DELETE SUBJECT CONFIRMATION */}
+      {/* ==================================================================== */}
+      {subjectToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-slate-900">
+                Delete "{subjectToDelete.subjectName}"?
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                This will permanently delete join code <span className="font-mono font-bold text-slate-800">{subjectToDelete.joinCode}</span> and all associated student attendance records.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingSubject}
+                onClick={() => setSubjectToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingSubject}
+                onClick={() => handleDeleteSubject(subjectToDelete)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              >
+                {isDeletingSubject ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isDeletingSubject ? "Deleting..." : "Yes, Delete"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* MODAL: CREATE SUBJECT BATCH */}

@@ -1988,6 +1988,41 @@ object SupabaseAttendanceService {
     /**
      * Creates a new course and scheduled class for faculty in Supabase.
      */
+        suspend fun deleteCourse(classId: String, subjectCode: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            localClassesRegistry.entries.removeIf { it.value.classId == classId || it.key.equals(subjectCode, ignoreCase = true) }
+
+            try {
+                val sessReq = Request.Builder()
+                    .url("/rest/v1/attendance_sessions?class_id=eq.&select=id")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer ")
+                    .get()
+                    .build()
+                val sessRes = client.newCall(sessReq).execute()
+                val sessBody = sessRes.body?.string() ?: "[]"
+                val sessArr = org.json.JSONArray(sessBody)
+                for (i in 0 until sessArr.length()) {
+                    val sId = sessArr.getJSONObject(i).getString("id")
+                    client.newCall(Request.Builder().url("/rest/v1/attendance_records?session_id=eq.").addHeader("apikey", ANON_KEY).addHeader("Authorization", "Bearer ").delete().build()).execute()
+                }
+                client.newCall(Request.Builder().url("/rest/v1/attendance_sessions?class_id=eq.").addHeader("apikey", ANON_KEY).addHeader("Authorization", "Bearer ").delete().build()).execute()
+            } catch (_: Exception) {}
+
+            try {
+                client.newCall(Request.Builder().url("/rest/v1/classes?id=eq.").addHeader("apikey", ANON_KEY).addHeader("Authorization", "Bearer ").delete().build()).execute()
+            } catch (_: Exception) {}
+
+            try {
+                client.newCall(Request.Builder().url("/rest/v1/subjects?code=ilike.").addHeader("apikey", ANON_KEY).addHeader("Authorization", "Bearer ").delete().build()).execute()
+            } catch (_: Exception) {}
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun createCourse(
         teacherId: String = "977d23e7-4b43-4a7a-af74-b3fb2855beae",
         teacherName: String = "Dr. S. Sharma",

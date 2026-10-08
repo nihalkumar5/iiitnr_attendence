@@ -76,6 +76,8 @@ fun TeacherScheduleScreen(
     var isCreatingSubject by remember { mutableStateOf(false) }
     var addClassError by remember { mutableStateOf<String?>(null) }
     var createdClassSuccess by remember { mutableStateOf<TeacherClassItem?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var isDeletingSubject by remember { mutableStateOf(false) }
 
     fun copyToClipboard(text: String, label: String = "Join Code") {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -582,6 +584,21 @@ fun TeacherScheduleScreen(
                             DetailRow(label = "Assigned Venue", value = currentClass.room)
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
                             DetailRow(label = "Status", value = "Active")
+                            HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Button(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showDeleteDialog = true
+                                },
+                                shape = ButtonShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFDC2626)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Delete This Subject", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
