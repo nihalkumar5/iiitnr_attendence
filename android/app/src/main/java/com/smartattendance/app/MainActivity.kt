@@ -153,7 +153,9 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(currentRole) {
                     if (currentRole == UserRole.STUDENT) {
-                        com.smartattendance.app.core.service.BackgroundAttendanceService.start(this@MainActivity)
+                        if (!com.smartattendance.app.core.service.StudentScheduleManager.areAllSubjectsCompletedToday(this@MainActivity)) {
+                            com.smartattendance.app.core.service.BackgroundAttendanceService.start(this@MainActivity)
+                        }
                     }
                 }
 

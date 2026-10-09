@@ -69,6 +69,13 @@ class BackgroundAttendanceService : Service {
         wifiManager = WifiPresenceManager(this)
         gpsManager = GpsLocationManager(this)
 
+        // Power Save Guard: If all subjects completed today, do not run service
+        if (StudentScheduleManager.areAllSubjectsCompletedToday(this)) {
+            Log.i(tag, "All subjects already completed today. Stopping immediately to save battery.")
+            stopSelf()
+            return
+        }
+
         createNotificationChannels()
         acquireWakeLock()
 
@@ -144,6 +151,14 @@ class BackgroundAttendanceService : Service {
 
             while (isActive) {
                 try {
+                    // Check if all classes today are done
+                    if (StudentScheduleManager.areAllSubjectsCompletedToday(applicationContext)) {
+                        Log.i(tag, "All subjects completed today. Stopping background service to save battery.")
+                        StudentScheduleManager.evaluateAndSchedulePowerSave(applicationContext)
+                        stopSelf()
+                        return@launch
+                    }
+
                     val activeRoll = prefs.getString("selected_roll", null)
                     val activeName = prefs.getString("selected_name", "Student") ?: "Student"
                     val installationId = prefs.getString("device_installation_id", "DEV-DEFAULT")
@@ -155,7 +170,12 @@ class BackgroundAttendanceService : Service {
                             val isAlreadyRecorded = lastVerifiedId == session.sessionId ||
                                     SupabaseAttendanceService.isStudentMarkedPresent(session.sessionId, activeRoll)
 
-                            if (!isAlreadyRecorded) {
+                            if (isAlreadyRecorded) {
+                                Log.i(tag, "Session ${session.sessionId} (${session.subjectName}) already marked PRESENT. Powering down service until next class.")
+                                StudentScheduleManager.evaluateAndSchedulePowerSave(applicationContext)
+                                stopSelf()
+                                return@launch
+                            } else {
                                 val snap = wifiManager.getCurrentWifiSnapshot()
                                 val currentSsid = snap.ssid?.replace("\"", "")?.trim() ?: ""
                                 val isWifiMatched = snap.isConnected && isWifiSsidAllowed(currentSsid, session.requiredWifiSsid)
@@ -222,7 +242,12 @@ class BackgroundAttendanceService : Service {
 
                                                 vibrateDevice()
                                                 showSuccessNotification(session.subjectName, session.room)
-                                                Log.i(tag, "Screen-off attendance recorded successfully for ${session.subjectName}!")
+                                                Log.i(tag, "Screen-off attendance recorded successfully for ${session.subjectName}! Shutting down scanning to conserve battery.")
+
+                                                // IMMEDIATE SHUTDOWN & SCHEDULE NEXT CLASS ALARM
+                                                StudentScheduleManager.evaluateAndSchedulePowerSave(applicationContext)
+                                                stopSelf()
+                                                return@launch
                                             }.onFailure { err ->
                                                 Log.w(tag, "Screen-off attendance submission error: ${err.message}")
                                             }
@@ -235,7 +260,7 @@ class BackgroundAttendanceService : Service {
                 } catch (e: Exception) {
                     Log.w(tag, "Screen-off scan iteration error: ${e.message}")
                 }
-                delay(4000L) // Runs every 4 seconds in background
+                delay(5000L) // Battery-friendly 5s interval
             }
         }
     }

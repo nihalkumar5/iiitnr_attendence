@@ -147,6 +147,7 @@ fun StudentHomeScreen(
             val coursesRes = SupabaseAttendanceService.fetchStudentEnrolledCourses(activeRoll)
             coursesRes.onSuccess { list ->
                 enrolledCourses = list
+                com.smartattendance.app.core.service.StudentScheduleManager.saveCachedCourses(context, list)
             }
             val devRes = SupabaseAttendanceService.getStudentDeviceStatus(activeRoll)
             devRes.onSuccess { info ->
@@ -263,6 +264,7 @@ fun StudentHomeScreen(
                     prefs.edit().putString("last_verified_session_id", session.sessionId).apply()
                     TimetableEngine.lockStudentSubjectToday(context, session.subjectName, "PRESENT")
                     TimetableEngine.lockStudentSubjectToday(context, session.classId, "PRESENT")
+                    com.smartattendance.app.core.service.StudentScheduleManager.evaluateAndSchedulePowerSave(context)
                     return@launch
                 }
 
@@ -337,7 +339,9 @@ fun StudentHomeScreen(
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         permissionsLauncher.launch(perms.toTypedArray())
-        com.smartattendance.app.core.service.BackgroundAttendanceService.start(context)
+        if (!com.smartattendance.app.core.service.StudentScheduleManager.areAllSubjectsCompletedToday(context)) {
+            com.smartattendance.app.core.service.BackgroundAttendanceService.start(context)
+        }
 
         refreshStatsAndHistory()
         checkPresenceAndSync()

@@ -54,6 +54,11 @@
             android:exported="false"
             android:foregroundServiceType="location|dataSync" />
 
+        <receiver
+            android:name=".core.service.AttendanceScheduleReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
     </application>
 
 </manifest>
