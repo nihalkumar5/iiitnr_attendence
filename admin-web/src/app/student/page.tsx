@@ -876,17 +876,23 @@ export default function StudentPortal() {
       const geoResult = await getBrowserGeofence();
       setVerificationResult(geoResult);
 
-      const targetWifi = (sess.wifiSsid || "Pranjal").toLowerCase().trim();
+      const allowedWifiList = (sess.wifiSsid || "Pranjal")
+        .split(",")
+        .map((s: string) => s.toLowerCase().trim())
+        .filter(Boolean);
       const currentWifi = (studentConnectedWifi || "").toLowerCase().trim();
       
       // HARDWARE ANTI-HOTSPOT CHECK:
       // Router BSSID must match classroom hardware AP (A4:2B:B0:8C:12:EF). Rogue hotspots with same SSID are rejected!
       const isOfficialBssid = selectedBssid === "A4:2B:B0:8C:12:EF";
+      const isSsidAllowed = allowedWifiList.some((target: string) =>
+        currentWifi === target ||
+        (currentWifi.includes(target) && !currentWifi.includes("fake") && !currentWifi.includes("cellular") && !currentWifi.includes("other"))
+      );
       const isWifiMatched = 
         isOfficialBssid && (
-          (currentWifi === targetWifi) || 
-          (currentWifi.includes(targetWifi) && !currentWifi.includes("fake") && !currentWifi.includes("cellular") && !currentWifi.includes("other")) ||
-          (detectedNetwork?.isSameSubnet === true && (currentWifi === targetWifi || currentWifi.includes(targetWifi)))
+          isSsidAllowed ||
+          (detectedNetwork?.isSameSubnet === true && isSsidAllowed)
         );
 
       const isPresent = geoResult.isInside && isWifiMatched;
@@ -1000,10 +1006,13 @@ export default function StudentPortal() {
       }
     }
 
-    // 4. Exact query to Supabase database for subjects with exact matching code
+    // 4. Smart query to Supabase database for subjects matching entered code
     if (!matched) {
       try {
-        const { data: dbSub } = await supabase
+        const cleanNoHyphen = entered.replace(/[^A-Z0-9]/g, "");
+        const prefix = entered.includes("-") ? entered.split("-")[0] : entered;
+
+        let { data: dbSubList } = await supabase
           .from("subjects")
           .select(`
             id, name, code,
@@ -1012,32 +1021,62 @@ export default function StudentPortal() {
               teachers ( id, users ( name ) )
             )
           `)
-          .ilike("code", entered)
-          .maybeSingle();
+          .or(`code.ilike.${entered},code.ilike.${cleanNoHyphen},code.ilike.${prefix}-%,code.ilike.${prefix},name.ilike.%${entered}%`)
+          .limit(5);
+
+        const dbSub = dbSubList && dbSubList.length > 0 ? dbSubList[0] : null;
 
         if (dbSub) {
-          const clsList: any[] = dbSub.classes || [];
-          const cls = clsList.find((x: any) => x.is_active) || clsList[0];
+          let clsList: any[] = dbSub.classes || [];
+          let cls = clsList.find((x: any) => x.is_active) || clsList[0];
+
+          if (!cls) {
+            const { data: directClass } = await supabase
+              .from("classes")
+              .select(`id, room, is_active, teachers ( id, users ( name ) )`)
+              .eq("subject_id", dbSub.id)
+              .limit(1);
+            if (directClass && directClass.length > 0) {
+              cls = directClass[0];
+            } else {
+              const { data: teachers } = await supabase.from("teachers").select("id").limit(1);
+              const teacherId = teachers?.[0]?.id || "6885fced-5d3e-4b9c-94fd-85d115cc9d9b";
+              const { data: newCls } = await supabase
+                .from("classes")
+                .insert({
+                  subject_id: dbSub.id,
+                  teacher_id: teacherId,
+                  section_id: "b7bd5c04-a4bf-478b-b822-1ca0982b55f4",
+                  room: "Room A-204 (AC Block)",
+                  day_of_week: 1,
+                  start_time: "10:00:00",
+                  end_time: "11:00:00",
+                  is_active: true
+                })
+                .select(`id, room, is_active, teachers ( id, users ( name ) )`)
+                .single();
+              cls = newCls;
+            }
+          }
+
           const t = cls?.teachers;
           const tUser = Array.isArray(t) ? t[0]?.users : t?.users;
 
-          if (cls) {
-            matched = {
-              id: cls.id,
-              subjectCode: dbSub.code,
-              subjectName: dbSub.name,
-              section: "Section A",
-              joinCode: dbSub.code,
-              roomNo: cls.room || "Room A-204 (AC Block)",
-              wifiSsid: "Pranjal",
-              latitude: 21.128456,
-              longitude: 81.766184,
-              teacherId: t?.id || "",
-              teacherName: tUser?.name || "Dr. Sharma",
-              students: [],
-              createdAt: new Date().toISOString()
-            };
-          }
+          matched = {
+            id: cls?.id || dbSub.id,
+            subjectCode: dbSub.code,
+            subjectName: dbSub.name,
+            section: "Section A",
+            joinCode: dbSub.code,
+            roomNo: cls?.room || "Room A-204 (AC Block)",
+            wifiSsid: "Pranjal",
+            latitude: 21.128456,
+            longitude: 81.766184,
+            teacherId: t?.id || "",
+            teacherName: tUser?.name || "Dr. Sharma",
+            students: [],
+            createdAt: new Date().toISOString()
+          };
         }
       } catch (e) {
         console.warn("DB search error:", e);
@@ -1524,7 +1563,7 @@ export default function StudentPortal() {
                 <div className="grid grid-cols-2 gap-2.5 pt-1">
                   {/* Wi-Fi Card */}
                   <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
-                    studentConnectedWifi.toLowerCase().trim() === (activeSession.wifiSsid || "pranjal").toLowerCase().trim()
+                    (activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim())
                       ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
                       : "bg-rose-50/70 border-rose-200 text-rose-900"
                   }`}>
@@ -1534,15 +1573,15 @@ export default function StudentPortal() {
                         <span>Classroom Wi-Fi</span>
                       </div>
                       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                        studentConnectedWifi.toLowerCase().trim() === (activeSession.wifiSsid || "pranjal").toLowerCase().trim()
+                        (activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim())
                           ? "bg-emerald-200 text-emerald-900"
                           : "bg-rose-200 text-rose-900"
                       }`}>
-                        {studentConnectedWifi.toLowerCase().trim() === (activeSession.wifiSsid || "pranjal").toLowerCase().trim() ? "MATCH" : "MISMATCH"}
+                        {(activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim()) ? "MATCH" : "MISMATCH"}
                       </span>
                     </div>
                     <div className="text-[11px] font-mono truncate">
-                      {studentConnectedWifi.toLowerCase().trim() === (activeSession.wifiSsid || "pranjal").toLowerCase().trim() ? "AP Verified" : "Not Connected"}
+                      {(activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim()) ? "AP Verified" : "Not Connected"}
                     </div>
                   </div>
 

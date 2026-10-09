@@ -69,7 +69,8 @@ data class TeacherClassItem(
     val dayOfWeek: Int = 1,
     val startTime: String = "10:00:00",
     val endTime: String = "11:00:00",
-    val isLocked: Boolean = false
+    val isLocked: Boolean = false,
+    val lockedDate: String? = null
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -89,6 +90,7 @@ data class TeacherClassItem(
         put("startTime", startTime)
         put("endTime", endTime)
         put("isLocked", isLocked)
+        put("lockedDate", lockedDate ?: "")
     }
 
     companion object {
@@ -118,7 +120,8 @@ data class TeacherClassItem(
                 dayOfWeek = obj.optInt("dayOfWeek", 1),
                 startTime = obj.optString("startTime", "10:00:00"),
                 endTime = obj.optString("endTime", "11:00:00"),
-                isLocked = obj.optBoolean("isLocked", false)
+                isLocked = obj.optBoolean("isLocked", false),
+                lockedDate = obj.optString("lockedDate", "").ifEmpty { null }
             )
         }
 
@@ -134,11 +137,28 @@ internal fun loadPersistedSchedule(context: android.content.Context): List<Teach
     if (rawJson.isNullOrBlank()) {
         return emptyList()
     }
+    val today = com.smartattendance.app.core.engine.TimetableEngine.todayDateIso()
+    com.smartattendance.app.core.engine.TimetableEngine.cleanExpiredLocks(context)
     return try {
         val arr = JSONArray(rawJson)
         val list = mutableListOf<TeacherClassItem>()
+        var needsResave = false
         for (i in 0 until arr.length()) {
-            list.add(TeacherClassItem.fromJson(arr.getJSONObject(i)))
+            val item = TeacherClassItem.fromJson(arr.getJSONObject(i))
+            // Midnight 12:00 AM Auto-Unlock:
+            // If item was locked on a past date or without today date lock, reset to SCHEDULED / unlocked
+            if (item.isLocked && item.lockedDate != null && item.lockedDate != today) {
+                list.add(item.copy(isLocked = false, status = ClassScheduleStatus.SCHEDULED, lockedDate = null))
+                needsResave = true
+            } else if (item.isLocked && item.lockedDate == null && !com.smartattendance.app.core.engine.TimetableEngine.isClassLockedToday(context, item.id, today)) {
+                list.add(item.copy(isLocked = false, status = ClassScheduleStatus.SCHEDULED, lockedDate = null))
+                needsResave = true
+            } else {
+                list.add(item)
+            }
+        }
+        if (needsResave) {
+            savePersistedSchedule(context, list)
         }
         list
     } catch (e: Exception) {
@@ -194,6 +214,7 @@ fun TeacherHomeScreen(
     var liveTimeStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveTime()) }
     var currentIsoDay by remember { mutableStateOf(TimetableEngine.getIsoDayOfWeek()) }
     var selectedDayFilter by remember { mutableStateOf("TODAY") }
+    var currentDateIso by remember { mutableStateOf(TimetableEngine.todayDateIso()) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -201,18 +222,27 @@ fun TeacherHomeScreen(
             liveDateStr = TimetableEngine.formatCurrentLiveDate()
             liveTimeStr = TimetableEngine.formatCurrentLiveTime()
             currentIsoDay = TimetableEngine.getIsoDayOfWeek()
+            val newIso = TimetableEngine.todayDateIso()
+            if (newIso != currentDateIso) {
+                currentDateIso = newIso
+                // Midnight 12:00 AM date rollover: clean expired locks and reload unlocked schedule
+                TimetableEngine.cleanExpiredLocks(context)
+                classList = loadPersistedSchedule(context)
+            }
         }
     }
 
-    // Synchronize lock status for today
-    val synchronizedClassList = remember(classList, currentIsoDay, liveTimeStr) {
+    // Synchronize lock status for today (automatically unlocks at midnight date rollover)
+    val synchronizedClassList = remember(classList, currentIsoDay, liveTimeStr, currentDateIso) {
         classList.map { item ->
-            val isLocked = item.isLocked || TimetableEngine.isClassLockedToday(context, item.id) || item.status == ClassScheduleStatus.LOCKED
+            val isLocked = (item.isLocked && (item.lockedDate == null || item.lockedDate == currentDateIso)) &&
+                (TimetableEngine.isClassLockedToday(context, item.id, currentDateIso) || item.status == ClassScheduleStatus.LOCKED)
             val slotState = TimetableEngine.evaluateSlotState(item.dayOfWeek, item.startTime, item.endTime, isLocked)
             val status = when {
                 isLocked -> ClassScheduleStatus.LOCKED
                 item.status == ClassScheduleStatus.ACTIVE -> ClassScheduleStatus.ACTIVE
                 slotState == TimetableSlotState.LIVE_NOW -> ClassScheduleStatus.ACTIVE
+                item.status == ClassScheduleStatus.LOCKED && !isLocked -> ClassScheduleStatus.SCHEDULED
                 else -> item.status
             }
             item.copy(isLocked = isLocked, status = status)
@@ -255,10 +285,17 @@ fun TeacherHomeScreen(
             }
         }
     }
+    var showAddCustomWifiDialog by remember { mutableStateOf(false) }
+    var customWifiInput by remember { mutableStateOf("") }
 
     // Realtime Cloud Enrollment Count Polling & Cloud Sync
     LaunchedEffect(Unit) {
         while (true) {
+            val today = com.smartattendance.app.core.engine.TimetableEngine.todayDateIso()
+            if (today != currentDateIso) {
+                currentDateIso = today
+                updateClassList(loadPersistedSchedule(context))
+            }
             withContext(Dispatchers.IO) {
                 try {
                     val counts = SupabaseAttendanceService.fetchEnrollmentCounts()
@@ -268,12 +305,10 @@ fun TeacherHomeScreen(
                                 val cleanJoin = item.joinCode.trim().uppercase()
                                 val cleanSub = item.subjectCode.trim().uppercase()
                                 val cleanName = item.subjectName.trim().lowercase()
-                                val prefix = cleanSub.substringBefore("-")
                                 val c = counts[item.id]
                                     ?: counts[cleanJoin]
                                     ?: counts[cleanSub]
                                     ?: counts[cleanName]
-                                    ?: counts[prefix]
                                 if (c != null && c != item.enrolledStudents) {
                                     item.copy(enrolledStudents = c)
                                 } else {
@@ -657,11 +692,114 @@ fun TeacherHomeScreen(
     
                     Spacer(modifier = Modifier.height(16.dp))
     
+                    // MULTI-WIFI SELECTION SECTION
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Wifi, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Allowed Wi-Fi (${selectedSsids.size})",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
+                            Text(
+                                text = "Students on ANY network verified",
+                                fontSize = 10.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val availableAps = (listOf(teacherCleanSsid, "Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS", "eduroam") + selectedSsids).distinct().filter { it.isNotBlank() }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            availableAps.forEach { ap ->
+                                val isSelected = selectedSsids.any { it.equals(ap, ignoreCase = true) }
+                                Surface(
+                                    shape = BadgeShape,
+                                    color = if (isSelected) BrandAccent.copy(alpha = 0.12f) else SurfaceNeutral,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isSelected) BrandAccent else BorderHairline
+                                    ),
+                                    modifier = Modifier.clickable {
+                                        if (isSelected) {
+                                            if (selectedSsids.size > 1) {
+                                                selectedSsids.removeAll { it.equals(ap, ignoreCase = true) }
+                                            }
+                                        } else {
+                                            selectedSsids.add(ap)
+                                        }
+                                        val effective = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
+                                        prefs.edit().putString("faculty_chosen_wifi_ssid", effective).apply()
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+                                        Text(
+                                            text = ap,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) BrandAccent else TextPrimary
+                                        )
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                shape = BadgeShape,
+                                color = SurfaceNeutral,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                                modifier = Modifier.clickable {
+                                    customWifiInput = ""
+                                    showAddCustomWifiDialog = true
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Add Wi-Fi",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandAccent
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
                     // PRIMARY ATTENDANCE ACTION BUTTON (ONE OBVIOUS DOMINANT ACTION)
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            val effectiveSsid = selectedSsids.joinToString(",").ifBlank { teacherCleanSsid }
+                            val effectiveSsid = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
                             prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
                             coroutineScope.launch {
                                 SupabaseAttendanceService.updateClassroomWifiForSession(effectiveSsid)
@@ -854,7 +992,53 @@ fun TeacherHomeScreen(
         }
 
         // ====================================================================
-        // 5. LOW ATTENDANCE ALERT (Compact, only if data exists)
+        if (showAddCustomWifiDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddCustomWifiDialog = false },
+            shape = DialogShape,
+            containerColor = CardBackground,
+            title = {
+                Text("Add Classroom Wi-Fi SSID", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter the name of another authorized Wi-Fi network.", fontSize = 12.sp, color = TextSecondary)
+                    OutlinedTextField(
+                        value = customWifiInput,
+                        onValueChange = { customWifiInput = it },
+                        placeholder = { Text("e.g. Lab-WiFi-5G", fontSize = 12.sp, color = TextSecondary) },
+                        singleLine = true,
+                        shape = BadgeShape,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clean = customWifiInput.replace("\"", "").trim()
+                        if (clean.isNotBlank() && !selectedSsids.any { it.equals(clean, ignoreCase = true) }) {
+                            selectedSsids.add(clean)
+                            prefs.edit().putString("faculty_chosen_wifi_ssid", selectedSsids.joinToString(", ")).apply()
+                        }
+                        showAddCustomWifiDialog = false
+                    },
+                    shape = ButtonShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                    enabled = customWifiInput.isNotBlank()
+                ) {
+                    Text("Add Network", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddCustomWifiDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // 5. LOW ATTENDANCE ALERT (Compact, only if data exists)
         // ====================================================================
         val lowAttendanceCount = remember {
             prefs.getInt("low_attendance_students_count", 3)

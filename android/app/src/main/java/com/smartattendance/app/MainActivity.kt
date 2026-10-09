@@ -458,7 +458,7 @@ class MainActivity : ComponentActivity() {
                                                                         val currentSaved = com.smartattendance.app.ui.teacher.loadPersistedSchedule(context)
                                                                         val updated = currentSaved.map { item ->
                                                                             if (item.id == currentActive.id || (item.joinCode.isNotBlank() && item.joinCode == currentActive.joinCode)) {
-                                                                                item.copy(status = com.smartattendance.app.ui.teacher.ClassScheduleStatus.LOCKED, isLocked = true)
+                                                                                item.copy(status = com.smartattendance.app.ui.teacher.ClassScheduleStatus.LOCKED, isLocked = true, lockedDate = com.smartattendance.app.core.engine.TimetableEngine.todayDateIso())
                                                                             } else item
                                                                         }
                                                                         com.smartattendance.app.ui.teacher.savePersistedSchedule(context, updated)

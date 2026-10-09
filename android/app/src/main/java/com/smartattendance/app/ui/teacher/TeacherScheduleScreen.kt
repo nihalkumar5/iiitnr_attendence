@@ -146,11 +146,29 @@ fun TeacherScheduleScreen(
             var firstLoad = true
             while (true) {
                 if (firstLoad) isLoadingRoster = true
-                val res = SupabaseAttendanceService.fetchCourseRoster(current.id, current.joinCode)
+                val res = SupabaseAttendanceService.fetchCourseRoster(
+                    current.id,
+                    current.joinCode,
+                    current.subjectCode,
+                    current.subjectName
+                )
                 if (firstLoad) isLoadingRoster = false
                 firstLoad = false
                 if (res.isSuccess) {
-                    rosterList = res.getOrThrow()
+                    val list = res.getOrThrow()
+                    rosterList = list
+                    // Synchronize class list count with actual roster size so inside and outside match
+                    if (list.size != current.enrolledStudents) {
+                        val updated = classList.map {
+                            if (it.id == current.id || (it.joinCode.isNotBlank() && it.joinCode == current.joinCode)) {
+                                it.copy(enrolledStudents = list.size)
+                            } else it
+                        }
+                        if (updated != classList) {
+                            updateClassList(updated)
+                            selectedClassForDetail = current.copy(enrolledStudents = list.size)
+                        }
+                    }
                 }
                 kotlinx.coroutines.delay(2000)
             }
@@ -403,7 +421,8 @@ fun TeacherScheduleScreen(
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
                             DetailRow(label = "Schedule", value = currentClass.timeSlot)
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
-                            DetailRow(label = "Enrolled Students", value = "${rosterList.size} students")
+                            val displayCount = if (rosterList.isNotEmpty()) rosterList.size else currentClass.enrolledStudents
+                            DetailRow(label = "Enrolled Students", value = "$displayCount ${if (displayCount == 1) "student" else "students"}")
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
                             DetailRow(label = "Join Code", value = currentClass.joinCode)
                         }
@@ -424,8 +443,9 @@ fun TeacherScheduleScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val tabDisplayCount = if (rosterList.isNotEmpty()) rosterList.size else currentClass.enrolledStudents
                                 Text(
-                                    text = "${rosterList.size} Students",
+                                    text = "$tabDisplayCount ${if (tabDisplayCount == 1) "Student" else "Students"}",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
@@ -1125,7 +1145,7 @@ fun TeacherScheduleScreen(
                             updateClassList(classList + newClass)
 
                             coroutineScope.launch {
-                                SupabaseAttendanceService.createCourse(
+                                val res = SupabaseAttendanceService.createCourse(
                                     teacherName = teacherName,
                                     subjectName = cleanName,
                                     subjectCode = cleanCode,
@@ -1139,7 +1159,11 @@ fun TeacherScheduleScreen(
                                 )
                                 isCreatingSubject = false
                                 showAddClassDialog = false
-                                createdClassSuccess = newClass
+                                val remoteId = res.getOrNull()?.optString("id")
+                                val finalClass = if (!remoteId.isNullOrBlank()) newClass.copy(id = remoteId) else newClass
+                                val updated = classList.map { if (it.joinCode == newClass.joinCode) finalClass else it }
+                                updateClassList(updated)
+                                createdClassSuccess = finalClass
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
                         },

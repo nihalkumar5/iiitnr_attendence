@@ -312,6 +312,7 @@ fun StudentHomeScreen(
     var liveTimeStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveTime()) }
     var currentIsoDay by remember { mutableStateOf(TimetableEngine.getIsoDayOfWeek()) }
     var selectedDayFilter by remember { mutableStateOf("TODAY") }
+    var currentDateIso by remember { mutableStateOf(TimetableEngine.todayDateIso()) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -319,6 +320,14 @@ fun StudentHomeScreen(
             liveDateStr = TimetableEngine.formatCurrentLiveDate()
             liveTimeStr = TimetableEngine.formatCurrentLiveTime()
             currentIsoDay = TimetableEngine.getIsoDayOfWeek()
+            val newIso = TimetableEngine.todayDateIso()
+            if (newIso != currentDateIso) {
+                currentDateIso = newIso
+                // Midnight 12:00 AM date rollover: clear expired subject locks for the new day
+                TimetableEngine.cleanExpiredLocks(context)
+                prefs.edit().remove("last_verified_session_id").apply()
+                refreshStatsAndHistory()
+            }
         }
     }
 
@@ -692,8 +701,8 @@ fun StudentHomeScreen(
                 } else if (filteredEnrolledCourses.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         filteredEnrolledCourses.forEach { course ->
-                            val isCourseLocked = TimetableEngine.isStudentSubjectLockedToday(context, course.subjectCode) ||
-                                TimetableEngine.isStudentSubjectLockedToday(context, course.classId)
+                            val isCourseLocked = TimetableEngine.isStudentSubjectLockedToday(context, course.subjectCode, currentDateIso) ||
+                                TimetableEngine.isStudentSubjectLockedToday(context, course.classId, currentDateIso)
                             val slotState = TimetableEngine.evaluateSlotState(course.dayOfWeek, course.startTime, course.endTime, isCourseLocked)
                             val isSessionActiveForCourse = activeSession != null &&
                                 (activeSession?.classId == course.classId || activeSession?.subjectName?.contains(course.subjectCode, ignoreCase = true) == true)

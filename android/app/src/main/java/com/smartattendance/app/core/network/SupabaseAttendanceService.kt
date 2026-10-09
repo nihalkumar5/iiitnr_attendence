@@ -3121,6 +3121,43 @@ object SupabaseAttendanceService {
 
     suspend fun fetchEnrollmentCounts(): Map<String, Int> = withContext(Dispatchers.IO) {
         val map = mutableMapOf<String, Int>()
+        val seen = mutableSetOf<String>()
+        val addKey = { k: String?, sId: String? ->
+            if (!k.isNullOrBlank() && !sId.isNullOrBlank()) {
+                val key = "$k::$sId"
+                if (seen.add(key)) {
+                    map[k] = (map[k] ?: 0) + 1
+                }
+            }
+        }
+
+        // 1. Query course_enrollments
+        try {
+            val enrollReq = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/course_enrollments?is_active=eq.true&select=class_id,student_id,classes(id,subjects(id,name,code))")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val enrollRes = client.newCall(enrollReq).execute()
+            if (enrollRes.isSuccessful) {
+                val arr = JSONArray(enrollRes.body?.string() ?: "[]")
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val sId = obj.optString("student_id")
+                    val cId = obj.optString("class_id")
+                    val cls = obj.optJSONObject("classes")
+                    val sub = cls?.optJSONObject("subjects")
+                    val subCode = sub?.optString("code")?.trim()?.uppercase()
+                    val subName = sub?.optString("name")?.trim()?.lowercase()
+                    addKey(cId, sId)
+                    addKey(subCode, sId)
+                    addKey(subName, sId)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Query attendance_records for past distinct attendee counts
         try {
             val req = Request.Builder()
                 .url("$SUPABASE_URL/rest/v1/attendance_records?select=student_id,attendance_sessions(class_id,classes(id,subjects(name,code)))")
@@ -3131,7 +3168,6 @@ object SupabaseAttendanceService {
             val res = client.newCall(req).execute()
             if (res.isSuccessful) {
                 val arr = JSONArray(res.body?.string() ?: "[]")
-                val seen = mutableSetOf<String>()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     val sId = obj.optString("student_id")
@@ -3141,29 +3177,20 @@ object SupabaseAttendanceService {
                     val sub = cls?.optJSONObject("subjects")
                     val subCode = sub?.optString("code")?.trim()?.uppercase()
                     val subName = sub?.optString("name")?.trim()?.lowercase()
-
-                    val addKey = { k: String? ->
-                        if (!k.isNullOrBlank()) {
-                            val key = "$k::$sId"
-                            if (seen.add(key)) {
-                                map[k] = (map[k] ?: 0) + 1
-                            }
-                        }
-                    }
-
-                    addKey(cId)
-                    if (!subCode.isNullOrBlank()) {
-                        addKey(subCode)
-                        if (subCode.contains("-")) {
-                            addKey(subCode.substringBefore("-"))
-                        }
-                    }
-                    if (!subName.isNullOrBlank()) {
-                        addKey(subName)
-                    }
+                    addKey(cId, sId)
+                    addKey(subCode, sId)
+                    addKey(subName, sId)
                 }
             }
         } catch (_: Exception) {}
+
+        // 3. Include local student enrollments
+        for ((roll, codes) in localStudentEnrollments) {
+            for (code in codes) {
+                addKey(code.uppercase(), roll)
+            }
+        }
+
         map
     }
 

@@ -939,75 +939,152 @@ fun ActiveLectureScreen(
         )
     }
 
-    // CHANGE WI-FI AP MODAL DIALOG
+    // CHANGE WI-FI AP MODAL DIALOG (MULTI-SELECT SUPPORT)
     if (showChangeWifiDialog) {
         val currentTeacherWifi = remember { wifiManager.getCurrentWifiSnapshot() }
         val teacherCleanSsid = remember(currentTeacherWifi.ssid) {
             val raw = currentTeacherWifi.ssid?.replace("\"", "")?.trim()
             if (raw != null && raw != "<unknown ssid>" && raw != "Unknown Wi-Fi" && raw.isNotBlank()) raw else "Pranjal"
         }
+        val initialSelected = remember(activeWifiSsid) {
+            activeWifiSsid.split(",").map { it.replace("\"", "").trim() }.filter { it.isNotBlank() }
+        }
+        val dialogSelectedSsids = remember {
+            mutableStateListOf<String>().apply {
+                if (initialSelected.isNotEmpty()) {
+                    addAll(initialSelected)
+                } else {
+                    add(teacherCleanSsid)
+                }
+            }
+        }
+        var customSsidInput by remember { mutableStateOf("") }
+
+        val standardCampusAps = listOf("Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS", "eduroam")
+        val combinedList = (listOf(teacherCleanSsid) + standardCampusAps + scannedNetworks.map { it.ssid.replace("\"", "").trim() } + dialogSelectedSsids)
+            .distinct()
+            .filter { it.isNotBlank() }
 
         AlertDialog(
             onDismissRequest = { if (!isUpdatingWifi) showChangeWifiDialog = false },
             shape = DialogShape,
             containerColor = CardBackground,
             title = {
-                Text("Select Classroom Wi-Fi AP", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Wifi, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Classroom Allowed Wi-Fi Networks", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                }
             },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Choose the Wi-Fi network that students must connect to in this classroom.",
+                        text = "Select all authorized Wi-Fi networks in this area. Students connected to ANY selected network will be automatically verified and marked Present.",
                         fontSize = 12.sp,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+
+                    // Custom Wi-Fi SSID entry
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = customSsidInput,
+                            onValueChange = { customSsidInput = it },
+                            placeholder = { Text("Add custom Wi-Fi SSID...", fontSize = 11.sp, color = TextSecondary) },
+                            singleLine = true,
+                            shape = BadgeShape,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandAccent,
+                                unfocusedBorderColor = BorderHairline
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                val clean = customSsidInput.replace("\"", "").trim()
+                                if (clean.isNotBlank() && !dialogSelectedSsids.any { it.equals(clean, ignoreCase = true) }) {
+                                    dialogSelectedSsids.add(clean)
+                                    customSsidInput = ""
+                                }
+                            },
+                            enabled = customSsidInput.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add SSID", tint = if (customSsidInput.isNotBlank()) BrandAccent else TextSecondary)
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
+
+                    Text(
+                        text = "Campus Networks (${dialogSelectedSsids.size} selected):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
                         color = TextSecondary
                     )
 
-                    val standardCampusAps = listOf("Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS", "eduroam")
-                    val combinedList = (listOf(teacherCleanSsid) + standardCampusAps + scannedNetworks.map { it.ssid }).distinct().filter { it.isNotBlank() }
-
                     combinedList.forEach { ssid ->
-                        val isCurrentSelected = activeWifiSsid.equals(ssid, ignoreCase = true)
+                        val isSelected = dialogSelectedSsids.any { it.equals(ssid, ignoreCase = true) }
                         Surface(
                             shape = BadgeShape,
-                            color = if (isCurrentSelected) BrandAccent.copy(alpha = 0.1f) else SurfaceNeutral,
+                            color = if (isSelected) BrandAccent.copy(alpha = 0.12f) else SurfaceNeutral,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isCurrentSelected) BrandAccent else BorderHairline
+                                if (isSelected) BrandAccent else BorderHairline
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    activeWifiSsid = ssid
-                                    prefs.edit().putString("faculty_chosen_wifi_ssid", ssid).apply()
-                                    isUpdatingWifi = true
-                                    coroutineScope.launch {
-                                        val sId = activeSessionId
-                                        if (!sId.isNullOrBlank()) {
-                                            SupabaseAttendanceService.updateClassroomWifiForSession(sId, ssid)
+                                    if (isSelected) {
+                                        if (dialogSelectedSsids.size > 1) {
+                                            dialogSelectedSsids.removeAll { it.equals(ssid, ignoreCase = true) }
                                         }
-                                        isUpdatingWifi = false
-                                        showChangeWifiDialog = false
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    } else {
+                                        dialogSelectedSsids.add(ssid)
                                     }
                                 }
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Wifi, contentDescription = null, tint = if (isCurrentSelected) BrandAccent else TextSecondary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(ssid, fontSize = 13.sp, fontWeight = if (isCurrentSelected) FontWeight.Bold else FontWeight.Normal, color = TextPrimary)
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        Icons.Default.Wifi,
+                                        contentDescription = null,
+                                        tint = if (isSelected) BrandAccent else TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        ssid,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = TextPrimary
+                                    )
                                 }
-                                if (isCurrentSelected) {
-                                    Text("Active", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandAccent)
+                                if (isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = BrandAccent.copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            "✓ Allowed",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandAccent,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1015,10 +1092,39 @@ fun ActiveLectureScreen(
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = { showChangeWifiDialog = false }
+                Button(
+                    onClick = {
+                        val newString: String = dialogSelectedSsids.toList().distinct().joinToString(", ")
+                        activeWifiSsid = newString
+                        prefs.edit().putString("faculty_chosen_wifi_ssid", newString).apply()
+                        isUpdatingWifi = true
+                        coroutineScope.launch {
+                            val sId = activeSessionId
+                            if (!sId.isNullOrBlank()) {
+                                SupabaseAttendanceService.updateClassroomWifiForSession(sId, newString)
+                            }
+                            isUpdatingWifi = false
+                            showChangeWifiDialog = false
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    },
+                    shape = ButtonShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                    enabled = !isUpdatingWifi && dialogSelectedSsids.isNotEmpty()
                 ) {
-                    Text("Close", color = TextSecondary)
+                    if (isUpdatingWifi) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text("Save Allowed Wi-Fis (${dialogSelectedSsids.size})", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showChangeWifiDialog = false },
+                    enabled = !isUpdatingWifi
+                ) {
+                    Text("Cancel", color = TextSecondary)
                 }
             }
         )

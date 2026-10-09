@@ -189,4 +189,24 @@ object TimetableEngine {
         currentSet.add("$clean:$status")
         prefs.edit().putStringSet(studentLockedKey(dateIso), currentSet).apply()
     }
+
+    /**
+     * Midnight 12:00 AM Auto-Cleanup:
+     * Prunes expired lock keys from previous days so all subjects open back up automatically.
+     */
+    fun cleanExpiredLocks(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val today = todayDateIso()
+        val allKeys = prefs.all.keys
+        val editor = prefs.edit()
+        var changed = false
+        allKeys.forEach { key ->
+            if ((key.startsWith("locked_classes_") && !key.endsWith(today)) ||
+                (key.startsWith("student_locked_subjects_") && !key.endsWith(today))) {
+                editor.remove(key)
+                changed = true
+            }
+        }
+        if (changed) editor.apply()
+    }
 }
