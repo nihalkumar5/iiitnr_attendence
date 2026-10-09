@@ -38,6 +38,7 @@ import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.core.sensor.ScannedWifiNetwork
 import com.smartattendance.app.core.sensor.WifiPresenceManager
 import com.smartattendance.app.ui.theme.*
+import com.smartattendance.app.ui.components.TeacherSignatureTicketCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -553,8 +554,16 @@ fun TeacherHomeScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "$greetingPrefix, $facultyDisplayName",
-                    fontSize = 21.sp,
+                    text = "TODAY · ${liveDateStr.uppercase()}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF64748B),
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "$greetingPrefix, Prof. $facultyDisplayName",
+                    fontSize = 23.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     letterSpacing = (-0.5).sp,
@@ -641,213 +650,36 @@ fun TeacherHomeScreen(
         // 2. CURRENT / UP NEXT CLASS (Hero Element)
         // ====================================================================
         Text(
-            text = primaryHeaderTitle,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = TextSecondary,
-            letterSpacing = 0.2.sp
+            text = primaryHeaderTitle.uppercase(),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF64748B),
+            letterSpacing = 1.5.sp
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
         if (currentClass != null) {
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = CardBackground,
-                border = BorderStroke(1.dp, BorderSubtle),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    // Row 1: Time Slot & Class Status
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = currentClass.timeSlot,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextSecondary
-                        )
-
-                        if (isSessionLive) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = StatusPresentBg,
-                                border = BorderStroke(1.dp, StatusPresentBorder)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(StatusPresent)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        text = "LIVE",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = StatusPresent
-                                    )
-                                }
-                            }
-                        } else if (isPrimaryInProgress) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = BrandAccent.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, BrandAccent.copy(alpha = 0.2f))
-                            ) {
-                                Text(
-                                    text = "IN PROGRESS",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandAccent,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-                        } else if (isPendingLateHero) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = StatusReviewBg,
-                                border = BorderStroke(1.dp, StatusReviewBorder)
-                            ) {
-                                Text(
-                                    text = "PENDING ATTENDANCE",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = StatusReview,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-                        } else {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = BrandAccent.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, BrandAccent.copy(alpha = 0.2f))
-                            ) {
-                                Text(
-                                    text = "UP NEXT",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandAccent,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
+            TeacherSignatureTicketCard(
+                classItem = currentClass,
+                isSessionLive = isSessionLive,
+                isPrimaryInProgress = isPrimaryInProgress,
+                isPendingLateHero = isPendingLateHero,
+                onStartAttendance = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val effectiveSsid = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
+                    prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
+                    coroutineScope.launch {
+                        SupabaseAttendanceService.updateClassroomWifiForSession(effectiveSsid)
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Row 2: Subject Name (Strongest content element)
-                    Text(
-                        text = currentClass.subjectName,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        lineHeight = 28.sp,
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Row 3: Subject Code · Room
-                    Text(
-                        text = "${currentClass.subjectCode} · ${currentClass.room}",
-                        fontSize = 14.sp,
-                        color = TextSecondary,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Row 4: Enrolled Students & Secondary Join Code
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${currentClass.enrolledStudents} students enrolled",
-                            fontSize = 13.sp,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Normal
-                        )
-
-                        if (currentClass.joinCode.isNotBlank()) {
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        clipboardManager.setText(AnnotatedString(currentClass.joinCode))
-                                        Toast.makeText(context, "Join code copied: ${currentClass.joinCode}", Toast.LENGTH_SHORT).show()
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    }
-                                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Code: ${currentClass.joinCode}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextMuted
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy join code",
-                                    tint = TextMuted,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Row 5: Primary Action (Dominant, intentional CTA)
-                    val actionLabel = if (isSessionLive) "Continue Attendance" else "Start Attendance"
-                    Button(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val effectiveSsid = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
-                            prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
-                            coroutineScope.launch {
-                                SupabaseAttendanceService.updateClassroomWifiForSession(effectiveSsid)
-                            }
-                            onStartLecture(currentClass)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSessionLive) StatusPresent else BrandAccent
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isSessionLive) Icons.Default.QrCodeScanner else Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = actionLabel,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                            color = Color.White
-                        )
-                    }
+                    onStartLecture(currentClass)
+                },
+                onCopyJoinCode = { code ->
+                    clipboardManager.setText(AnnotatedString(code))
+                    Toast.makeText(context, "Join code copied: $code", Toast.LENGTH_SHORT).show()
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
-            }
+            )
         } else {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -893,10 +725,11 @@ fun TeacherHomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Upcoming Classes",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    text = "UPCOMING CLASSES",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF64748B),
+                    letterSpacing = 1.5.sp
                 )
 
                 Text(
@@ -1037,19 +870,28 @@ fun TeacherHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Completed Today",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-
-                Text(
-                    text = "${completedTodayClasses.size}",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextSecondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "COMPLETED TODAY",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF64748B),
+                        letterSpacing = 1.5.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFE2E8F0)
+                    ) {
+                        Text(
+                            text = "${completedTodayClasses.size}",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF475569),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
