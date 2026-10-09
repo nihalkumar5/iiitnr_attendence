@@ -4349,10 +4349,32 @@ object SupabaseAttendanceService {
     /**
      * Fetch complete attendance history of all sessions conducted by teacher
      */
-    suspend fun fetchTeacherAttendanceHistory(): Result<List<TeacherSessionHistoryRecord>> = withContext(Dispatchers.IO) {
+    suspend fun fetchTeacherAttendanceHistory(
+        allowedSessionIds: Set<String>? = null,
+        teacherId: String? = null
+    ): Result<List<TeacherSessionHistoryRecord>> = withContext(Dispatchers.IO) {
         try {
+            val sessionList = allowedSessionIds?.filter { it.isNotBlank() } ?: emptyList()
+
+            // If teacher has not recorded any sessions and no custom teacherId:
+            // Every new professor starts with an empty session history until they conduct attendance!
+            if (sessionList.isEmpty() && (teacherId.isNullOrBlank() || teacherId == "977d23e7-4b43-4a7a-af74-b3fb2855beae")) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val filterParam = if (sessionList.isNotEmpty()) {
+                val inIds = sessionList.joinToString(",")
+                if (!teacherId.isNullOrBlank() && teacherId != "977d23e7-4b43-4a7a-af74-b3fb2855beae") {
+                    "or=(id.in.($inIds),teacher_id.eq.$teacherId)&"
+                } else {
+                    "id=in.($inIds)&"
+                }
+            } else {
+                "teacher_id=eq.$teacherId&"
+            }
+
             val req = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/attendance_sessions?select=id,status,start_time,end_time,classes(id,room,subjects(name,code)),attendance_records(id,student_id,status,presence_percentage,verification_method,marked_at,notes,students(roll_number,users(name)))&order=created_at.desc&limit=50")
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?${filterParam}select=id,status,start_time,end_time,classes(id,room,subjects(name,code)),attendance_records(id,student_id,status,presence_percentage,verification_method,marked_at,notes,students(roll_number,users(name)))&order=created_at.desc&limit=50")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()

@@ -101,6 +101,7 @@ export function SignatureTicketCard({
             <span className="font-light text-slate-100">{prefix}</span>
             <span className="font-bold text-white">{keyWord}</span>
           </h2>
+        </div>
 
         {/* Restrained Secondary Metadata */}
         <div className="space-y-0.5 pt-0.5">

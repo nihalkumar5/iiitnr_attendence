@@ -485,6 +485,12 @@ class MainActivity : ComponentActivity() {
                                                                             currentActive.id,
                                                                             activeLectureSessionId
                                                                         )
+                                                                        if (activeLectureSessionId.isNotBlank()) {
+                                                                            val recordedPref = context.getSharedPreferences("smart_attendance_prefs", android.content.Context.MODE_PRIVATE)
+                                                                            val existing = recordedPref.getStringSet("faculty_recorded_sessions_$facultyId", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                                                            existing.add(activeLectureSessionId)
+                                                                            recordedPref.edit().putStringSet("faculty_recorded_sessions_$facultyId", existing).apply()
+                                                                        }
                                                                         val currentSaved = com.smartattendance.app.ui.teacher.loadPersistedSchedule(context)
                                                                         val updated = currentSaved.map { item ->
                                                                             if (item.id == currentActive.id || (item.joinCode.isNotBlank() && item.joinCode == currentActive.joinCode)) {
@@ -505,6 +511,7 @@ class MainActivity : ComponentActivity() {
                                                 TeacherTab.RECORDS -> {
                                                     TeacherAttendanceHistoryScreen(
                                                         facultyName = facultyName,
+                                                        facultyId = facultyId,
                                                         onLogout = { logout() }
                                                     )
                                                 }

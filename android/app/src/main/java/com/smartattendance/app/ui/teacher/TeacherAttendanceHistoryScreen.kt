@@ -45,11 +45,16 @@ import java.util.TimeZone
 @Composable
 fun TeacherAttendanceHistoryScreen(
     facultyName: String = "Dr. Faculty",
+    facultyId: String = "FAC-CSE-042",
     onLogout: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
+
+    val prefs = remember { context.getSharedPreferences("smart_attendance_prefs", android.content.Context.MODE_PRIVATE) }
+    val effectiveFacultyId = prefs.getString("logged_in_faculty_id", facultyId) ?: facultyId
+    val facultyUuid = prefs.getString("logged_in_faculty_uuid", null)
 
     var historySessions by remember { mutableStateOf<List<TeacherSessionHistoryRecord>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -59,9 +64,22 @@ fun TeacherAttendanceHistoryScreen(
     fun refreshHistory() {
         isLoading = true
         coroutineScope.launch {
-            val res = SupabaseAttendanceService.fetchTeacherAttendanceHistory()
+            val recordedSessionIds = prefs.getStringSet("faculty_recorded_sessions_$effectiveFacultyId", emptySet()) ?: emptySet()
+            if (recordedSessionIds.isEmpty() && (facultyUuid.isNullOrBlank() || facultyUuid == "977d23e7-4b43-4a7a-af74-b3fb2855beae")) {
+                // New professor starts with empty session records
+                historySessions = emptyList()
+                isLoading = false
+                return@launch
+            }
+
+            val res = SupabaseAttendanceService.fetchTeacherAttendanceHistory(
+                allowedSessionIds = recordedSessionIds,
+                teacherId = facultyUuid
+            )
             res.onSuccess {
                 historySessions = it
+            }.onFailure {
+                historySessions = emptyList()
             }
             isLoading = false
         }

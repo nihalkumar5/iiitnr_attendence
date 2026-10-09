@@ -176,6 +176,7 @@ fun ActiveLectureScreen(
                     message = "Faculty mobile center point active (0m distance, 30m geofence broadcast)"
                 )
             }
+            val facultyUuid = prefs.getString("logged_in_faculty_uuid", "977d23e7-4b43-4a7a-af74-b3fb2855beae") ?: "977d23e7-4b43-4a7a-af74-b3fb2855beae"
             val res = SupabaseAttendanceService.startClassAttendanceSession(
                 classId = classId,
                 joinCode = joinCode,
@@ -183,11 +184,16 @@ fun ActiveLectureScreen(
                 subjectCode = subjectCode,
                 room = room,
                 chosenWifiSsid = activeWifiSsid,
+                teacherId = facultyUuid,
                 teacherLat = loc?.latitude,
                 teacherLon = loc?.longitude
             )
             res.onSuccess { newId ->
                 activeSessionId = newId
+                val facultyKey = prefs.getString("logged_in_faculty_id", "FAC-DEFAULT") ?: "FAC-DEFAULT"
+                val existing = prefs.getStringSet("faculty_recorded_sessions_$facultyKey", emptySet())?.toMutableSet() ?: mutableSetOf()
+                existing.add(newId)
+                prefs.edit().putStringSet("faculty_recorded_sessions_$facultyKey", existing).apply()
             }
         }
     }
@@ -1070,6 +1076,10 @@ fun ActiveLectureScreen(
                         coroutineScope.launch(Dispatchers.IO) {
                             val sId = activeSessionId
                             if (!sId.isNullOrBlank()) {
+                                val facultyKey = prefs.getString("logged_in_faculty_id", "FAC-DEFAULT") ?: "FAC-DEFAULT"
+                                val existing = prefs.getStringSet("faculty_recorded_sessions_$facultyKey", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                existing.add(sId)
+                                prefs.edit().putStringSet("faculty_recorded_sessions_$facultyKey", existing).apply()
                                 SupabaseAttendanceService.endAttendanceSession(sId)
                             }
                             SupabaseAttendanceService.endAllActiveSessions()
