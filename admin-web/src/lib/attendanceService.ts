@@ -74,16 +74,21 @@ export interface DBSession {
 /**
  * Fetch all real classes and enrolled students from Supabase
  */
-export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
+export async function fetchLiveClassesFromDB(teacherId?: string): Promise<DBClass[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("classes")
       .select(`
         id, room, day_of_week, start_time, end_time, is_active, created_at,
         subjects ( id, name, code ),
         teachers ( id, employee_id, users ( name, email ) )
-      `)
-      .order("created_at", { ascending: false });
+      `);
+
+    if (teacherId) {
+      query = query.eq("teacher_id", teacherId);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error || !data) {
       console.warn("DB Classes fetch error:", error);
@@ -1452,4 +1457,101 @@ export async function syncTeacherProfileToDB(params: {
     console.error("syncTeacherProfileToDB error:", e);
     return false;
   }
+}
+
+
+/**
+ * Register or fetch teacher in Supabase
+ */
+export async function registerOrGetTeacherInDB(params: {
+  name: string;
+  email: string;
+  employeeId?: string;
+  department?: string;
+}): Promise<{ teacherId: string; userId: string; name: string; employeeId: string; department: string }> {
+  const cleanEmail = params.email.trim().toLowerCase();
+  const cleanName = params.name.trim();
+  const cleanEmpId = (params.employeeId || "").trim().toUpperCase() || `FAC-${cleanEmail.split("@")[0].toUpperCase()}`;
+
+  // 1. Check if user already exists
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("id, name, email")
+    .eq("email", cleanEmail)
+    .maybeSingle();
+
+  let userId = existingUser?.id;
+
+  if (!userId) {
+    const { data: inst } = await supabase.from("institutions").select("id").limit(1);
+    const institutionId = inst?.[0]?.id || "c2fcf1e8-075b-4156-bc0e-27c9b23404f5";
+
+    const { data: newUser, error: userErr } = await supabase
+      .from("users")
+      .insert({
+        institution_id: institutionId,
+        name: cleanName,
+        email: cleanEmail,
+        role: "TEACHER",
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (userErr || !newUser) {
+      throw new Error("Failed to create user account: " + (userErr?.message || "Unknown"));
+    }
+    userId = newUser.id;
+  } else {
+    // Update user name if different
+    if (existingUser?.name !== cleanName) {
+      await supabase.from("users").update({ name: cleanName, role: "TEACHER" }).eq("id", userId);
+    }
+  }
+
+  // 2. Check if teacher record exists
+  const { data: existingTeacher } = await supabase
+    .from("teachers")
+    .select("id, employee_id, user_id, department_id, departments(name)")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existingTeacher) {
+    const deptName = (existingTeacher as any).departments?.name || params.department || "Computer Science & Engineering";
+    return {
+      teacherId: existingTeacher.id,
+      userId,
+      name: cleanName,
+      employeeId: existingTeacher.employee_id,
+      department: deptName
+    };
+  }
+
+  // 3. Create teacher record if missing
+  const { data: depts } = await supabase.from("departments").select("id, name").limit(1);
+  const departmentId = depts?.[0]?.id || "c0ae2447-0c28-4525-80ae-6b80c418245b";
+  const deptName = depts?.[0]?.name || params.department || "Computer Science & Engineering";
+
+  const { data: newTeacher, error: tErr } = await supabase
+    .from("teachers")
+    .insert({
+      user_id: userId,
+      employee_id: cleanEmpId,
+      department_id: departmentId,
+      designation: "Associate Professor"
+    })
+    .select()
+    .single();
+
+  if (tErr || !newTeacher) {
+    throw new Error("Failed to create teacher profile: " + (tErr?.message || "Unknown"));
+  }
+
+  return {
+    teacherId: newTeacher.id,
+    userId,
+    name: cleanName,
+    employeeId: newTeacher.employee_id,
+    department: deptName
+  };
 }

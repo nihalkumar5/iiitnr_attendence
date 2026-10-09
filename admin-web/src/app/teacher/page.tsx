@@ -43,7 +43,7 @@ import { SignatureTicketCard } from "@/components/SignatureTicketCard";
 import { 
   fetchCompletedSessionsFromDB,
   DBCompletedSession,
-  fetchLiveClassesFromDB, syncTeacherProfileToDB, 
+  fetchLiveClassesFromDB, syncTeacherProfileToDB, registerOrGetTeacherInDB, 
   getActiveSessionFromDB, 
   startAttendanceSessionInDB,
   finalizeSessionInDB,
@@ -76,8 +76,16 @@ export default function TeacherAppConsole() {
   const [showDefaultersModal, setShowDefaultersModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [defaulterSearch, setDefaulterSearch] = useState("");
-  const [teacherEmail, setTeacherEmail] = useState("nihal26302@iiitnr.edu.in");
-  const [teacherId, setTeacherId] = useState("977d23e7-4b43-4a7a-af74-b3fb2855beae");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginName, setLoginName] = useState("");
+  const [loginEmpId, setLoginEmpId] = useState("");
+  const [loginDept, setLoginDept] = useState("Computer Science & Engineering");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherId, setTeacherId] = useState("");
 
   // Navigation: "schedule" (default) | "home" | "live" | "profile"
   const [mainNav, setMainNav] = useState<"home" | "schedule" | "live" | "records" | "devices" | "profile">("home");
@@ -345,38 +353,121 @@ export default function TeacherAppConsole() {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // 1. Initial Load: Auth + Classes + Active Session
+  // 1. Initial Load: Check session or saved profile
   useEffect(() => {
     const savedProf = localStorage.getItem("smart_attendance_teacher_profile");
     if (savedProf) {
       try {
         const p = JSON.parse(savedProf);
-        if (p.name) setTeacherName(p.name);
-        if (p.email) setTeacherEmail(p.email);
-        if (p.facultyId) setFacultyId(p.facultyId);
-        if (p.department) setTeacherDepartment(p.department);
-        if (p.wifiSsid) setWifiSsid(p.wifiSsid);
-        if (p.roomNo) setRoomNo(p.roomNo);
+        if (p.teacherId) {
+          setTeacherId(p.teacherId);
+          setTeacherName(p.name || "Faculty");
+          setTeacherEmail(p.email || "");
+          setFacultyId(p.facultyId || "FAC-01");
+          setTeacherDepartment(p.department || "Computer Science & Engineering");
+          if (p.wifiSsid) setWifiSsid(p.wifiSsid);
+          if (p.roomNo) setRoomNo(p.roomNo);
+          setIsLoggedIn(true);
+          loadClasses(p.teacherId);
+        }
       } catch (e) {}
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const meta = session.user.user_metadata || {};
-        const name = meta.full_name || meta.name || session.user.email?.split("@")[0] || "Faculty";
-        setTeacherName(name);
-        setTeacherEmail(session.user.email || "");
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user?.email) {
+        try {
+          const meta = session.user.user_metadata || {};
+          const name = meta.full_name || meta.name || session.user.email.split("@")[0] || "Faculty";
+          const prof = await registerOrGetTeacherInDB({
+            name,
+            email: session.user.email
+          });
+          setTeacherId(prof.teacherId);
+          setTeacherName(prof.name);
+          setTeacherEmail(session.user.email);
+          setFacultyId(prof.employeeId);
+          setTeacherDepartment(prof.department);
+          setIsLoggedIn(true);
+          localStorage.setItem("smart_attendance_teacher_profile", JSON.stringify({
+            teacherId: prof.teacherId,
+            name: prof.name,
+            email: session.user.email,
+            facultyId: prof.employeeId,
+            department: prof.department,
+            wifiSsid: "Pranjal",
+            roomNo: "Room 319"
+          }));
+          loadClasses(prof.teacherId);
+        } catch (e) {
+          console.warn("Session teacher sync error:", e);
+        }
       }
     });
 
-    loadClasses();
     syncActiveSession();
-
     loadCompletedSessions();
 
     const interval = setInterval(syncActiveSession, 2500);
     return () => clearInterval(interval);
   }, []);
+
+  const handleTeacherLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail.trim() || !loginName.trim()) {
+      setLoginError("Please enter your name and official email.");
+      return;
+    }
+    setIsLoggingIn(true);
+    setLoginError(null);
+    try {
+      const prof = await registerOrGetTeacherInDB({
+        name: loginName.trim(),
+        email: loginEmail.trim().toLowerCase(),
+        employeeId: loginEmpId.trim() || undefined,
+        department: loginDept
+      });
+
+      setTeacherId(prof.teacherId);
+      setTeacherName(prof.name);
+      setTeacherEmail(loginEmail.trim().toLowerCase());
+      setFacultyId(prof.employeeId);
+      setTeacherDepartment(prof.department);
+      setIsLoggedIn(true);
+
+      const toSave = {
+        teacherId: prof.teacherId,
+        name: prof.name,
+        email: loginEmail.trim().toLowerCase(),
+        facultyId: prof.employeeId,
+        department: prof.department,
+        wifiSsid: "Pranjal",
+        roomNo: "Room 319"
+      };
+      localStorage.setItem("smart_attendance_teacher_profile", JSON.stringify(toSave));
+
+      await loadClasses(prof.teacherId);
+      showToast(`✓ Welcome, ${prof.name}!`);
+    } catch (err: any) {
+      console.error("Teacher login error:", err);
+      setLoginError(err.message || "Failed to log in.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${origin}/auth/callback?next=/teacher`
+        }
+      });
+    } catch (e: any) {
+      setLoginError(e.message || "Google Sign-In failed.");
+    }
+  };
 
   useEffect(() => {
     if (mainNav === "records") {
@@ -468,10 +559,15 @@ export default function TeacherAppConsole() {
   };
 
   // 2. Fetch classes from DB
-  const loadClasses = async () => {
+  const loadClasses = async (targetTeacherId?: string) => {
     setIsLoadingClasses(true);
     try {
-      const list = await fetchLiveClassesFromDB();
+      const effectiveId = targetTeacherId || teacherId;
+      if (!effectiveId) {
+        setClasses([]);
+        return;
+      }
+      const list = await fetchLiveClassesFromDB(effectiveId);
       setClasses(list);
       if (list.length > 0 && !selectedClassId) {
         setSelectedClassId(list[0].id);
@@ -747,8 +843,146 @@ export default function TeacherAppConsole() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     localStorage.removeItem("smart_attendance_teacher_profile");
-    router.push("/");
+    setIsLoggedIn(false);
+    setClasses([]);
+    setSelectedSubject(null);
+    setActiveSession(null);
+    showToast("Signed out successfully");
   };
+
+  // IF NOT LOGGED IN: SHOW FACULTY SIGN IN & REGISTRATION
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 selection:bg-blue-500 selection:text-white">
+        <header className="max-w-md mx-auto w-full flex items-center justify-between py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-[#0F172A] text-white flex items-center justify-center font-black text-sm shadow-md">
+              IIIT
+            </div>
+            <div>
+              <span className="font-bold tracking-tight text-slate-900 block text-xs">IIIT NAYA RAIPUR</span>
+              <span className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider block">Faculty Portal</span>
+            </div>
+          </div>
+          <Link href="/" className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1 font-medium transition-colors">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Home</span>
+          </Link>
+        </header>
+
+        <div className="max-w-md mx-auto w-full my-auto py-6">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-3xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95">
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-[#0F172A] border border-slate-200 flex items-center justify-center mx-auto mb-2">
+                <BookOpen className="w-6 h-6 text-[#0F172A]" />
+              </div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Faculty Sign In</h1>
+              <p className="text-xs text-slate-500">Sign in to manage your classes, timetable, and attendance</p>
+            </div>
+
+            {/* Google Sign In Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-xs shadow-xs flex items-center justify-center gap-3 transition-all cursor-pointer"
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span>Sign in with Institutional Google Account</span>
+            </button>
+
+            <div className="relative flex items-center justify-center">
+              <div className="border-t border-slate-200 w-full" />
+              <span className="bg-white px-3 text-[10px] uppercase font-bold text-slate-400 tracking-wider absolute">
+                or sign in with email
+              </span>
+            </div>
+
+            {loginError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-600 flex items-center gap-2">
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleTeacherLogin} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Faculty Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Dr. Rajesh Sharma"
+                  value={loginName}
+                  onChange={(e) => setLoginName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Official Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. faculty.sharma@iiitnr.edu.in"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Faculty / Employee ID (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. FAC-CSE-102"
+                  value={loginEmpId}
+                  onChange={(e) => setLoginEmpId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Department
+                </label>
+                <select
+                  value={loginDept}
+                  onChange={(e) => setLoginDept(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+                >
+                  <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+                  <option value="Data Science & Artificial Intelligence">Data Science & Artificial Intelligence</option>
+                  <option value="Electronics & Communication Engineering">Electronics & Communication Engineering</option>
+                  <option value="Basic Sciences & Humanities">Basic Sciences & Humanities</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full py-3 px-4 rounded-xl bg-[#0F172A] hover:bg-slate-800 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 mt-2"
+              >
+                <span>{isLoggingIn ? "Entering Portal..." : "Enter Faculty Portal"}</span>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <footer className="text-center text-xs text-slate-500 py-4">
+          IIIT-NR Smart Attendance System • Faculty Management
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] line-grid text-slate-900 flex flex-col justify-between font-sans selection:bg-blue-100 selection:text-blue-900">
