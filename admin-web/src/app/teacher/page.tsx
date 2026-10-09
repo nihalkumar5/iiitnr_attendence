@@ -1620,19 +1620,32 @@ export default function TeacherAppConsole() {
               </div>
             )}
 
-            {/* 3. HOME TAB (EDITORIAL TYPOGRAPHY + SIGNATURE TICKET CARD) */}
+            {/* 3. HOME TAB (EDITORIAL TYPOGRAPHY + SIGNATURE TICKET CARD + TODAY SCHEDULE) */}
             {mainNav === "home" && (() => {
+              const jsDay = new Date().getDay();
+              const currentIsoDay = jsDay === 0 ? 7 : jsDay;
+              const todayClasses = classes
+                .filter(c => (c.dayOfWeek || 5) === currentIsoDay)
+                .sort((a, b) => (a.startTime || "00:00:00").localeCompare(b.startTime || "00:00:00"));
+
+              const displayTodayClasses = todayClasses.length > 0 ? todayClasses : classes;
+
               const activeClass = (activeSession 
                 ? classes.find(c => c.id === activeSession.classId) 
-                : null) || classes[0] || {
-                  id: "mock-dt501",
-                  subjectName: "Digital Transformation-I",
-                  subjectCode: "DT501",
-                  roomNo: "Room 319",
-                  timeSlot: "Friday, 02:00 PM – 03:55 PM",
-                  joinCode: "DT50-363",
+                : null) || displayTodayClasses[0] || {
+                  id: "mock-class",
+                  subjectName: "No Lecture Scheduled",
+                  subjectCode: "OFF-DAY",
+                  roomNo: "Room 135",
+                  joinCode: "OFF-DAY",
                   students: []
                 };
+
+              const formatClassSlot = (c: DBClass) => {
+                const start = (c.startTime || "10:00").slice(0, 5);
+                const end = (c.endTime || "11:00").slice(0, 5);
+                return `${start} – ${end}`;
+              };
 
               const getGreeting = () => {
                 const hour = new Date().getHours();
@@ -1713,11 +1726,11 @@ export default function TeacherAppConsole() {
                       subjectName={activeClass.subjectName}
                       subjectCode={activeClass.subjectCode}
                       roomNo={activeClass.roomNo || "Room 319"}
-                      timeSlot={(activeClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
+                      timeSlot={formatClassSlot(activeClass)}
                       enrolledStudentsCount={activeClass.students?.length || 0}
                       joinCode={activeClass.joinCode || "DT50-363"}
                       eyebrow="TODAY'S LECTURE"
-                      eyebrowBadge={(activeClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
+                      eyebrowBadge={formatClassSlot(activeClass)}
                       buttonText="Start Attendance"
                       isLive={Boolean(activeSession)}
                       attendanceCount={attendanceCount}
@@ -1731,6 +1744,109 @@ export default function TeacherAppConsole() {
                       isStarting={isStartingSession}
                     />
                   </div>
+
+                  {/* 2.5 ALL TODAY'S SCHEDULED CLASSES */}
+                  {displayTodayClasses.length > 0 && (
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#64748B]">
+                            TODAY'S SCHEDULE
+                          </span>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono">
+                            {displayTodayClasses.length} {displayTodayClasses.length === 1 ? "class" : "classes"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMainNav("schedule")}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                        >
+                          View Full Schedule →
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {displayTodayClasses.map((cls) => {
+                          const isLiveNow = activeSession?.classId === cls.id;
+                          const startClean = (cls.startTime || "10:00:00").slice(0, 5);
+                          const endClean = (cls.endTime || "11:00:00").slice(0, 5);
+                          const isCurrentHero = activeClass.id === cls.id;
+
+                          return (
+                            <div
+                              key={cls.id}
+                              onClick={() => {
+                                if (isLiveNow) {
+                                  setMainNav("live");
+                                } else {
+                                  handleStartLiveLecture(cls);
+                                }
+                              }}
+                              className={`p-3.5 sm:p-4 rounded-2xl bg-white border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
+                                isLiveNow
+                                  ? "border-emerald-500 shadow-md bg-emerald-50/20"
+                                  : isCurrentHero
+                                  ? "border-slate-300 shadow-2xs hover:border-blue-400"
+                                  : "border-slate-200/90 hover:border-blue-400 hover:shadow-2xs"
+                              }`}
+                            >
+                              {/* Time Column */}
+                              <div className="flex flex-col shrink-0 text-left w-14">
+                                <span className="text-xs font-bold text-slate-900 font-mono">
+                                  {startClean}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {endClean}
+                                </span>
+                              </div>
+
+                              {/* Subject & Venue Details */}
+                              <div className="min-w-0 flex-1 px-1">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                                    {cls.subjectName}
+                                  </h4>
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                                    cls.isPractical
+                                      ? "bg-purple-100 text-purple-700 border border-purple-200"
+                                      : "bg-blue-100 text-blue-700 border border-blue-200"
+                                  }`}>
+                                    {cls.isPractical ? "LAB" : "THEORY"}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 font-medium font-mono truncate">
+                                  {cls.subjectCode} · {cls.roomNo || "Room 135"}
+                                </p>
+                              </div>
+
+                              {/* Action Badge */}
+                              <div className="shrink-0">
+                                {isLiveNow ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500 text-white text-[10px] font-bold shadow-xs animate-pulse">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                    Live Now
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartLiveLecture(cls);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-[#0F172A] hover:text-white text-slate-700 text-[10px] font-bold transition-all flex items-center gap-1 shadow-2xs"
+                                  >
+                                    <span>Take Attendance</span>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 3. COMPLETED TODAY (Matches Android completed card 1:1) */}
                   <div className="space-y-3 pt-3">
