@@ -16,6 +16,12 @@ val InterFont = FontFamily(
     Font(R.font.inter, FontWeight.Bold)
 )
 
+// Bundled Caveat Handwriting Typeface for Editorial Header Date
+val CaveatFont = FontFamily(
+    Font(R.font.caveat, FontWeight.Normal),
+    Font(R.font.caveat, FontWeight.SemiBold)
+)
+
 val Typography = Typography(
     // Display Hero: Single display size per screen
     displaySmall = TextStyle(

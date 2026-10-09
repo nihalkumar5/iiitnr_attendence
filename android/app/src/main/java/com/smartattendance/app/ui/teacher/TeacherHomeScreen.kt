@@ -575,37 +575,15 @@ fun TeacherHomeScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = liveDateStr,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF475569)
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Light, color = TextPrimary)) {
-                            append("$greetingPrefix,\n")
-                        }
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextPrimary)) {
-                            append("Prof. $facultyDisplayName")
-                        }
-                    },
-                    fontSize = 26.sp,
-                    lineHeight = 32.sp,
-                    letterSpacing = (-0.5).sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "$department · $facultyId",
-                    fontSize = 13.sp,
-                    color = TextSecondary
-                )
-            }
+            Text(
+                text = liveDateStr,
+                fontFamily = CaveatFont,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF475569)
+            )
 
             if (onLogout != null) {
                 IconButton(
@@ -613,7 +591,7 @@ fun TeacherHomeScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onLogout()
                     },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Logout,
@@ -624,6 +602,28 @@ fun TeacherHomeScreen(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.Light, color = TextPrimary)) {
+                    append("$greetingPrefix,\n")
+                }
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextPrimary)) {
+                    append("Prof. $facultyDisplayName")
+                }
+            },
+            fontSize = 26.sp,
+            lineHeight = 32.sp,
+            letterSpacing = (-0.5).sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "$department · $facultyId",
+            fontSize = 13.sp,
+            color = TextSecondary
+        )
 
         // PENDING DEVICE UNBIND REQUESTS ALERT (Contextual, minimal)
         if (pendingUnbindCount > 0) {

@@ -105,7 +105,7 @@ object TimetableEngine {
     }
 
     fun formatCurrentLiveDate(): String {
-        return SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(Date())
+        return SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(Date())
     }
 
     fun formatCurrentLiveTime(): String {
