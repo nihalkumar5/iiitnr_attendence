@@ -25,7 +25,8 @@ import {
   Database,
   User,
   GraduationCap,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { 
   getBrowserGeofence, 
@@ -132,6 +133,14 @@ export default function StudentPortal() {
   const [availableDbClasses, setAvailableDbClasses] = useState<DBClass[]>([]);
   const [activeSession, setActiveSession] = useState<DBSession | null>(null);
   const [activeSessionCode, setActiveSessionCode] = useState<string | null>(null);
+
+  // Edit Profile States
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editRollNo, setEditRollNo] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState<string | null>(null);
 
   // Mobile App Shell & Declutter Navigation States
   const [activeTab, setActiveTab] = useState<"radar" | "subjects" | "device" | "profile">("radar");
@@ -679,6 +688,67 @@ export default function StudentPortal() {
       setAuthError(err?.message || "Failed to complete profile.");
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanName = editName.trim();
+    const cleanRoll = editRollNo.trim().toUpperCase();
+    const cleanEmail = editEmail.trim();
+
+    if (!cleanName || !cleanRoll) return;
+
+    setIsSavingProfile(true);
+    setProfileSaveSuccess(null);
+
+    try {
+      setStudentName(cleanName);
+      setRollNo(cleanRoll);
+      if (cleanEmail) setStudentEmail(cleanEmail);
+
+      const updated = {
+        name: cleanName,
+        rollNo: cleanRoll,
+        email: cleanEmail || studentEmail,
+      };
+      localStorage.setItem("smart_attendance_student_profile", JSON.stringify(updated));
+
+      if (cleanRoll !== rollNo) {
+        const oldEnrolled = localStorage.getItem(`smart_attendance_enrolled_${rollNo}`);
+        if (oldEnrolled) {
+          localStorage.setItem(`smart_attendance_enrolled_${cleanRoll}`, oldEnrolled);
+        }
+        loadStudentEnrollments(cleanRoll);
+      }
+
+      await registerOrGetStudentInDB({
+        name: cleanName,
+        rollNo: cleanRoll,
+        email: cleanEmail || studentEmail,
+      });
+
+      try {
+        if (cleanEmail) {
+          await supabase.from("users").update({ name: cleanName }).eq("email", cleanEmail);
+        }
+      } catch (e) {}
+
+      try {
+        await supabase.from("students").update({ roll_number: cleanRoll }).eq("roll_number", rollNo);
+      } catch (e) {}
+
+      syncDeviceBinding(cleanRoll, cleanName, cleanEmail || studentEmail);
+
+      setProfileSaveSuccess("Profile updated successfully!");
+      setTimeout(() => {
+        setProfileSaveSuccess(null);
+        setShowEditProfileModal(false);
+      }, 900);
+    } catch (err: any) {
+      console.error("Save profile error:", err);
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -1956,16 +2026,33 @@ export default function StudentPortal() {
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-5 shadow-xs">
               {/* Profile Card Header */}
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/25">
-                  {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/25">
+                    {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight truncate">{studentName}</h3>
+                    <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 inline-block mt-0.5">
+                      {rollNo}
+                    </span>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-black text-slate-900 tracking-tight truncate">{studentName}</h3>
-                  <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 inline-block mt-0.5">
-                    {rollNo}
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditName(studentName);
+                    setEditRollNo(rollNo);
+                    setEditEmail(studentEmail);
+                    setProfileSaveSuccess(null);
+                    setShowEditProfileModal(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Edit Profile"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
               </div>
 
               {/* Student Metadata Table */}
@@ -1990,13 +2077,20 @@ export default function StudentPortal() {
 
               {/* Quick Navigation Links */}
               <div className="space-y-2 pt-2">
-                <Link
-                  href="/teacher"
-                  className="w-full py-3 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-bold border border-slate-200 transition-all flex items-center justify-center gap-2"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditName(studentName);
+                    setEditRollNo(rollNo);
+                    setEditEmail(studentEmail);
+                    setProfileSaveSuccess(null);
+                    setShowEditProfileModal(true);
+                  }}
+                  className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <BookOpen className="w-4 h-4 text-blue-600" />
-                  <span>Switch to Faculty Portal</span>
-                </Link>
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                  <span>Edit Profile</span>
+                </button>
 
                 <button
                   type="button"
@@ -2054,6 +2148,106 @@ export default function StudentPortal() {
           })}
         </div>
       </nav>
+
+      {/* EDIT PROFILE MODAL */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-2xl rounded-3xl p-6 sm:p-7 max-w-md w-full space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <span>Edit Student Profile</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditProfileModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-xs px-2 py-1 rounded-lg bg-slate-100 cursor-pointer"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {profileSaveSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-700 text-xs font-bold animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{profileSaveSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g. Archana Prajapati"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Roll Number / Student ID
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editRollNo}
+                  onChange={(e) => setEditRollNo(e.target.value.toUpperCase())}
+                  placeholder="e.g. 89 or 26CS101"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="e.g. archanaprajapati917@gmail.com"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile || !editName.trim() || !editRollNo.trim()}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSavingProfile ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* UNBIND DEVICE REQUEST MODAL */}
       {showUnbindModal && (
