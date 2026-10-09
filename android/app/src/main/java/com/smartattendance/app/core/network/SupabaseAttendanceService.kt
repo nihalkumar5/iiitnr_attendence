@@ -1167,6 +1167,51 @@ object SupabaseAttendanceService {
     }
 
     /**
+     * Faculty discards or cancels live attendance session before completion.
+     * Deletes or sets status to CANCELLED so it is never recorded in attendance history.
+     */
+    suspend fun cancelAttendanceSession(sessionId: String): Boolean = withContext(Dispatchers.IO) {
+        if (sessionId.isBlank()) return@withContext false
+        try {
+            // First attempt to delete uncommitted session if 0 records exist
+            try {
+                val delReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .delete()
+                    .build()
+                val delRes = client.newCall(delReq).execute()
+                if (delRes.isSuccessful) return@withContext true
+            } catch (_: Exception) {}
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val nowIso = sdf.format(Date())
+
+            val payload = JSONObject().apply {
+                put("status", "CANCELLED")
+                put("end_time", nowIso)
+            }
+
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .addHeader("Content-Type", "application/json")
+                .patch(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val res = client.newCall(req).execute()
+            res.isSuccessful
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cancelling attendance session", e)
+            false
+        }
+    }
+
+    /**
      * Resolves the most recent attendance session ID for the given class / subject.
      */
     suspend fun resolveLatestSessionForClass(
@@ -4444,7 +4489,7 @@ object SupabaseAttendanceService {
             }
 
             val req = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/attendance_sessions?${filterParam}select=id,status,start_time,end_time,classes(id,room,subjects(name,code)),attendance_records(id,student_id,status,presence_percentage,verification_method,marked_at,notes,students(roll_number,users(name)))&order=created_at.desc&limit=50")
+                .url("$SUPABASE_URL/rest/v1/attendance_sessions?${filterParam}status=eq.COMPLETED&select=id,status,start_time,end_time,classes(id,room,subjects(name,code)),attendance_records(id,student_id,status,presence_percentage,verification_method,marked_at,notes,students(roll_number,users(name)))&order=created_at.desc&limit=50")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()
@@ -4520,20 +4565,23 @@ object SupabaseAttendanceService {
                     }
                 }
 
-                list.add(
-                    TeacherSessionHistoryRecord(
-                        sessionId = sId,
-                        subjectName = subName,
-                        subjectCode = subCode,
-                        room = room,
-                        startTime = startTime,
-                        endTime = endTime,
-                        status = status,
-                        totalPresent = presentCount,
-                        totalAbsent = absentCount,
-                        records = recordsList
+                // Strict: only include sessions that were actually completed and have student records
+                if (status.equals("COMPLETED", ignoreCase = true) && (recordsList.isNotEmpty() || (presentCount + absentCount) > 0)) {
+                    list.add(
+                        TeacherSessionHistoryRecord(
+                            sessionId = sId,
+                            subjectName = subName,
+                            subjectCode = subCode,
+                            room = room,
+                            startTime = startTime,
+                            endTime = endTime,
+                            status = status,
+                            totalPresent = presentCount,
+                            totalAbsent = absentCount,
+                            records = recordsList
+                        )
                     )
-                )
+                }
             }
             Result.success(list)
         } catch (e: Exception) {

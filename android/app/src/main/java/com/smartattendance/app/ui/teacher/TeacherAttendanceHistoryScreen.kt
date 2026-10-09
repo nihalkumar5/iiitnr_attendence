@@ -76,8 +76,20 @@ fun TeacherAttendanceHistoryScreen(
                 allowedSessionIds = recordedSessionIds,
                 teacherId = facultyUuid
             )
-            res.onSuccess {
-                historySessions = it
+            res.onSuccess { rawList ->
+                // STRICT: Only display sessions that are COMPLETED and have confirmed attendance records
+                val validList = rawList.filter { sess ->
+                    sess.status.equals("COMPLETED", ignoreCase = true) &&
+                    (sess.records.isNotEmpty() || (sess.totalPresent + sess.totalAbsent) > 0)
+                }
+                historySessions = validList
+
+                // Prune SharedPreferences: clean up uncompleted or dummy session IDs
+                val validIds = validList.map { it.sessionId }.toSet()
+                val pruned = recordedSessionIds.filter { validIds.contains(it) }.toSet()
+                if (pruned.size != recordedSessionIds.size) {
+                    prefs.edit().putStringSet("faculty_recorded_sessions_$effectiveFacultyId", pruned).apply()
+                }
             }.onFailure {
                 historySessions = emptyList()
             }

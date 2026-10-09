@@ -68,6 +68,7 @@ fun ActiveLectureScreen(
     var showSecurityDetails by remember { mutableStateOf(false) }
     var showSubmitConfirmDialog by remember { mutableStateOf(false) }
     var showCancelConfirmDialog by remember { mutableStateOf(false) }
+    var isSessionSubmitted by remember { mutableStateOf(false) }
 
     // Intercept hardware/gesture back to prevent accidental session exit
     BackHandler {
@@ -190,22 +191,18 @@ fun ActiveLectureScreen(
             )
             res.onSuccess { newId ->
                 activeSessionId = newId
-                val facultyKey = prefs.getString("logged_in_faculty_id", "FAC-DEFAULT") ?: "FAC-DEFAULT"
-                val existing = prefs.getStringSet("faculty_recorded_sessions_$facultyKey", emptySet())?.toMutableSet() ?: mutableSetOf()
-                existing.add(newId)
-                prefs.edit().putStringSet("faculty_recorded_sessions_$facultyKey", existing).apply()
             }
         }
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                val sId = activeSessionId
-                if (!sId.isNullOrBlank()) {
-                    SupabaseAttendanceService.endAttendanceSession(sId)
+            val sId = activeSessionId
+            if (!isSessionSubmitted && !sId.isNullOrBlank()) {
+                kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                    SupabaseAttendanceService.cancelAttendanceSession(sId)
+                    SupabaseAttendanceService.endAllActiveSessions()
                 }
-                SupabaseAttendanceService.endAllActiveSessions()
             }
         }
     }
@@ -1005,7 +1002,12 @@ fun ActiveLectureScreen(
                             prefs.edit().remove("session_start_epoch_$classId").apply()
                             val sId = activeSessionId
                             if (!sId.isNullOrBlank()) {
-                                SupabaseAttendanceService.endAttendanceSession(sId)
+                                SupabaseAttendanceService.cancelAttendanceSession(sId)
+                                val facultyKey = prefs.getString("logged_in_faculty_id", "FAC-DEFAULT") ?: "FAC-DEFAULT"
+                                val existing = prefs.getStringSet("faculty_recorded_sessions_$facultyKey", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                if (existing.remove(sId)) {
+                                    prefs.edit().putStringSet("faculty_recorded_sessions_$facultyKey", existing).apply()
+                                }
                             }
                             SupabaseAttendanceService.endAllActiveSessions()
                             withContext(Dispatchers.Main) {
@@ -1073,6 +1075,7 @@ fun ActiveLectureScreen(
                 Button(
                     onClick = {
                         showSubmitConfirmDialog = false
+                        isSessionSubmitted = true
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         coroutineScope.launch(Dispatchers.IO) {
                             prefs.edit().remove("session_start_epoch_$classId").apply()

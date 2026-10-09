@@ -1206,7 +1206,7 @@ export async function fetchCompletedSessionsFromDB(): Promise<DBCompletedSession
     }
 
     const deduplicated = Array.from(dateMap.values());
-    return deduplicated.length > 0 ? deduplicated : rawSessions.slice(0, 5);
+    return deduplicated;
   } catch (err) {
     console.error("fetchCompletedSessionsFromDB exception:", err);
     return [];
