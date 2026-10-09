@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -182,108 +183,65 @@ fun TeacherScheduleScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // TOP INSTITUTIONAL BAR
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = PillShape,
-                    color = AccentPill,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
+        // VIEW 1: SUBJECT DETAIL SCREEN (When a subject is selected)
+        if (selectedClassForDetail != null) {
+            val currentClass = selectedClassForDetail!!
+
+            // BACK HEADER WITH TITLE AND LOGOUT
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            selectedClassForDetail = null
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(BrandAccent)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back to Subjects",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
                         Text(
-                            text = if (selectedClassForDetail != null) "SUBJECT DETAIL" else "MY SUBJECTS",
-                            fontSize = 11.sp,
+                            text = currentClass.subjectName,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            letterSpacing = 0.5.sp
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "${currentClass.subjectCode} · ${currentClass.program}",
+                            fontSize = 12.sp,
+                            color = TextSecondary
                         )
                     }
                 }
-            }
 
-            if (onLogout != null) {
-                Surface(
-                    shape = PillShape,
-                    color = AccentPill,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLogout()
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (onLogout != null) {
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onLogout()
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Logout,
                             contentDescription = "Logout",
                             tint = TextSecondary,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Logout",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // VIEW 1: SUBJECT DETAIL SCREEN (When a subject is selected)
-        if (selectedClassForDetail != null) {
-            val currentClass = selectedClassForDetail!!
-
-            // BACK HEADER
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        selectedClassForDetail = null
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back to Subjects",
-                        tint = TextPrimary
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = currentClass.subjectName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "${currentClass.subjectCode} · ${currentClass.program}",
-                        fontSize = 12.sp,
-                        color = TextSecondary
-                    )
                 }
             }
 
@@ -674,7 +632,7 @@ fun TeacherScheduleScreen(
                 }
             }
         } else {
-            // VIEW 2: MY SUBJECTS LIST SCREEN
+            // VIEW 2: MY SUBJECTS LIST SCREEN (Clean, Single Page Header, No Outer Card)
             val currentIsoDay = remember { TimetableEngine.getIsoDayOfWeek() }
             val activeClasses = classList.filter { it.status != ClassScheduleStatus.CANCELLED }
             val filteredSubjectClasses = when (selectedDayFilter) {
@@ -688,217 +646,273 @@ fun TeacherScheduleScreen(
                 else -> activeClasses
             }
 
-            Card(
+            // CLEAN SINGLE PAGE HEADER
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "My Subjects",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        fontSize = 24.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${activeClasses.size} ${if (activeClasses.size == 1) "active subject" else "active subjects"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            subjectNameInput = ""
+                            subjectCodeInput = ""
+                            roomInput = "Room A-302"
+                            addClassError = null
+                            showAddClassDialog = true
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Add Subject",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+
+                    if (onLogout != null) {
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onLogout()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = "Logout",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // DAY FILTER ROW (Properly constrained horizontal scroll)
+            val todayCount = activeClasses.count { it.dayOfWeek == currentIsoDay }
+            val dayTabs = listOf(
+                "ALL" to "All (${activeClasses.size})",
+                "TODAY" to "Today ($todayCount)",
+                "MON" to "Mon",
+                "TUE" to "Tue",
+                "WED" to "Wed",
+                "THU" to "Thu",
+                "FRI" to "Fri",
+                "SAT" to "Sat"
+            )
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, BorderHairline, CardShape),
-                colors = CardDefaults.cardColors(containerColor = CardBackground),
-                shape = CardShape
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                dayTabs.forEach { (code, label) ->
+                    val isSelected = selectedDayFilter == code
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSelected) BrandAccent else CardBackground,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) BrandAccent else BorderHairline
+                        ),
+                        modifier = Modifier.clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            selectedDayFilter = code
+                        }
                     ) {
-                        Column {
-                            Text(
-                                text = "MY SUBJECTS",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextSecondary,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                text = "${activeClasses.size} Active Subjects",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
-                        }
-
-                        Button(
-                            onClick = {
-                                subjectNameInput = ""
-                                subjectCodeInput = ""
-                                roomInput = "Room A-302"
-                                addClassError = null
-                                showAddClassDialog = true
-                            },
-                            shape = ButtonShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Subject", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else TextSecondary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                        )
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                    // DAY SELECTOR TABS
-                    Row(
+            // SUBJECT ITEMS LIST (Placed directly on CanvasBackground, NO giant outer card)
+            if (filteredSubjectClasses.isEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = CardBackground,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val todayCount = activeClasses.count { it.dayOfWeek == currentIsoDay }
-                        val dayTabs = listOf(
-                            "ALL" to "All (${activeClasses.size})",
-                            "TODAY" to "Today ($todayCount)",
-                            "MON" to "Mon",
-                            "TUE" to "Tue",
-                            "WED" to "Wed",
-                            "THU" to "Thu",
-                            "FRI" to "Fri",
-                            "SAT" to "Sat"
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(36.dp)
                         )
-                        dayTabs.forEach { (code, label) ->
-                            val isSelected = selectedDayFilter == code
-                            Surface(
-                                shape = PillShape,
-                                color = if (isSelected) BrandAccent else SurfaceNeutral,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) BrandAccent else BorderHairline),
-                                modifier = Modifier.clickable { selectedDayFilter = code }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (activeClasses.isEmpty()) "No subjects created yet" else "No subjects on this day",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (activeClasses.isEmpty()) "Create your first subject to start taking attendance" else "Select 'All' to view all registered subjects",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                        if (activeClasses.isEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    subjectNameInput = ""
+                                    subjectCodeInput = ""
+                                    roomInput = "Room A-302"
+                                    addClassError = null
+                                    showAddClassDialog = true
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                             ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else TextSecondary,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Create Subject", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    if (filteredSubjectClasses.isEmpty()) {
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    filteredSubjectClasses.forEach { item ->
                         Surface(
-                            shape = BadgeShape,
-                            color = SurfaceNeutral,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "MY SUBJECTS",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextSecondary,
-                                    letterSpacing = 0.5.sp
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "You haven't created any subjects yet.",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Button(
-                                    onClick = {
-                                        subjectNameInput = ""
-                                        subjectCodeInput = ""
-                                        roomInput = "Room A-302"
-                                        addClassError = null
-                                        showAddClassDialog = true
-                                    },
-                                    shape = ButtonShape,
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Create Subject", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            shape = RoundedCornerShape(12.dp),
+                            color = CardBackground,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    selectedClassForDetail = item
+                                    subjectTab = "Overview"
                                 }
-                            }
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            filteredSubjectClasses.forEach { item ->
-                                Surface(
-                                    shape = BadgeShape,
-                                    color = SurfaceNeutral,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            selectedClassForDetail = item
-                                            subjectTab = "Overview"
-                                        }
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                // Line 1: Subject Name (dominant) & Student count (secondary)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(14.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = item.subjectName,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = TextPrimary
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = item.subjectCode,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = BrandAccent
-                                            )
-                                            Spacer(modifier = Modifier.height(3.dp))
-                                            Text(
-                                                text = item.program,
-                                                fontSize = 12.sp,
-                                                color = TextSecondary
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = item.room,
-                                                fontSize = 11.sp,
-                                                color = TextMuted
-                                            )
-                                        }
+                                    Text(
+                                        text = item.subjectName,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "${item.enrolledStudents} ${if (item.enrolledStudents == 1) "student" else "students"}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextSecondary
+                                    )
+                                }
 
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Surface(
-                                                shape = BadgeShape,
-                                                color = AccentPill,
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline)
-                                            ) {
-                                                Text(
-                                                    text = "${item.enrolledStudents} ${if (item.enrolledStudents == 1) "student" else "students"}",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = TextPrimary,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Icon(
-                                                imageVector = Icons.Default.ChevronRight,
-                                                contentDescription = "View",
-                                                tint = TextMuted,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Line 2: Subject Code
+                                Text(
+                                    text = item.subjectCode,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandAccent
+                                )
+
+                                Spacer(modifier = Modifier.height(3.dp))
+
+                                // Line 3: Program & Semester
+                                Text(
+                                    text = item.program,
+                                    fontSize = 13.sp,
+                                    color = TextSecondary
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Line 4: Room & Subtle Chevron
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = item.room,
+                                        fontSize = 13.sp,
+                                        color = TextMuted
+                                    )
+
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "View Details",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(36.dp))
         }
 
-        // DIALOG: DELETE SUBJECT CONFIRMATION
+                // DIALOG: DELETE SUBJECT CONFIRMATION
         if (showDeleteDialog && selectedClassForDetail != null) {
             val target = selectedClassForDetail!!
             AlertDialog(
