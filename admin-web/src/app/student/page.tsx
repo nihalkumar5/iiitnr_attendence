@@ -1501,61 +1501,59 @@ export default function StudentPortal() {
         {/* ==================================================================== */}
         {/* TOP BAR: INSTITUTIONAL BRANDING & USER STATUS (MATCHES TEACHER) */}
         {/* ==================================================================== */}
-        <header className="flex items-center justify-between pb-4 border-b border-slate-200 mb-5">
+        <header className="flex items-center justify-between pb-4 border-b border-slate-200/80 mb-5">
           <div className="flex items-center gap-3">
             <Link 
               href="/" 
-              className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all"
+              className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 flex items-center justify-center text-white font-black text-sm tracking-tight shadow-md shadow-blue-500/15 hover:shadow-lg hover:shadow-blue-500/25 ring-1 ring-black/5 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              title="Smart Attendance Portal"
             >
               SA
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm tracking-tight text-slate-900">IIIT Naya Raipur</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  STUDENT PORTAL
+                <span className="font-extrabold text-[15px] tracking-tight text-slate-900 leading-tight">IIIT Naya Raipur</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/80 uppercase tracking-wider">
+                  STUDENT
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                <span className="truncate max-w-[130px] sm:max-w-none">{studentName || "Student"}</span>
-                <span>•</span>
-                <span className="font-mono font-semibold text-slate-700">{rollNo || "ID"}</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium pt-0.5">
+                <span className="truncate max-w-[130px] sm:max-w-none text-slate-700 font-semibold">{studentName || "Student"}</span>
+                <span className="text-slate-300">•</span>
+                <span className="font-mono text-[11px] text-slate-600 bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200/70 font-semibold">{rollNo || "ID"}</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             {activeSession && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 Live
               </span>
             )}
             <Link
               href="/teacher"
-              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all border border-slate-200/80 shadow-2xs"
+              title="Switch to Faculty Console"
             >
-              <GraduationCap className="w-3.5 h-3.5" />
+              <GraduationCap className="w-3.5 h-3.5 text-slate-500" />
               <span>Faculty</span>
             </Link>
             <button
               type="button"
               onClick={() => setShowUnbindModal(true)}
-              className={`p-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
                 boundDevice?.status === "PENDING_UNBIND"
-                  ? "bg-amber-50 border-amber-300 text-amber-700"
-                  : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                  ? "bg-amber-50 hover:bg-amber-100/80 border-amber-200 text-amber-700"
+                  : "bg-white hover:bg-slate-50 border-slate-200/80 text-slate-700"
               }`}
-              title={boundDevice?.status === "PENDING_UNBIND" ? "Unbind Pending Teacher Approval" : "Anti-Proxy Device Bound"}
+              title={boundDevice?.status === "PENDING_UNBIND" ? "Unbind Pending Teacher Approval" : "Anti-Proxy Hardware Bound"}
             >
-              <ShieldCheck className={`w-4 h-4 ${boundDevice?.status === "PENDING_UNBIND" ? "text-amber-600" : "text-emerald-600"}`} />
-            </button>
-            <button
-              onClick={handleLogout}
-              title="Sign Out"
-              className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 text-xs font-bold transition-all cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
+              <ShieldCheck className={`w-4 h-4 ${boundDevice?.status === "PENDING_UNBIND" ? "text-amber-500" : "text-emerald-600"}`} />
+              <span className="hidden md:inline text-[11px] font-medium text-slate-600">
+                {boundDevice?.status === "PENDING_UNBIND" ? "Unbind Pending" : "Protected"}
+              </span>
             </button>
           </div>
         </header>
