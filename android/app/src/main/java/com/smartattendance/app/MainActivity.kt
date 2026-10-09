@@ -252,114 +252,111 @@ class MainActivity : ComponentActivity() {
                             }
 
                             UserRole.STUDENT -> {
-                                // 2. STUDENT DEDICATED DASHBOARD (NO TEACHER TABS/CONTROLS)
-                                Scaffold(
-                                    bottomBar = {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .navigationBarsPadding()
-                                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Surface(
-                                                color = Color.White.copy(alpha = 0.98f),
-                                                shape = RoundedCornerShape(26.dp),
-                                                shadowElevation = 14.dp,
-                                                border = BorderStroke(1.dp, Color(0xFFE2E8F0).copy(alpha = 0.9f)),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                                                    horizontalArrangement = Arrangement.SpaceAround,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    StudentModernTabItem(
-                                                        selected = currentStudentTab == StudentTab.RADAR,
-                                                        label = "Radar",
-                                                        selectedIcon = Icons.Filled.Radio,
-                                                        unselectedIcon = Icons.Outlined.Radio,
-                                                        onClick = {
-                                                            if (currentStudentTab != StudentTab.RADAR) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                currentStudentTab = StudentTab.RADAR
-                                                            }
-                                                        }
-                                                    )
+                                // 2. STUDENT DEDICATED DASHBOARD (FLOATING DOCK WITH ZERO SOLID BACKGROUND STRIP BEHIND)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .intersemesterBackground()
+                                ) {
+                                    StudentHomeScreen(
+                                        studentName = studentName,
+                                        studentRoll = studentRoll,
+                                        selectedTab = currentStudentTab,
+                                        onSelectTab = { currentStudentTab = it },
+                                        onEnrolledCountChanged = { count -> studentEnrolledCount = count },
+                                        onLogout = { logout() }
+                                    )
 
-                                                    StudentModernTabItem(
-                                                        selected = currentStudentTab == StudentTab.SUBJECTS,
-                                                        label = "Subjects",
-                                                        selectedIcon = Icons.AutoMirrored.Filled.MenuBook,
-                                                        unselectedIcon = Icons.AutoMirrored.Outlined.MenuBook,
-                                                        badgeText = if (studentEnrolledCount > 0) "$studentEnrolledCount" else null,
-                                                        onClick = {
-                                                            if (currentStudentTab != StudentTab.SUBJECTS) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                currentStudentTab = StudentTab.SUBJECTS
-                                                            }
-                                                        }
-                                                    )
-
-                                                    StudentModernTabItem(
-                                                        selected = currentStudentTab == StudentTab.HISTORY,
-                                                        label = "History",
-                                                        selectedIcon = Icons.Filled.History,
-                                                        unselectedIcon = Icons.Outlined.History,
-                                                        onClick = {
-                                                            if (currentStudentTab != StudentTab.HISTORY) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                currentStudentTab = StudentTab.HISTORY
-                                                            }
-                                                        }
-                                                    )
-
-                                                    StudentModernTabItem(
-                                                        selected = currentStudentTab == StudentTab.SECURITY,
-                                                        label = "Security",
-                                                        selectedIcon = Icons.Filled.Security,
-                                                        unselectedIcon = Icons.Filled.Security,
-                                                        onClick = {
-                                                            if (currentStudentTab != StudentTab.SECURITY) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                currentStudentTab = StudentTab.SECURITY
-                                                            }
-                                                        }
-                                                    )
-
-                                                    StudentModernTabItem(
-                                                        selected = currentStudentTab == StudentTab.PROFILE,
-                                                        label = "Profile",
-                                                        selectedIcon = Icons.Filled.Person,
-                                                        unselectedIcon = Icons.Outlined.Person,
-                                                        onClick = {
-                                                            if (currentStudentTab != StudentTab.PROFILE) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                currentStudentTab = StudentTab.PROFILE
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                ) { innerPadding ->
+                                    // Floating Dock overlay (No Scaffold container background behind pill)
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(CanvasBackground)
-                                            .padding(innerPadding)
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .navigationBarsPadding()
+                                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        StudentHomeScreen(
-                                            studentName = studentName,
-                                            studentRoll = studentRoll,
-                                            selectedTab = currentStudentTab,
-                                            onSelectTab = { currentStudentTab = it },
-                                            onEnrolledCountChanged = { count -> studentEnrolledCount = count },
-                                            onLogout = { logout() }
-                                        )
+                                        Surface(
+                                            color = Color.White.copy(alpha = 0.98f),
+                                            shape = RoundedCornerShape(26.dp),
+                                            shadowElevation = 14.dp,
+                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0).copy(alpha = 0.9f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceAround,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                StudentModernTabItem(
+                                                    selected = currentStudentTab == StudentTab.RADAR,
+                                                    label = "Radar",
+                                                    selectedIcon = Icons.Filled.Radio,
+                                                    unselectedIcon = Icons.Outlined.Radio,
+                                                    onClick = {
+                                                        if (currentStudentTab != StudentTab.RADAR) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentStudentTab = StudentTab.RADAR
+                                                        }
+                                                    }
+                                                )
+
+                                                StudentModernTabItem(
+                                                    selected = currentStudentTab == StudentTab.SUBJECTS,
+                                                    label = "Subjects",
+                                                    selectedIcon = Icons.AutoMirrored.Filled.MenuBook,
+                                                    unselectedIcon = Icons.AutoMirrored.Outlined.MenuBook,
+                                                    badgeText = if (studentEnrolledCount > 0) "$studentEnrolledCount" else null,
+                                                    onClick = {
+                                                        if (currentStudentTab != StudentTab.SUBJECTS) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentStudentTab = StudentTab.SUBJECTS
+                                                        }
+                                                    }
+                                                )
+
+                                                StudentModernTabItem(
+                                                    selected = currentStudentTab == StudentTab.HISTORY,
+                                                    label = "History",
+                                                    selectedIcon = Icons.Filled.History,
+                                                    unselectedIcon = Icons.Outlined.History,
+                                                    onClick = {
+                                                        if (currentStudentTab != StudentTab.HISTORY) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentStudentTab = StudentTab.HISTORY
+                                                        }
+                                                    }
+                                                )
+
+                                                StudentModernTabItem(
+                                                    selected = currentStudentTab == StudentTab.SECURITY,
+                                                    label = "Security",
+                                                    selectedIcon = Icons.Filled.Security,
+                                                    unselectedIcon = Icons.Filled.Security,
+                                                    onClick = {
+                                                        if (currentStudentTab != StudentTab.SECURITY) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentStudentTab = StudentTab.SECURITY
+                                                        }
+                                                    }
+                                                )
+
+                                                StudentModernTabItem(
+                                                    selected = currentStudentTab == StudentTab.PROFILE,
+                                                    label = "Profile",
+                                                    selectedIcon = Icons.Filled.Person,
+                                                    unselectedIcon = Icons.Outlined.Person,
+                                                    onClick = {
+                                                        if (currentStudentTab != StudentTab.PROFILE) {
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            currentStudentTab = StudentTab.PROFILE
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

@@ -2465,50 +2465,56 @@ export default function StudentPortal() {
 
       {/* ==================================================================== */}
             {/* ==================================================================== */}
-      {/* FLOATING FOOTER NAVIGATION BAR (Fixed at bottom on Web) */}
+      {/* FLOATING FOOTER NAVIGATION DOCK (MATCHES APP 1:1 WITH ICON-TOP & ACTIVE INDICATOR) */}
       {/* ==================================================================== */}
       <nav 
         aria-label="Student Navigation" 
-        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 max-w-fit w-[95%] sm:w-auto bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-[0_12px_40px_rgba(0,0,0,0.12)] ring-1 ring-slate-900/5 rounded-full p-1.5 flex items-center justify-between sm:justify-center gap-1 sm:gap-1.5 transition-all"
+        className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-24px)] max-w-md bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-[0_12px_36px_rgba(0,0,0,0.09)] rounded-[26px] p-1.5 transition-all"
       >
-        {[
-          { id: "radar", shortLabel: "Radar", fullLabel: "Live Radar", icon: Radio, count: null },
-          { id: "subjects", shortLabel: "Subjects", fullLabel: "My Subjects", icon: BookOpen, count: myClasses.length },
-          { id: "history", shortLabel: "History", fullLabel: "History", icon: Clock, count: null },
-          { id: "device", shortLabel: "Security", fullLabel: "Security", icon: ShieldCheck, count: null },
-          { id: "profile", shortLabel: "Profile", fullLabel: "Profile", icon: User, count: null },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`group relative flex items-center justify-center gap-1.5 py-2 px-2.5 sm:px-3.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer whitespace-nowrap active:scale-95 ${
-                isActive
-                  ? "bg-slate-900 text-white shadow-md shadow-slate-900/25 ring-1 ring-white/10"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
-              }`}
-            >
-              <Icon className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isActive ? "text-white scale-110" : "text-slate-500 group-hover:text-slate-800"}`} />
-              <span className="text-[11px] sm:text-xs tracking-tight">
-                <span className="sm:hidden">{tab.shortLabel}</span>
-                <span className="hidden sm:inline">{tab.fullLabel}</span>
-              </span>
-              {isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0" />
-              )}
-              {tab.count !== null && tab.count !== undefined && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold leading-none ${
-                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-slate-200/80"
+        <div className="grid grid-cols-5 items-center">
+          {[
+            { id: "radar", label: "Radar", icon: Radio, count: null },
+            { id: "subjects", label: "Subjects", icon: BookOpen, count: myClasses.length > 0 ? myClasses.length : null },
+            { id: "history", label: "History", icon: Clock, count: null },
+            { id: "device", label: "Security", icon: ShieldCheck, count: null },
+            { id: "profile", label: "Profile", icon: User, count: null },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className="group relative flex flex-col items-center justify-center py-1 px-0.5 rounded-2xl transition-all duration-150 cursor-pointer select-none"
+              >
+                {/* Icon with soft active background */}
+                <div className={`relative px-3 py-1 rounded-2xl transition-all duration-200 ${
+                  isActive ? "bg-blue-50 text-blue-600" : "text-slate-500 group-hover:text-slate-800"
                 }`}>
-                  {tab.count}
+                  <Icon className="w-5 h-5 stroke-[2.2]" />
+                  {tab.count !== null && (
+                    <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-blue-600 text-white shadow-2xs">
+                      {tab.count}
+                    </span>
+                  )}
+                </div>
+
+                {/* Tab Label */}
+                <span className={`text-[10.5px] mt-0.5 tracking-tight font-medium transition-colors ${
+                  isActive ? "text-blue-600 font-bold" : "text-slate-500 group-hover:text-slate-700"
+                }`}>
+                  {tab.label}
                 </span>
-              )}
-            </button>
-          );
-        })}
+
+                {/* Active Indicator Bar */}
+                <span className={`h-[2.5px] rounded-full mt-0.5 transition-all duration-200 ${
+                  isActive ? "w-4 bg-blue-600" : "w-0 bg-transparent"
+                }`} />
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {/* MODALS: EDIT PROFILE & DEVICE UNBIND (MATCHES FACULTY MODAL STYLE) */}
