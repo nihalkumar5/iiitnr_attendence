@@ -317,27 +317,82 @@ fun TeacherHomeScreen(
         }
     }
 
-    val filteredClasses = remember(synchronizedClassList, selectedDayFilter, currentIsoDay) {
-        when (selectedDayFilter) {
-            "TODAY" -> {
-                val todayList = synchronizedClassList.filter { it.dayOfWeek == currentIsoDay }
-                if (todayList.isNotEmpty()) todayList else synchronizedClassList
-            }
-            "MON" -> synchronizedClassList.filter { it.dayOfWeek == 1 }
-            "TUE" -> synchronizedClassList.filter { it.dayOfWeek == 2 }
-            "WED" -> synchronizedClassList.filter { it.dayOfWeek == 3 }
-            "THU" -> synchronizedClassList.filter { it.dayOfWeek == 4 }
-            "FRI" -> synchronizedClassList.filter { it.dayOfWeek == 5 }
-            "SAT" -> synchronizedClassList.filter { it.dayOfWeek == 6 }
-            else -> synchronizedClassList
+    // Current time in minutes since midnight for the institution's local time
+    val nowMinutes = remember(liveTimeStr) {
+        val cal = Calendar.getInstance()
+        cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    }
+
+    // Today's classes (active schedules matching current ISO day)
+    val todayClasses = remember(synchronizedClassList, currentIsoDay) {
+        synchronizedClassList.filter {
+            it.dayOfWeek == currentIsoDay && it.status != ClassScheduleStatus.CANCELLED
         }
     }
 
-    val currentClass = remember(filteredClasses) {
-        filteredClasses.firstOrNull { it.status == ClassScheduleStatus.ACTIVE }
-            ?: filteredClasses.firstOrNull { it.status == ClassScheduleStatus.SCHEDULED && !it.isLocked }
-            ?: filteredClasses.firstOrNull()
+    val partition = remember(todayClasses, nowMinutes, currentDateIso) {
+        val inProgressList = mutableListOf<TeacherClassItem>()
+        val upcomingList = mutableListOf<TeacherClassItem>()
+        val completedList = mutableListOf<TeacherClassItem>()
+
+        todayClasses.forEach { item ->
+            val isLocked = (item.isLocked && (item.lockedDate == null || item.lockedDate == currentDateIso)) ||
+                TimetableEngine.isClassLockedToday(context, item.id, currentDateIso) ||
+                item.status == ClassScheduleStatus.LOCKED
+
+            val startM = TimetableEngine.parseTimeToMinutes(item.startTime)
+            val endM = TimetableEngine.parseEndTimeToMinutes(item.endTime, startM)
+
+            when {
+                // 1. Live attendance session currently running
+                item.status == ClassScheduleStatus.ACTIVE -> {
+                    inProgressList.add(item)
+                }
+                // 2. Class has passed scheduled end time OR locked/submitted today
+                isLocked || item.status == ClassScheduleStatus.COMPLETED || nowMinutes >= endM -> {
+                    completedList.add(item)
+                }
+                // 3. Class time is currently in progress
+                nowMinutes in startM until endM -> {
+                    inProgressList.add(item)
+                }
+                // 4. Future upcoming class
+                else -> {
+                    upcomingList.add(item)
+                }
+            }
+        }
+
+        val sortedUpcoming = upcomingList.sortedBy { TimetableEngine.parseTimeToMinutes(it.startTime) }
+        val sortedCompleted = completedList.sortedByDescending {
+            val sm = TimetableEngine.parseTimeToMinutes(it.startTime)
+            TimetableEngine.parseEndTimeToMinutes(it.endTime, sm)
+        }
+
+        Triple(inProgressList.firstOrNull(), sortedUpcoming, sortedCompleted)
     }
+
+    val inProgressClass = partition.first
+    val upcomingTodayList = partition.second
+    val completedTodayClasses = partition.third
+
+    val currentClass: TeacherClassItem? = inProgressClass ?: upcomingTodayList.firstOrNull()
+    val isPrimaryInProgress: Boolean = inProgressClass != null
+    val primaryHeaderTitle: String = when {
+        isPrimaryInProgress -> "Current Class"
+        currentClass != null -> "Next Class"
+        completedTodayClasses.isNotEmpty() -> "Today's Schedule"
+        else -> "Today's Schedule"
+    }
+
+    val upcomingClasses: List<TeacherClassItem> = remember(partition, currentClass) {
+        if (currentClass != null) {
+            upcomingTodayList.filter { it.id != currentClass.id }
+        } else {
+            upcomingTodayList
+        }
+    }
+
     val isSessionLive = currentClass?.status == ClassScheduleStatus.ACTIVE
     val isCurrentClassLocked = currentClass?.isLocked == true || currentClass?.status == ClassScheduleStatus.LOCKED
 
@@ -452,11 +507,7 @@ fun TeacherHomeScreen(
         if (clean.isNotBlank()) clean else "Faculty Member"
     }
 
-    val upcomingClasses: List<TeacherClassItem> = remember(filteredClasses, currentClass) {
-        if (currentClass != null) {
-            filteredClasses.filter { it.id != currentClass.id }
-        } else emptyList()
-    }
+
 
     Column(
         modifier = Modifier
@@ -564,7 +615,7 @@ fun TeacherHomeScreen(
         // 2. CURRENT / UP NEXT CLASS (Hero Element)
         // ====================================================================
         Text(
-            text = "Current Class",
+            text = primaryHeaderTitle,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = TextSecondary,
@@ -619,17 +670,17 @@ fun TeacherHomeScreen(
                                     )
                                 }
                             }
-                        } else if (isCurrentClassLocked) {
+                        } else if (isPrimaryInProgress) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = SurfaceNeutral,
-                                border = BorderStroke(1.dp, BorderHairline)
+                                color = BrandAccent.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, BrandAccent.copy(alpha = 0.2f))
                             ) {
                                 Text(
-                                    text = "COMPLETED",
+                                    text = "IN PROGRESS",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextSecondary,
+                                    color = BrandAccent,
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 )
                             }
@@ -771,14 +822,18 @@ fun TeacherHomeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "No classes scheduled today",
+                        text = if (completedTodayClasses.isNotEmpty()) "All classes completed today" else "No classes scheduled today",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Enjoy your day or view your full timetable",
+                        text = if (completedTodayClasses.isNotEmpty()) {
+                            "${completedTodayClasses.size} scheduled class${if (completedTodayClasses.size > 1) "es have" else " has"} ended for today"
+                        } else {
+                            "Enjoy your day or view your full timetable"
+                        },
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
@@ -917,7 +972,122 @@ fun TeacherHomeScreen(
         }
 
         // ====================================================================
-        // 4. LOW ATTENDANCE ALERT (Restrained Contextual Warning)
+        // 4. COMPLETED TODAY (Compact, subtle, most recent first)
+        // ====================================================================
+        if (completedTodayClasses.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Completed Today",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+
+                Text(
+                    text = "${completedTodayClasses.size}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextSecondary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = CardBackground,
+                border = BorderStroke(1.dp, BorderSubtle),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    completedTodayClasses.forEachIndexed { index, classItem ->
+                        val isSubmitted = TimetableEngine.isClassLockedToday(context, classItem.id, currentDateIso)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onOpenSchedule()
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Time Column
+                                Column(modifier = Modifier.width(76.dp)) {
+                                    Text(
+                                        text = classItem.startTime.take(5),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextSecondary
+                                    )
+                                    Text(
+                                        text = classItem.endTime.take(5),
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Subject & Room Column
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = classItem.subjectName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${classItem.subjectCode} · ${classItem.room}",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = SurfaceNeutral,
+                                border = BorderStroke(1.dp, BorderHairline)
+                            ) {
+                                Text(
+                                    text = if (isSubmitted) "Submitted" else "Completed",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
+                        if (index < completedTodayClasses.lastIndex) {
+                            HorizontalDivider(
+                                color = BorderHairline,
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 5. LOW ATTENDANCE ALERT (Restrained Contextual Warning)
         // ====================================================================
         val lowAttendanceCount = remember {
             prefs.getInt("low_attendance_students_count", 3)
