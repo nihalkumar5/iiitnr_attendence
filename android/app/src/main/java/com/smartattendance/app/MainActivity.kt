@@ -64,6 +64,9 @@ import com.smartattendance.app.ui.teacher.TeacherHomeScreen
 import com.smartattendance.app.ui.teacher.TeacherAttendanceHistoryScreen
 import com.smartattendance.app.ui.teacher.TeacherScheduleScreen
 import com.smartattendance.app.ui.theme.*
+import com.smartattendance.app.core.update.AppUpdateManager
+import com.smartattendance.app.core.update.UpdateInfo
+import com.smartattendance.app.ui.components.AppUpdateDialog
 
 enum class UserRole {
     NONE,
@@ -154,6 +157,23 @@ class MainActivity : ComponentActivity() {
                 var activeLectureSessionId by remember { mutableStateOf("") }
 
                 val haptic = LocalHapticFeedback.current
+
+                var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
+                var showUpdateDialog by remember { mutableStateOf(false) }
+
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(1200L)
+                    val res = AppUpdateManager.checkForAppUpdate(this@MainActivity)
+                    res.onSuccess { info ->
+                        if (info != null && info.isNewer) {
+                            val dismissedTag = prefs.getString("dismissed_update_tag", "")
+                            if (dismissedTag != info.tagName) {
+                                availableUpdate = info
+                                showUpdateDialog = true
+                            }
+                        }
+                    }
+                }
 
                 fun logout() {
                     if (currentRole == UserRole.TEACHER) {
@@ -528,6 +548,16 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
+
+                if (showUpdateDialog && availableUpdate != null) {
+                    AppUpdateDialog(
+                        updateInfo = availableUpdate!!,
+                        onDismiss = {
+                            prefs.edit().putString("dismissed_update_tag", availableUpdate!!.tagName).apply()
+                            showUpdateDialog = false
+                        }
+                    )
                 }
             }
         }
