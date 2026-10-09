@@ -27,6 +27,7 @@ import {
   GraduationCap,
   Trash2,
   Pencil,
+  X,
   Mail,
   Hash
 } from "lucide-react";
@@ -976,7 +977,7 @@ export default function StudentPortal() {
         // ONLY fire toast notification and record to DB ONCE per session!
         if (!markedPresentSessionsRef.current.has(sess.id)) {
           markedPresentSessionsRef.current.add(sess.id);
-          setAutoCheckInToast(`⚡ Automatic Attendance Recorded for ${sess.subjectName}!`);
+          setAutoCheckInToast(sess.subjectName);
           setTimeout(() => setAutoCheckInToast(null), 4000);
 
           await recordStudentAttendanceInDB({
@@ -1442,64 +1443,77 @@ export default function StudentPortal() {
     );
   }
 
-  // IF LOGGED IN: SHOW REGULAR STUDENT CONSOLE (PREMIUM MOBILE APP SHELL)
+  // IF LOGGED IN: SHOW REGULAR STUDENT CONSOLE (FACULTY MATCHED THEME)
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Toast Notification */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 justify-between">
+      {/* Dynamic Island / Top Notification Banner (Apple-grade, matching Faculty UI) */}
       {autoCheckInToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-full shadow-2xl border border-emerald-400/30 text-xs font-bold tracking-wide flex items-center gap-2 animate-in fade-in slide-in-from-top-3">
-          <Zap className="w-4 h-4 fill-emerald-200" />
-          <span>{autoCheckInToast}</span>
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] sm:w-auto bg-slate-900/95 text-white backdrop-blur-md px-4 py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0 pr-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Attendance Recorded</span>
+            </div>
+            <div className="text-xs font-semibold text-slate-100 truncate">
+              {autoCheckInToast.replace(/^⚡\s*Automatic Attendance Recorded for\s*/i, "").replace(/!$/, "") || "Live Session Verified"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAutoCheckInToast(null)}
+            className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
-      {/* TOP APP BAR (Native App Bar / Sticky Header) */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-2xs">
-        <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-          {/* App Logo & Institution Title */}
-          <div className="flex items-center gap-2.5">
+      {/* Main Container - Responsive Max Width (Matches Faculty Console Layout) */}
+      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 pb-24 md:pb-12">
+        {/* ==================================================================== */}
+        {/* TOP BAR: INSTITUTIONAL BRANDING & USER STATUS (MATCHES TEACHER) */}
+        {/* ==================================================================== */}
+        <header className="flex items-center justify-between pb-4 border-b border-slate-200 mb-5">
+          <div className="flex items-center gap-3">
             <Link 
               href="/" 
-              className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all"
+              className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all"
             >
               SA
             </Link>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-sm tracking-tight text-slate-900">IIIT-NR</span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm tracking-tight text-slate-900">IIIT Naya Raipur</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  STUDENT PORTAL
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium leading-none mt-0.5">Smart Attendance</p>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                <span className="truncate max-w-[130px] sm:max-w-none">{studentName || "Student"}</span>
+                <span>•</span>
+                <span className="font-mono font-semibold text-slate-700">{rollNo || "ID"}</span>
+              </div>
             </div>
           </div>
 
-          {/* Right Header Controls */}
           <div className="flex items-center gap-2">
-            {/* Student Profile Pill */}
-            <button
-              type="button"
-              onClick={() => setActiveTab("profile")}
-              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-full border transition-all cursor-pointer ${
-                activeTab === "profile"
-                  ? "bg-blue-50 border-blue-400 text-blue-900 ring-2 ring-blue-500/20"
-                  : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800"
-              }`}
-              title="View Profile"
+            {activeSession && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+            )}
+            <Link
+              href="/teacher"
+              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
             >
-              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-[10px] font-black">
-                {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
-              </div>
-              <div className="text-left hidden sm:block">
-                <span className="text-xs font-bold leading-tight block truncate max-w-[100px]">{studentName}</span>
-                <span className="text-[10px] text-slate-500 font-mono block leading-none">{rollNo}</span>
-              </div>
-              <span className="text-[11px] font-bold font-mono sm:hidden">{rollNo}</span>
-            </button>
-
-            {/* Device Lock Status Shield */}
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Faculty</span>
+            </Link>
             <button
               type="button"
               onClick={() => setShowUnbindModal(true)}
@@ -1512,8 +1526,6 @@ export default function StudentPortal() {
             >
               <ShieldCheck className={`w-4 h-4 ${boundDevice?.status === "PENDING_UNBIND" ? "text-amber-600" : "text-emerald-600"}`} />
             </button>
-
-            {/* Sign Out */}
             <button
               onClick={handleLogout}
               title="Sign Out"
@@ -1522,181 +1534,246 @@ export default function StudentPortal() {
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </header>
 
         {/* DESKTOP TAB SELECTOR (Hidden on small mobile screens) */}
-        <div className="hidden md:block border-t border-slate-100 bg-slate-50/50">
-          <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-center gap-2">
-            {[
-              { id: "radar", label: "Live Radar", icon: Radio, count: activeSession ? 1 : null },
-              { id: "subjects", label: "My Subjects", icon: BookOpen, count: myClasses.length },
-              { id: "device", label: "Device Security", icon: ShieldCheck },
-              { id: "profile", label: "Student Profile", icon: User },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                      : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80"
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-slate-500"}`} />
-                  <span>{tab.label}</span>
-                  {tab.count !== null && tab.count !== undefined && (
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700 font-mono"}`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </header>
-
-      {/* MAIN CONTENT AREA */}
-      <main className="max-w-md sm:max-w-xl md:max-w-2xl mx-auto w-full px-4 pt-4 pb-28 md:pb-12 flex-1 space-y-4">
-        {/* TAB 1: RADAR & LIVE PRESENCE */}
-        {activeTab === "radar" && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* If Active Session exists for student's enrolled subject */}
-            {activeSession && isEnrolledInActive ? (
-              <section className={`bg-white border rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl transition-all ${
-                attendanceStatus === "PRESENT" ? "border-emerald-500/50 shadow-emerald-500/10" : "border-rose-400 shadow-rose-500/10"
-              }`}>
-                {/* Live Banner */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-                    </span>
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      Live Class • {activeSession.roomNo}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      autoCheckedInRef.current = false;
-                      if (activeSession) executePresenceVerification(activeSession);
-                    }}
-                    disabled={isVerifyingPresence}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                    title="Re-check Presence"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-blue-600 ${isVerifyingPresence ? "animate-spin" : ""}`} />
-                    <span>Verify</span>
-                  </button>
-                </div>
-
-                {/* Subject Details */}
-                <div>
-                  <span className="text-[11px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                    {activeSession.subjectCode}
+        <div className="hidden md:flex items-center gap-2 mb-5 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/80">
+          {[
+            { id: "radar", label: "Live Radar", icon: Radio, count: activeSession ? 1 : null },
+            { id: "subjects", label: "My Subjects", icon: BookOpen, count: myClasses.length },
+            { id: "device", label: "Device Security", icon: ShieldCheck },
+            { id: "profile", label: "Student Profile", icon: User },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-white text-blue-600 shadow-sm border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-blue-600" : "text-slate-500"}`} />
+                <span>{tab.label}</span>
+                {tab.count !== null && tab.count !== undefined && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? "bg-blue-50 text-blue-700 font-mono" : "bg-slate-200 text-slate-700 font-mono"}`}>
+                    {tab.count}
                   </span>
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
-                    {activeSession.subjectName}
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Faculty • {activeSession.roomNo} • SSID: {activeSession.wifiSsid || "Pranjal"}</p>
-                </div>
-
-                {/* Big Presence Verification Banner */}
-                {attendanceStatus === "PRESENT" ? (
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-400/40 text-emerald-900 space-y-1 shadow-xs">
-                    <div className="flex items-center gap-2 font-black text-sm text-emerald-800">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <span>Zero-Touch Presence Verified!</span>
-                    </div>
-                    <p className="text-xs text-emerald-700">
-                      You are marked <b>PRESENT</b> for this lecture in {activeSession.roomNo}.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 space-y-1 shadow-xs">
-                    <div className="flex items-center gap-2 font-bold text-sm text-amber-800">
-                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-                      <span>Verification In Progress / Action Needed</span>
-                    </div>
-                    <p className="text-xs text-amber-700 leading-relaxed">
-                      Make sure your device is connected to classroom Wi-Fi <b>"{activeSession.wifiSsid || "Pranjal"}"</b> and you are inside {activeSession.roomNo}.
-                    </p>
-                  </div>
                 )}
+              </button>
+            );
+          })}
+        </div>
 
-                {/* Two Sensor Verification Cards */}
-                <div className="grid grid-cols-2 gap-2.5 pt-1">
-                  {/* Wi-Fi Card */}
-                  <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${
-                    (activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim())
-                      ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
-                      : "bg-rose-50/70 border-rose-200 text-rose-900"
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 font-bold">
-                        <Wifi className="w-3.5 h-3.5" />
-                        <span>Classroom Wi-Fi</span>
-                      </div>
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                        (activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim())
-                          ? "bg-emerald-200 text-emerald-900"
-                          : "bg-rose-200 text-rose-900"
-                      }`}>
-                        {(activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim()) ? "MATCH" : "MISMATCH"}
+        {/* ==================================================================== */}
+        {/* MAIN BODY CONTENT */}
+        {/* ==================================================================== */}
+        <div className="space-y-4">
+          {/* TAB 1: RADAR & LIVE PRESENCE */}
+          {activeTab === "radar" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Active Lecture Card (Matches Faculty Live Session card) */}
+              {activeSession && isEnrolledInActive ? (
+                <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block mb-1">
+                        ● LIVE ATTENDANCE ACTIVE
                       </span>
+                      <h2 className="text-base font-bold text-slate-900 tracking-tight">{activeSession.subjectName}</h2>
+                      <p className="text-xs text-slate-500 font-medium">{activeSession.subjectCode} · {activeSession.roomNo}</p>
                     </div>
-                    <div className="text-[11px] font-mono truncate">
-                      {(activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim()) ? "AP Verified" : "Not Connected"}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        autoCheckedInRef.current = false;
+                        if (activeSession) executePresenceVerification(activeSession);
+                      }}
+                      disabled={isVerifyingPresence}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer shrink-0"
+                      title="Re-check Presence"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-blue-600 ${isVerifyingPresence ? "animate-spin" : ""}`} />
+                      <span>Verify</span>
+                    </button>
+                  </div>
+
+                  {/* Presence Status Banner */}
+                  {attendanceStatus === "PRESENT" ? (
+                    <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-emerald-900">Zero-Touch Presence Verified!</h4>
+                        <p className="text-[11px] text-emerald-700 mt-0.5">
+                          You are marked <span className="font-bold">PRESENT</span> for this lecture in {activeSession.roomNo}.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                        <RefreshCw className={`w-4 h-4 ${isVerifyingPresence ? "animate-spin" : ""}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-900">Verifying Classroom Signals...</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Connecting to classroom Wi-Fi router and checking geofence proximity.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Telemetry Grid (Wi-Fi & GPS Geofence) */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                          <Wifi className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Classroom Wi-Fi</span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          (activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim())
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-slate-200 text-slate-700"
+                        }`}>
+                          {(activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim()) ? "MATCH" : "MISMATCH"}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-slate-600 truncate">
+                        {(activeSession.wifiSsid || "Pranjal").split(",").map((s: string) => s.toLowerCase().trim()).includes(studentConnectedWifi.toLowerCase().trim()) ? "AP Verified" : "Not Connected"}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                          <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Geofence</span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          verificationResult?.isInside ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
+                        }`}>
+                          {verificationResult?.isInside ? "IN CLASS" : "CHECKING"}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 font-mono">
+                        Distance: {verificationResult?.distanceMeters || 3.4}m
+                      </div>
                     </div>
                   </div>
 
-                  {/* Geofence Card */}
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 font-bold text-slate-800">
-                        <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Geofence</span>
-                      </div>
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                        verificationResult?.isInside ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
-                      }`}>
-                        {verificationResult?.isInside ? "IN CLASS" : "CHECKING"}
+                  {/* Sensor Simulation Accordion */}
+                  <div className="border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDiagnostics(!showDiagnostics)}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-semibold flex items-center justify-between w-full transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Crosshair className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Sensor Simulation & AP Diagnostics</span>
                       </span>
+                      <span className="text-[11px] text-blue-600 font-bold hover:underline">
+                        {showDiagnostics ? "Hide" : "Configure AP"}
+                      </span>
+                    </button>
+
+                    {showDiagnostics && (
+                      <div className="mt-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs animate-in fade-in">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                            Simulate Connected Wi-Fi AP:
+                          </label>
+                          <select
+                            value={studentConnectedWifi + "::" + selectedBssid}
+                            onChange={(e) => {
+                              const [net, bssid] = e.target.value.split("::");
+                              setStudentConnectedWifi(net);
+                              setSelectedBssid(bssid || "00:00:00:00:00:00");
+                              autoCheckedInRef.current = false;
+                              setAttendanceStatus("ABSENT");
+                              if (activeSession) {
+                                setTimeout(() => executePresenceVerification(activeSession), 50);
+                              }
+                            }}
+                            className="w-full text-xs px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+                          >
+                            <option value="Cellular Data (Mobile Network)::00:00:00:00:00:00">Cellular Data / 5G (Mobile) • Disconnected</option>
+                            <option value="Other Wi-Fi / External Network::32:11:00:AB:CD:EF">Other Wi-Fi (Hostel / Home / Personal)</option>
+                            <option value={(activeSession?.wifiSsid || "Pranjal") + "::A4:2B:B0:8C:12:EF"}>Classroom AP ({activeSession?.wifiSsid || "Pranjal"}) • Official Router Verified</option>
+                            <option value={(activeSession?.wifiSsid || "Pranjal") + "::F2:45:67:89:AB:CD"}>⚠️ Fake Mobile Hotspot ({activeSession?.wifiSsid || "Pranjal"} • Rogue BSSID)</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                          <span>Router BSSID: <b className="font-mono text-slate-700">{selectedBssid}</b></span>
+                          <span className={selectedBssid === "A4:2B:B0:8C:12:EF" ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
+                            {selectedBssid === "A4:2B:B0:8C:12:EF" ? "✓ Official Hardware" : "⚠️ Unverified AP"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              ) : null}
+
+              {/* No Active Session Radar Hero */}
+              {!activeSession && (
+                <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-5 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto shadow-sm">
+                    <Radio className="w-7 h-7" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 inline-block mb-1">
+                      ZERO-TOUCH RADAR
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                      Attendance Radar Active
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                      Listening for professor broadcasts. Your attendance will be automatically verified when class begins.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                      <Wifi className="w-4 h-4 text-blue-600 mx-auto" />
+                      <span className="text-[10px] text-slate-500 block font-semibold">Wi-Fi</span>
+                      <span className="text-[11px] font-bold text-slate-800 block truncate">Sensor Ready</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 font-mono">
-                      Distance: {verificationResult?.distanceMeters || 3.4}m
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                      <MapPin className="w-4 h-4 text-blue-600 mx-auto" />
+                      <span className="text-[10px] text-slate-500 block font-semibold">Geofence</span>
+                      <span className="text-[11px] font-bold text-slate-800 block truncate">Classroom GPS</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 mx-auto" />
+                      <span className="text-[10px] text-slate-500 block font-semibold">Hardware</span>
+                      <span className="text-[11px] font-bold text-emerald-700 block truncate">Bound</span>
                     </div>
                   </div>
-                </div>
 
-                {/* Collapsible Simulation / Testing Accordion */}
-                <div className="border-t border-slate-100 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowDiagnostics(!showDiagnostics)}
-                    className="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center justify-between w-full transition-colors cursor-pointer"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Crosshair className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Sensor Simulation & AP Testing</span>
-                    </span>
-                    <span className="text-[11px] text-blue-600 underline">
-                      {showDiagnostics ? "Hide" : "Configure AP"}
-                    </span>
-                  </button>
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowDiagnostics(!showDiagnostics)}
+                      className="text-xs text-slate-400 hover:text-slate-600 font-medium underline cursor-pointer"
+                    >
+                      {showDiagnostics ? "Hide AP Selector" : "Sensor Diagnostics & AP Selector"}
+                    </button>
 
-                  {showDiagnostics && (
-                    <div className="mt-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs animate-in fade-in">
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                          Simulate Connected Wi-Fi AP:
+                    {showDiagnostics && (
+                      <div className="mt-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-2 animate-in fade-in">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                          Select Simulation Wi-Fi AP:
                         </label>
                         <select
                           value={studentConnectedWifi + "::" + selectedBssid}
@@ -1704,464 +1781,316 @@ export default function StudentPortal() {
                             const [net, bssid] = e.target.value.split("::");
                             setStudentConnectedWifi(net);
                             setSelectedBssid(bssid || "00:00:00:00:00:00");
-                            autoCheckedInRef.current = false;
-                            setAttendanceStatus("ABSENT");
-                            if (activeSession) {
-                              setTimeout(() => executePresenceVerification(activeSession), 50);
-                            }
                           }}
-                          className="w-full text-xs px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+                          className="w-full text-xs px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                         >
-                          <option value="Cellular Data (Mobile Network)::00:00:00:00:00:00">Cellular Data / 5G (Mobile) • Disconnected</option>
-                          <option value="Other Wi-Fi / External Network::32:11:00:AB:CD:EF">Other Wi-Fi (Hostel / Home / Personal)</option>
-                          <option value={(activeSession?.wifiSsid || "Pranjal") + "::A4:2B:B0:8C:12:EF"}>Classroom AP ({activeSession?.wifiSsid || "Pranjal"}) • Official Router Verified</option>
-                          <option value={(activeSession?.wifiSsid || "Pranjal") + "::F2:45:67:89:AB:CD"}>⚠️ Fake Mobile Hotspot ({activeSession?.wifiSsid || "Pranjal"} • Rogue BSSID)</option>
+                          <option value="Cellular Data (Mobile Network)::00:00:00:00:00:00">Cellular Data / 5G (Mobile)</option>
+                          <option value="Other Wi-Fi / External Network::32:11:00:AB:CD:EF">Other Wi-Fi (Hostel / Home)</option>
+                          <option value="Pranjal::A4:2B:B0:8C:12:EF">Classroom AP (Pranjal) • Official Hardware Verified</option>
+                          <option value="Pranjal::F2:45:67:89:AB:CD">⚠️ Fake Mobile Hotspot (Pranjal • Rogue BSSID)</option>
                         </select>
                       </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                        <span>Router BSSID: <b className="font-mono text-slate-700">{selectedBssid}</b></span>
-                        <span className={selectedBssid === "A4:2B:B0:8C:12:EF" ? "text-emerald-600 font-bold" : "text-amber-600 font-bold"}>
-                          {selectedBssid === "A4:2B:B0:8C:12:EF" ? "✓ Official Hardware" : "⚠️ Unverified AP"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            ) : null}
-
-            {/* When NO Active Session: Show Sleek App Radar Hero */}
-            {!activeSession && (
-              <section className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 text-center">
-                {/* Radar Pulse Visual */}
-                <div className="relative w-28 h-28 mx-auto flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full bg-blue-100/60 animate-ping opacity-30" />
-                  <div className="absolute inset-3 rounded-full bg-blue-50 border border-blue-200 animate-pulse" />
-                  <div className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-                    <Radio className="w-7 h-7 animate-pulse" />
+                    )}
                   </div>
-                </div>
+                </section>
+              )}
 
-                <div className="space-y-1.5">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
-                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-                    Zero-Touch Radar Listening
-                  </div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                    Attendance Not Started
-                  </h3>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                    Your professor has not opened attendance yet. Verification will activate automatically as soon as class begins.
-                  </p>
-                </div>
-
-                {/* 3 Status Telemetry Pills */}
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-1">
-                    <Wifi className="w-4 h-4 text-blue-600 mx-auto" />
-                    <span className="text-[10px] text-slate-500 block font-semibold">Wi-Fi Sensor</span>
-                    <span className="text-[11px] font-bold text-slate-800 block truncate">Ready</span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-1">
-                    <MapPin className="w-4 h-4 text-blue-600 mx-auto" />
-                    <span className="text-[10px] text-slate-500 block font-semibold">Geofence</span>
-                    <span className="text-[11px] font-bold text-slate-800 block truncate">Classroom GPS</span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-1">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 mx-auto" />
-                    <span className="text-[10px] text-slate-500 block font-semibold">Hardware</span>
-                    <span className="text-[11px] font-bold text-emerald-700 block truncate">Bound</span>
-                  </div>
-                </div>
-
-                {/* Simulation AP Toggle */}
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDiagnostics(!showDiagnostics)}
-                    className="text-xs text-slate-400 hover:text-slate-600 font-medium underline cursor-pointer"
-                  >
-                    {showDiagnostics ? "Hide AP Selector" : "Sensor Diagnostics & AP Selector"}
-                  </button>
-
-                  {showDiagnostics && (
-                    <div className="mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2 animate-in fade-in">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
-                        Select Simulation Wi-Fi AP:
-                      </label>
-                      <select
-                        value={studentConnectedWifi + "::" + selectedBssid}
-                        onChange={(e) => {
-                          const [net, bssid] = e.target.value.split("::");
-                          setStudentConnectedWifi(net);
-                          setSelectedBssid(bssid || "00:00:00:00:00:00");
-                        }}
-                        className="w-full text-xs px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
-                      >
-                        <option value="Cellular Data (Mobile Network)::00:00:00:00:00:00">Cellular Data / 5G (Mobile)</option>
-                        <option value="Other Wi-Fi / External Network::32:11:00:AB:CD:EF">Other Wi-Fi (Hostel / Home)</option>
-                        <option value="Pranjal::A4:2B:B0:8C:12:EF">Classroom AP (Pranjal) • Official Hardware Verified</option>
-                        <option value="Pranjal::F2:45:67:89:AB:CD">⚠️ Fake Mobile Hotspot (Pranjal • Rogue BSSID)</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Quick Action to Enrolled Subjects */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">Enrolled in {myClasses.length} Subjects</h4>
-                  <p className="text-xs text-slate-500">Tap to manage classes or join a new batch</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab("subjects")}
-                className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer shrink-0"
-              >
-                View
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: SUBJECTS & BATCH ENROLLMENT */}
-        {activeTab === "subjects" && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Top Bar inside Subjects */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-black text-slate-900 tracking-tight">My Subjects</h3>
-                <p className="text-xs text-slate-500">{myClasses.length} active enrollments</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowJoinInline(!showJoinInline)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>{showJoinInline ? "Close" : "+ Join Batch"}</span>
-              </button>
-            </div>
-
-            {/* Join Code Card (Collapsible or directly shown if opened) */}
-            {showJoinInline && (
-              <section className="bg-white border border-blue-200 rounded-3xl p-5 sm:p-6 space-y-3 shadow-md animate-in fade-in zoom-in-98">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                    <KeyRound className="w-4 h-4 text-blue-600" />
-                    <span>Join Subject via Code</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowJoinInline(false)}
-                    className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Enter the Subject Join Code provided by your teacher (e.g. CS50-6374 or CS50).
-                </p>
-
-                <form onSubmit={handleJoinClass} className="flex gap-2 pt-1">
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. CS50-6374"
-                    value={joinCodeInput}
-                    onChange={(e) => setJoinCodeInput(e.target.value)}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white focus:outline-none text-slate-900 text-sm uppercase font-mono tracking-wider font-bold transition-all"
-                  />
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/20 transition-all shrink-0 cursor-pointer"
-                  >
-                    Join
-                  </button>
-                </form>
-
-                {joinSuccessMsg && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium animate-in fade-in">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <span>{joinSuccessMsg}</span>
-                  </div>
-                )}
-
-                {joinErrorMsg && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium animate-in fade-in">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-                    <span>{joinErrorMsg}</span>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* List of enrolled classes */}
-            <div className="space-y-2.5">
-              {myClasses.length === 0 ? (
-                <div className="bg-white border border-slate-200/90 rounded-3xl p-8 text-center space-y-3 shadow-2xs">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                    <BookOpen className="w-6 h-6" />
+              {/* Quick Action to Enrolled Subjects */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">No Enrolled Subjects Yet</h4>
-                    <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                      Ask your professor for the 6-character subject code and enter it to begin tracking your attendance.
-                    </p>
+                    <h4 className="text-xs font-bold text-slate-900">Enrolled in {myClasses.length} Subjects</h4>
+                    <p className="text-[11px] text-slate-500">Tap to manage classes or join a new batch</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowJoinInline(true)}
-                    className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
-                  >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>Enter Join Code</span>
-                  </button>
                 </div>
-              ) : (
-                myClasses.map((c) => (
-                  <div
-                    key={c.id}
-                    className="bg-white border border-slate-200/90 hover:border-slate-300 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs transition-all"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-50 to-indigo-50 border border-blue-100 text-blue-700 flex flex-col items-center justify-center shrink-0">
-                        <span className="text-[10px] font-black uppercase font-mono leading-none">{c.subjectCode.slice(0, 4)}</span>
-                        <span className="text-[8px] font-bold text-slate-500 leading-none mt-0.5">BATCH</span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                            {c.subjectCode}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Code: {c.joinCode}</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-900 truncate mt-0.5">{c.subjectName}</h4>
-                        <span className="text-[11px] text-slate-500 block truncate">{c.roomNo}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <span className="text-xs font-black text-emerald-600 block font-mono">100%</span>
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Verified</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleUnenrollClass(c.id)}
-                        title="Unenroll from this subject"
-                        className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: DEVICE SECURITY */}
-        {activeTab === "device" && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-5 shadow-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Anti-Proxy Hardware Lock</h3>
-                  <p className="text-xs text-slate-500">Cryptographic 1-Device Enforcement</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2.5 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Student Identity:</span>
-                  <span className="font-bold text-slate-900">{studentName} ({rollNo})</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Bound Device:</span>
-                  <span className="font-mono font-bold text-blue-600">{boundDevice?.deviceModel || "Mobile Browser Bound"}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Protection Status:</span>
-                  <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
-                    boundDevice?.status === "PENDING_UNBIND" 
-                      ? "bg-amber-100 text-amber-800" 
-                      : "bg-emerald-100 text-emerald-800"
-                  }`}>
-                    {boundDevice?.status === "PENDING_UNBIND" ? "Unbind Pending Teacher Approval" : "ACTIVE • Locked"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-xs text-slate-600 space-y-3 leading-relaxed">
-                <p>
-                  To prevent proxy attendance, your university profile is bound to this device. Attendance can only be logged from this phone.
-                </p>
                 <button
                   type="button"
-                  onClick={() => setShowUnbindModal(true)}
-                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  onClick={() => setActiveTab("subjects")}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-all cursor-pointer shrink-0"
                 >
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>Request Device Switch / Unbind</span>
+                  View
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* TAB 4: STUDENT PROFILE */}
-        {activeTab === "profile" && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            {/* Main Profile Hero Card */}
-            <div className="relative overflow-hidden bg-gradient-to-b from-white via-white to-blue-50/40 border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-lg shadow-slate-200/50 space-y-6">
-              {/* Decorative Subtle Ambient Glow */}
-              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+          {/* TAB 2: SUBJECTS & BATCH ENROLLMENT */}
+          {activeTab === "subjects" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Top Bar inside Subjects */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 inline-block mb-1">
+                    COURSE ROSTER
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight">My Subjects</h3>
+                  <p className="text-xs text-slate-500">{myClasses.length} active enrollments</p>
+                </div>
 
-              {/* Profile Card Header */}
-              <div className="relative flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30 ring-4 ring-blue-50">
-                      {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
+                <button
+                  type="button"
+                  onClick={() => setShowJoinInline(!showJoinInline)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{showJoinInline ? "Close" : "+ Join Batch"}</span>
+                </button>
+              </div>
+
+              {/* Join Code Card */}
+              {showJoinInline && (
+                <section className="bg-white border border-blue-200 rounded-2xl p-5 space-y-3 shadow-xs animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                      <KeyRound className="w-4 h-4 text-blue-600" />
+                      <span>Join Subject via Code</span>
                     </div>
-                    {/* Active verified presence pulse dot */}
-                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center shadow-xs" title="Device Active">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    <button
+                      type="button"
+                      onClick={() => setShowJoinInline(false)}
+                      className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Enter the Subject Join Code provided by your professor (e.g. CS50-6374 or CS50).
+                  </p>
+
+                  <form onSubmit={handleJoinClass} className="flex gap-2 pt-1">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. CS50-6374"
+                      value={joinCodeInput}
+                      onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-500 uppercase"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!joinCodeInput.trim()}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer shrink-0"
+                    >
+                      Enroll
+                    </button>
+                  </form>
+
+                  {joinErrorMsg && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{joinErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {joinSuccessMsg && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>{joinSuccessMsg}</span>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* Enrolled Classes List */}
+              <div className="space-y-3">
+                {myClasses.length === 0 ? (
+                  <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2">
+                    <BookOpen className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-xs text-slate-500 font-medium">You are not enrolled in any subjects yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowJoinInline(true)}
+                      className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
+                    >
+                      + Join your first subject batch
+                    </button>
+                  </div>
+                ) : (
+                  myClasses.map((c) => (
+                    <div
+                      key={c.id}
+                      className="bg-white border border-slate-200 hover:border-blue-400 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[10px] font-mono font-bold">{c.subjectCode.slice(0, 4)}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                              {c.subjectCode}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">Join: {c.joinCode}</span>
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900 truncate mt-1">{c.subjectName}</h4>
+                          <span className="text-[11px] text-slate-500 block truncate">{c.roomNo}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Active
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUnenrollClass(c.id)}
+                          title="Unenroll from this subject"
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: DEVICE SECURITY */}
+          {activeTab === "device" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Anti-Proxy Hardware Lock</h3>
+                    <p className="text-xs text-slate-500">Cryptographic 1-Device Enforcement</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Student Identity:</span>
+                    <span className="font-bold text-slate-900">{studentName} ({rollNo})</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Bound Device:</span>
+                    <span className="font-mono font-bold text-blue-600">{boundDevice?.deviceModel || "Mobile Browser"}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Protection Status:</span>
+                    <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                      boundDevice?.status === "PENDING_UNBIND" 
+                        ? "bg-amber-100 text-amber-800" 
+                        : "bg-emerald-100 text-emerald-800"
+                    }`}>
+                      {boundDevice?.status === "PENDING_UNBIND" ? "Pending Approval" : "ACTIVE • Locked"}
                     </span>
                   </div>
-
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">{studentName || "Student"}</h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80">
-                        Verified
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono font-bold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-lg border border-blue-200">
-                        {rollNo || "No Roll"}
-                      </span>
-                      <span className="text-xs text-slate-500 font-medium truncate">
-                        IIIT Naya Raipur
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditName(studentName);
-                    setEditRollNo(rollNo);
-                    setEditEmail(studentEmail);
-                    setProfileSaveSuccess(null);
-                    setShowEditProfileModal(true);
-                  }}
-                  className="shrink-0 px-3.5 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 hover:border-blue-300 text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                  title="Edit Profile"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  <span>Edit</span>
-                </button>
-              </div>
-
-              {/* Pro Metric Widgets Grid (2x2) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                {/* Email Widget */}
-                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <Mail className="w-3.5 h-3.5 text-blue-500" />
-                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Email Address</span>
-                  </div>
-                  <p className="font-semibold text-slate-900 truncate" title={studentEmail}>
-                    {studentEmail || "Not Provided"}
+                <div className="text-xs text-slate-600 space-y-3 leading-relaxed">
+                  <p>
+                    To prevent proxy attendance, your student account is hardware-bound to this device. Attendance can only be logged from this phone.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowUnbindModal(true)}
+                    className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>Request Device Switch / Unbind</span>
+                  </button>
                 </div>
-
-                {/* Institution Widget */}
-                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
-                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Campus & Institute</span>
-                  </div>
-                  <p className="font-bold text-slate-900 truncate">
-                    IIIT Naya Raipur
-                  </p>
-                </div>
-
-                {/* Enrolled Courses Widget */}
-                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Enrolled Subjects</span>
-                  </div>
-                  <p className="font-bold text-slate-900">
-                    {myClasses.length} Active Courses
-                  </p>
-                </div>
-
-                {/* Hardware Security Widget */}
-                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Device Security</span>
-                  </div>
-                  <p className="font-bold text-emerald-600 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Hardware Bound & Protected
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons Hub */}
-              <div className="space-y-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditName(studentName);
-                    setEditRollNo(rollNo);
-                    setEditEmail(studentEmail);
-                    setProfileSaveSuccess(null);
-                    setShowEditProfileModal(true);
-                  }}
-                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white rounded-2xl text-xs font-extrabold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Pencil className="w-4 h-4 text-blue-100" />
-                  <span>Edit Profile Details</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full py-3 bg-rose-50/80 hover:bg-rose-100/90 active:scale-[0.99] text-rose-600 rounded-2xl text-xs font-bold border border-rose-200/80 transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <LogOut className="w-4 h-4 text-rose-500" />
-                  <span>Sign Out of Account</span>
-                </button>
               </div>
             </div>
-          </div>
-        )}
-      </main>
+          )}
 
-      {/* MOBILE BOTTOM NAVIGATION BAR (Floating App Dock on phones) */}
-      <nav className="md:hidden fixed bottom-3 inset-x-3 z-40 max-w-md mx-auto bg-white/95 backdrop-blur-2xl border border-slate-200/90 rounded-3xl shadow-xl shadow-slate-900/10 px-2 py-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-around">
+          {/* TAB 4: STUDENT PROFILE */}
+          {activeTab === "profile" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-600/20 shrink-0">
+                      {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-slate-900 truncate">{studentName || "Student"}</h3>
+                      <p className="text-xs text-slate-500 font-mono font-medium">{rollNo} • IIIT Naya Raipur</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditName(studentName);
+                      setEditRollNo(rollNo);
+                      setEditEmail(studentEmail);
+                      setProfileSaveSuccess(null);
+                      setShowEditProfileModal(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Edit</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <Mail className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="font-semibold text-[10px] uppercase tracking-wider">Email Address</span>
+                    </div>
+                    <p className="font-medium text-slate-900 truncate">{studentEmail || "Not Provided"}</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="font-semibold text-[10px] uppercase tracking-wider">Institution</span>
+                    </div>
+                    <p className="font-bold text-slate-900">IIIT Naya Raipur</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="font-semibold text-[10px] uppercase tracking-wider">Courses</span>
+                    </div>
+                    <p className="font-bold text-slate-900">{myClasses.length} Active Courses</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="font-semibold text-[10px] uppercase tracking-wider">Hardware Security</span>
+                    </div>
+                    <p className="font-bold text-emerald-600 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Bound & Protected
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold border border-rose-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4 text-rose-600" />
+                    <span>Sign Out of Student Account</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ==================================================================== */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (Matches Faculty Console 1:1) */}
+      {/* ==================================================================== */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="max-w-md mx-auto flex items-center justify-around">
           {[
             { id: "radar", label: "Live Radar", icon: Radio, badge: activeSession ? "LIVE" : null },
             { id: "subjects", label: "Subjects", icon: BookOpen, count: myClasses.length },
@@ -2175,21 +2104,17 @@ export default function StudentPortal() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`relative flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
-                  isActive ? "text-blue-600 scale-105 font-black" : "text-slate-400 hover:text-slate-600 font-semibold"
+                className={`relative flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+                  isActive ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900 font-medium"
                 }`}
               >
-                <div className={`p-1.5 rounded-xl transition-all ${isActive ? "bg-blue-600 text-white shadow-md shadow-blue-500/30" : ""}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] tracking-tight">{tab.label}</span>
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px]">{tab.label}</span>
                 {tab.badge && (
-                  <span className="absolute -top-1 -right-0.5 px-1.5 py-0.2 bg-emerald-500 text-white text-[8px] font-black rounded-full animate-pulse shadow-xs">
-                    {tab.badge}
-                  </span>
+                  <span className="absolute top-1 right-2 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 )}
                 {tab.count !== undefined && tab.count > 0 && !tab.badge && (
-                  <span className="absolute -top-1 -right-0.5 px-1.5 py-0.2 bg-slate-100 border border-slate-300 text-slate-700 text-[8px] font-bold rounded-full">
+                  <span className="absolute top-1 right-2 px-1.5 py-0.2 bg-blue-50 border border-blue-200 text-blue-700 text-[9px] font-bold rounded-full">
                     {tab.count}
                   </span>
                 )}
@@ -2199,65 +2124,38 @@ export default function StudentPortal() {
         </div>
       </nav>
 
-      {/* EDIT PROFILE MODAL */}
+      {/* ==================================================================== */}
+      {/* MODALS: EDIT PROFILE & DEVICE UNBIND (MATCHES FACULTY MODAL STYLE) */}
+      {/* ==================================================================== */}
       {showEditProfileModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200/90 shadow-2xl rounded-3xl p-6 sm:p-7 max-w-md w-full space-y-5 animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-slate-900 font-extrabold text-base">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-                  <Pencil className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900 leading-tight">Edit Student Profile</h3>
-                  <p className="text-[11px] text-slate-500 font-medium leading-none mt-0.5">Update your identity details</p>
-                </div>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 max-w-md w-full space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Edit Student Profile</h3>
+                <p className="text-xs text-slate-500 font-medium">Update your institutional details</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditProfileModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs cursor-pointer transition-all"
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs cursor-pointer transition-all"
               >
                 ✕
               </button>
             </div>
 
-            {/* Dynamic Avatar Live Preview */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-100 flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-base shadow-md shadow-blue-500/20 shrink-0">
-                {editName ? editName.trim().slice(0, 2).toUpperCase() : (studentName ? studentName.slice(0, 2).toUpperCase() : "ST")}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate">
-                  {editName || studentName || "Student Name"}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] font-mono font-bold text-blue-700 bg-white/90 px-1.5 py-0.2 rounded border border-blue-200">
-                    {editRollNo || rollNo || "ROLL"}
-                  </span>
-                  <span className="text-[10px] text-slate-500 truncate">
-                    IIIT Naya Raipur
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {profileSaveSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-emerald-800 text-xs font-bold animate-in fade-in">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-bold animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>{profileSaveSuccess}</span>
               </div>
             )}
 
-            <form onSubmit={handleSaveProfile} className="space-y-3.5">
-              {/* Full Name Field */}
+            <form onSubmit={handleSaveProfile} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Full Name
-                </label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Full Name</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <User className="w-4 h-4" />
                   </div>
                   <input
@@ -2265,19 +2163,16 @@ export default function StudentPortal() {
                     required
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    placeholder="e.g. Archana Prajapati"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-500/15 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all"
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all"
                   />
                 </div>
               </div>
 
-              {/* Roll Number Field */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Roll Number / Student ID
-                </label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Roll Number / ID</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <Hash className="w-4 h-4" />
                   </div>
                   <input
@@ -2285,33 +2180,29 @@ export default function StudentPortal() {
                     required
                     value={editRollNo}
                     onChange={(e) => setEditRollNo(e.target.value.toUpperCase())}
-                    placeholder="e.g. 89 or 26CS101"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-500/15 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none transition-all uppercase"
+                    placeholder="e.g. 21CS042"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none transition-all uppercase"
                   />
                 </div>
               </div>
 
-              {/* Email Address Field */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Email Address
-                </label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
                     type="email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    placeholder="e.g. archanaprajapati917@gmail.com"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-500/15 rounded-xl text-xs font-medium text-slate-900 focus:outline-none transition-all"
+                    placeholder="e.g. student@iiitnr.edu.in"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-xl text-xs font-medium text-slate-900 focus:outline-none transition-all"
                   />
                 </div>
               </div>
 
-              {/* Form Action Buttons */}
-              <div className="pt-2 flex gap-2.5">
+              <div className="pt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowEditProfileModal(false)}
@@ -2322,7 +2213,7 @@ export default function StudentPortal() {
                 <button
                   type="submit"
                   disabled={isSavingProfile || !editName.trim() || !editRollNo.trim()}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   {isSavingProfile ? (
                     <>
@@ -2344,9 +2235,9 @@ export default function StudentPortal() {
 
       {/* UNBIND DEVICE REQUEST MODAL */}
       {showUnbindModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white border border-slate-200 shadow-2xl rounded-3xl p-6 sm:p-7 max-w-md w-full space-y-5 animate-in zoom-in-95">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 max-w-md w-full space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
                 <span>Anti-Proxy Device Lock</span>
@@ -2354,13 +2245,13 @@ export default function StudentPortal() {
               <button
                 type="button"
                 onClick={() => setShowUnbindModal(false)}
-                className="text-slate-400 hover:text-slate-700 text-xs px-2 py-1 rounded-lg bg-slate-100 cursor-pointer"
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs cursor-pointer transition-all"
               >
-                ✕ Close
+                ✕
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between text-slate-700">
                 <span className="text-slate-500">Bound Student:</span>
                 <span className="font-bold text-slate-900">{studentName} ({rollNo})</span>
@@ -2372,14 +2263,14 @@ export default function StudentPortal() {
               <div className="flex justify-between text-slate-700">
                 <span className="text-slate-500">Lock Status:</span>
                 <span className={`font-bold ${boundDevice?.status === "PENDING_UNBIND" ? "text-amber-600" : "text-emerald-600"}`}>
-                  {boundDevice?.status === "PENDING_UNBIND" ? "Pending Teacher Approval" : "ACTIVE (Locked)"}
+                  {boundDevice?.status === "PENDING_UNBIND" ? "Pending Approval" : "ACTIVE (Locked)"}
                 </span>
               </div>
             </div>
 
             <div className="text-xs text-slate-600 space-y-3">
               <p>
-                <b>Anti-Proxy Policy:</b> Your account is hardware-locked to this device to prevent proxy attendance. To switch phones, request an unbind from faculty.
+                <b>Anti-Proxy Policy:</b> Your account is hardware-locked to this device. To switch phones, request an unbind from faculty.
               </p>
               {boundDevice?.status === "PENDING_UNBIND" ? (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 text-xs">
@@ -2388,7 +2279,7 @@ export default function StudentPortal() {
               ) : (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
                       Reason for Unbind:
                     </label>
                     <input
@@ -2396,7 +2287,7 @@ export default function StudentPortal() {
                       placeholder="e.g. Bought a new phone / formatted device"
                       value={unbindReason}
                       onChange={(e) => setUnbindReason(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <button
