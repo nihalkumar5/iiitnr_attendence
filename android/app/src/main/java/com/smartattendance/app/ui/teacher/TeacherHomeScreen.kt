@@ -292,6 +292,12 @@ fun TeacherHomeScreen(
     }
     var defaulterStudents by remember { mutableStateOf<List<DefaulterStudentItem>>(emptyList()) }
     var showDefaultersDialog by remember { mutableStateOf(false) }
+    var showTeacherProfileDialog by remember { mutableStateOf(false) }
+    val teacherEmail = remember {
+        prefs.getString("logged_in_faculty_email", "")?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("faculty_email", "")?.takeIf { it.isNotBlank() }
+            ?: "faculty.${facultyId.lowercase().replace("-", ".")}@iiitnr.edu.in"
+    }
 
     LaunchedEffect(facultyKey, facultyUuid) {
         val recordedSessionIds = prefs.getStringSet("faculty_recorded_sessions_$facultyKey", emptySet()) ?: emptySet()
@@ -601,19 +607,30 @@ fun TeacherHomeScreen(
                 color = Color(0xFF475569)
             )
 
-            if (onLogout != null) {
-                IconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLogout()
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Logout,
-                        contentDescription = "Log out",
-                        tint = TextSecondary.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
+            Surface(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    showTeacherProfileDialog = true
+                },
+                shape = CircleShape,
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shadowElevation = 1.dp,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    val initials = remember(teacherName) {
+                        val clean = teacherName.replace("Dr.", "").replace("Prof.", "").trim()
+                        val parts = clean.split(" ").filter { it.isNotBlank() }
+                        if (parts.size >= 2) "${parts[0].first()}${parts[1].first()}".uppercase()
+                        else if (parts.isNotEmpty()) parts[0].take(2).uppercase()
+                        else "FA"
+                    }
+                    Text(
+                        text = initials,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
                     )
                 }
             }
@@ -1094,6 +1111,190 @@ fun TeacherHomeScreen(
         LowAttendanceDefaultersDialog(
             defaulters = defaulterStudents,
             onDismiss = { showDefaultersDialog = false }
+        )
+    }
+
+    if (showTeacherProfileDialog) {
+        AlertDialog(
+            onDismissRequest = { showTeacherProfileDialog = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color.White,
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Top Drag Indicator
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .background(Color(0xFFE2E8F0), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Avatar Circle with Initials
+                    val initials = remember(teacherName) {
+                        val clean = teacherName.replace("Dr.", "").replace("Prof.", "").trim()
+                        val parts = clean.split(" ").filter { it.isNotBlank() }
+                        if (parts.size >= 2) "${parts[0].first()}${parts[1].first()}".uppercase()
+                        else if (parts.isNotEmpty()) parts[0].take(2).uppercase()
+                        else "FA"
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .background(Color(0xFF0F172A), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initials,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = teacherName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "$facultyId · $department",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFECFDF5),
+                        border = BorderStroke(0.5.dp, Color(0xFFA7F3D0))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFF10B981), CircleShape)
+                            )
+                            Text(
+                                text = "Verified Faculty Member",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF047857)
+                            )
+                        }
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Email", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text(teacherEmail, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                            }
+                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Institution", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text("DSPM IIIT Naya Raipur", fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                            }
+                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Active Courses", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text("${classList.size} Assigned Batches", fontSize = 11.sp, color = Color(0xFF2563EB), fontWeight = FontWeight.SemiBold)
+                            }
+                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Broadcast Wi-Fi", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text(teacherCleanSsid, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
+                    if (onLogout != null) {
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showTeacherProfileDialog = false
+                                onLogout()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFEF2F2),
+                            border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                                    contentDescription = "Log out",
+                                    tint = Color(0xFFDC2626),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Sign Out of Faculty Portal",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFDC2626)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                OutlinedButton(
+                    onClick = { showTeacherProfileDialog = false },
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                ) {
+                    Text("Close", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
+            }
         )
     }
 }

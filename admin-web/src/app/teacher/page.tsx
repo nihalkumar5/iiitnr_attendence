@@ -34,7 +34,9 @@ import {
   Layers,
   Settings,
   UserCheck,
-  Trash2
+  Trash2,
+  Mail,
+  Building2
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { SignatureTicketCard } from "@/components/SignatureTicketCard";
@@ -72,6 +74,7 @@ export default function TeacherAppConsole() {
     { rollNumber: "781", name: "Harish", subjectCode: "DEMO-9999", subjectName: "Demo Batch Realtime", attended: 1, total: 2, percentage: 50 },
   ]);
   const [showDefaultersModal, setShowDefaultersModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [defaulterSearch, setDefaulterSearch] = useState("");
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherId, setTeacherId] = useState("6885fced-5d3e-4b9c-94fd-85d115cc9d9b");
@@ -1305,11 +1308,16 @@ export default function TeacherAppConsole() {
                       </span>
                       <button
                         type="button"
-                        onClick={handleLogout}
-                        title="Logout"
-                        className="p-1 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                        onClick={() => setShowProfileModal(true)}
+                        title="Faculty Profile"
+                        className="flex items-center gap-2 py-1 px-2.5 rounded-full bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs transition-all cursor-pointer group hover:border-slate-300"
                       >
-                        <LogOut className="w-4 h-4" />
+                        <div className="w-6 h-6 rounded-full bg-[#0F172A] text-white flex items-center justify-center text-[10px] font-bold tracking-tight shadow-xs">
+                          {teacherName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900 pr-0.5">
+                          Profile
+                        </span>
                       </button>
                     </div>
 
@@ -2009,6 +2017,104 @@ export default function TeacherAppConsole() {
       {/* ==================================================================== */}
       {/* Matches Android LowAttendanceDefaultersDialog.kt 1:1 */}
       {/* ==================================================================== */}
+
+      {/* ==================================================================== */}
+      {/* TEACHER PROFILE MODAL                                              */}
+      {/* ==================================================================== */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Faculty Profile
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Avatar & Identity */}
+            <div className="flex flex-col items-center text-center space-y-2 pt-1">
+              <div className="w-16 h-16 rounded-full bg-[#0F172A] text-white flex items-center justify-center text-xl font-bold tracking-tight shadow-md border-2 border-slate-100">
+                {teacherName.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                  Prof. {teacherName}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {facultyId} · CSE Department
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Verified Faculty Member</span>
+              </div>
+            </div>
+
+            {/* Info Cards */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  Email
+                </span>
+                <span className="font-semibold text-slate-800 truncate max-w-[170px]">
+                  {teacherEmail || "faculty@iiitnr.ac.in"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                  Institution
+                </span>
+                <span className="font-semibold text-slate-800">
+                  DSPM IIIT Naya Raipur
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                  Active Courses
+                </span>
+                <span className="font-semibold text-slate-800">
+                  {classes.length} Courses
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 flex items-center gap-2">
+                  <Wifi className="w-3.5 h-3.5 text-slate-400" />
+                  Presence Wi-Fi
+                </span>
+                <span className="font-semibold text-slate-800">
+                  {wifiSsid}
+                </span>
+              </div>
+            </div>
+
+            {/* Sign Out Action */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full py-2.5 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 text-rose-600" />
+                <span>Sign Out of Faculty Portal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDefaultersModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[85vh] flex flex-col">
