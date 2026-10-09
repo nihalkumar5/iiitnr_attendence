@@ -153,6 +153,26 @@ export default function StudentPortal() {
   const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
   const [showJoinInline, setShowJoinInline] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [greeting, setGreeting] = useState("Good morning");
+  const [todayDateStr, setTodayDateStr] = useState("");
+
+  useEffect(() => {
+    const updateTimeContext = () => {
+      const now = new Date();
+      const hr = now.getHours();
+      if (hr >= 5 && hr < 12) setGreeting("Good morning");
+      else if (hr >= 12 && hr < 17) setGreeting("Good afternoon");
+      else setGreeting("Good evening");
+
+      const day = now.toLocaleDateString("en-US", { weekday: "long" });
+      const dateNum = now.getDate();
+      const month = now.toLocaleDateString("en-US", { month: "short" });
+      setTodayDateStr(`${day}, ${dateNum} ${month}`);
+    };
+    updateTimeContext();
+    const interval = setInterval(updateTimeContext, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Verification Telemetry State
   const [isVerifyingPresence, setIsVerifyingPresence] = useState(false);
@@ -1714,90 +1734,7 @@ export default function StudentPortal() {
         {/* ==================================================================== */}
         {/* TOP BAR: INSTITUTIONAL BRANDING & USER STATUS (MATCHES TEACHER) */}
         {/* ==================================================================== */}
-        <header className="flex items-center justify-between pb-4 border-b border-slate-200/80 mb-5">
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/" 
-              className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 flex items-center justify-center text-white font-black text-sm tracking-tight shadow-md shadow-blue-500/15 hover:shadow-lg hover:shadow-blue-500/25 ring-1 ring-black/5 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              title="Smart Attendance Portal"
-            >
-              SA
-            </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-[15px] tracking-tight text-slate-900 leading-tight">IIIT Naya Raipur</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/80 uppercase tracking-wider">
-                  STUDENT
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditName(studentName);
-                  setEditRollNo(rollNo);
-                  setEditEmail(studentEmail);
-                  setProfileSaveSuccess(null);
-                  setShowEditProfileModal(true);
-                }}
-                className="flex items-center gap-1.5 text-xs text-slate-500 font-medium pt-0.5 hover:text-blue-600 cursor-pointer text-left group"
-                title="Click to edit profile"
-              >
-                <span className="truncate max-w-[130px] sm:max-w-none text-slate-700 font-semibold group-hover:text-blue-600 transition-colors">{studentName || "Student"}</span>
-                <span className="text-slate-300">•</span>
-                <span className="font-mono text-[11px] text-slate-600 bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200/70 font-semibold group-hover:border-blue-300 transition-colors">{rollNo || "ID"}</span>
-                <Pencil className="w-3 h-3 text-slate-400 group-hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {activeSession && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setEditName(studentName);
-                setEditRollNo(rollNo);
-                setEditEmail(studentEmail);
-                setProfileSaveSuccess(null);
-                setShowEditProfileModal(true);
-              }}
-              className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              title="Edit Student Profile"
-            >
-              <Pencil className="w-3.5 h-3.5 text-slate-500" />
-              <span className="hidden sm:inline text-[11px]">Edit</span>
-            </button>
-
-            <Link
-              href="/teacher"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all border border-slate-200/80 shadow-2xs"
-              title="Switch to Faculty Console"
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-slate-500" />
-              <span>Faculty</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setShowUnbindModal(true)}
-              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
-                boundDevice?.status === "PENDING_UNBIND"
-                  ? "bg-amber-50 hover:bg-amber-100/80 border-amber-200 text-amber-700"
-                  : "bg-white hover:bg-slate-50 border-slate-200/80 text-slate-700"
-              }`}
-              title={boundDevice?.status === "PENDING_UNBIND" ? "Unbind Pending Teacher Approval" : "Anti-Proxy Hardware Bound"}
-            >
-              <ShieldCheck className={`w-4 h-4 ${boundDevice?.status === "PENDING_UNBIND" ? "text-amber-500" : "text-emerald-600"}`} />
-              <span className="hidden md:inline text-[11px] font-medium text-slate-600">
-                {boundDevice?.status === "PENDING_UNBIND" ? "Unbind Pending" : "Protected"}
-              </span>
-            </button>
-          </div>
-        </header>
+        
 
         {/* ==================================================================== */}
         {/* MAIN BODY CONTENT */}
@@ -1806,6 +1743,41 @@ export default function StudentPortal() {
           {/* TAB 1: RADAR & LIVE PRESENCE */}
           {activeTab === "radar" && (
             <div className="space-y-4 animate-in fade-in duration-200">
+              {/* 1. COMPACT DATE & ACADEMIC SCHEDULE CARD (MATCHES ANDROID APP) */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {todayDateStr || "Today"}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-medium">
+                      Academic Schedule
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-medium text-emerald-700 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Automated Presence Scan Active</span>
+                  </div>
+                </div>
+                <div className="h-px bg-slate-100 my-2.5" />
+                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>Auto Radar Active • Scans automatically when in classroom</span>
+                </div>
+              </div>
+
+              {/* 2. EDITORIAL STUDENT HEADER (GREETING ON TOP, STUDENT NAME ON NEXT LINE) */}
+              <div className="pt-1 pb-1">
+                <div className="text-base sm:text-lg font-normal text-slate-500">
+                  {greeting},
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                  {studentName || "Student"}
+                </h1>
+                <div className="text-xs sm:text-sm font-mono font-medium text-slate-500 mt-1">
+                  {rollNo || "ID"} • {profileProgram || "M.Tech CSE"} • {profileSemester || "Semester 1"}
+                </div>
+              </div>
               {/* Active Lecture Card (Matches Faculty Live Session card) */}
               {activeSession && isEnrolledInActive ? (
                 <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
@@ -2462,6 +2434,13 @@ export default function StudentPortal() {
                 </div>
 
                 <div className="space-y-2 pt-2">
+                  <Link
+                    href="/teacher"
+                    className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <GraduationCap className="w-4 h-4 text-slate-500" />
+                    <span>Switch to Faculty Console</span>
+                  </Link>
                   <button
                     type="button"
                     onClick={handleLogout}
