@@ -3,6 +3,7 @@ package com.smartattendance.app.ui.teacher
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,8 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +26,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -84,7 +88,7 @@ fun TeacherAttendanceHistoryScreen(
             .background(CanvasBackground)
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        // 1. TOP HEADER
+        // 1. TOP HEADER (Compact, minimal, matching design system)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -92,45 +96,46 @@ fun TeacherAttendanceHistoryScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "ATTENDANCE ARCHIVE",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary,
-                    letterSpacing = 0.5.sp
-                )
-                Text(
                     text = "Session Records",
+                    style = MaterialTheme.typography.headlineSmall,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Attendance history",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
             }
 
             Surface(
-                shape = PillShape,
-                color = AccentPill,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                shape = RoundedCornerShape(8.dp),
+                color = CardBackground,
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     refreshHistory()
                 }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh",
-                        tint = BrandAccent,
+                        contentDescription = "Sync",
+                        tint = TextSecondary,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = "Sync",
-                        color = BrandAccent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -138,51 +143,61 @@ fun TeacherAttendanceHistoryScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // 2. METRIC SUMMARY BAR
+        // 2. SUMMARY STATISTICS (Two compact, equal-width summary panels)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
-                shape = CardShape,
+                shape = RoundedCornerShape(10.dp),
                 color = CardBackground,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.weight(1f)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = "$totalSessions",
-                        fontSize = 22.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         style = TabularCodeStyle,
                         color = TextPrimary
                     )
-                    Text("Total Lectures", fontSize = 11.sp, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Total Lectures",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
                 }
             }
 
             Surface(
-                shape = CardShape,
-                color = StatusPresentBg,
-                border = androidx.compose.foundation.BorderStroke(1.dp, StatusPresentBorder),
+                shape = RoundedCornerShape(10.dp),
+                color = CardBackground,
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.weight(1f)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = "$totalPresences",
-                        fontSize = 22.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         style = TabularCodeStyle,
-                        color = StatusPresent
+                        color = TextPrimary
                     )
-                    Text("Total Present", fontSize = 11.sp, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Total Present",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // 3. SUBJECT FILTER PILLS
+        // 3. SUBJECT FILTERS (Constrained horizontal scrolling row, no page overflow)
         if (uniqueSubjects.size > 2) {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -191,11 +206,11 @@ fun TeacherAttendanceHistoryScreen(
                 items(uniqueSubjects) { code ->
                     val isSelected = selectedFilter == code
                     Surface(
-                        shape = PillShape,
-                        color = if (isSelected) BrandAccent.copy(alpha = 0.08f) else SurfaceNeutral,
-                        border = androidx.compose.foundation.BorderStroke(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSelected) BrandAccent.copy(alpha = 0.08f) else CardBackground,
+                        border = BorderStroke(
                             1.dp,
-                            if (isSelected) BrandAccent else BorderHairline
+                            if (isSelected) BrandAccent else BorderSubtle
                         ),
                         modifier = Modifier.clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -205,7 +220,7 @@ fun TeacherAttendanceHistoryScreen(
                         Text(
                             text = code,
                             fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                             color = if (isSelected) BrandAccent else TextSecondary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
@@ -224,16 +239,16 @@ fun TeacherAttendanceHistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(32.dp),
                     color = BrandAccent,
-                    strokeWidth = 3.dp
+                    strokeWidth = 2.5.dp
                 )
             }
         } else if (filteredSessions.isEmpty()) {
             Surface(
-                shape = CardShape,
-                color = SurfaceNeutral,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                shape = RoundedCornerShape(12.dp),
+                color = CardBackground,
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -246,10 +261,10 @@ fun TeacherAttendanceHistoryScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.EventNote,
+                        imageVector = Icons.AutoMirrored.Filled.EventNote,
                         contentDescription = null,
                         tint = TextSecondary,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -270,129 +285,119 @@ fun TeacherAttendanceHistoryScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 72.dp)
             ) {
                 items(filteredSessions, key = { it.sessionId }) { session ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, BorderHairline, CardShape)
+                            .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 selectedSessionForDetails = session
                             },
                         colors = CardDefaults.cardColors(containerColor = CardBackground),
-                        shape = CardShape
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            // Line 1: Subject Name + Status
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = BadgeShape,
-                                        color = BrandAccent.copy(alpha = 0.08f),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandAccent.copy(alpha = 0.25f))
-                                    ) {
-                                        Text(
-                                            text = session.subjectCode,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandAccent,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = session.room,
-                                        fontSize = 12.sp,
-                                        color = TextSecondary
-                                    )
-                                }
+                                Text(
+                                    text = session.subjectName.replaceFirstChar { it.uppercase() },
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                val isLive = session.status == "ACTIVE"
+                                val statusBg = if (isLive) StatusReviewBg else StatusPresentBg
+                                val statusBorder = if (isLive) StatusReviewBorder else StatusPresentBorder
+                                val statusColor = if (isLive) StatusReview else StatusPresent
+                                val statusText = if (isLive) "LIVE" else "AUDITED"
 
                                 Surface(
-                                    shape = BadgeShape,
-                                    color = if (session.status == "ACTIVE") StatusReviewBg else StatusPresentBg,
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (session.status == "ACTIVE") StatusReviewBorder else StatusPresentBorder
-                                    )
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = statusBg,
+                                    border = BorderStroke(1.dp, statusBorder)
                                 ) {
                                     Text(
-                                        text = if (session.status == "ACTIVE") "● LIVE" else "AUDITED",
+                                        text = statusText,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (session.status == "ACTIVE") StatusReview else StatusPresent,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        color = statusColor,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = session.subjectName.replaceFirstChar { it.uppercase() },
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            val formattedDate = formatIsoDate(session.startTime)
+                            // Line 2: Subject Code · Room
                             Text(
-                                text = formattedDate,
-                                fontSize = 11.sp,
-                                color = TextSecondary
+                                text = "${session.subjectCode} · ${session.room}",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Spacer(modifier = Modifier.height(3.dp))
+
+                            // Line 3: Timestamp
+                            Text(
+                                text = formatIsoDate(session.startTime),
+                                fontSize = 12.sp,
+                                color = TextMuted
                             )
 
                             Spacer(modifier = Modifier.height(10.dp))
 
+                            // Line 4: Present count + Export CSV
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Surface(
-                                        shape = PillShape,
-                                        color = StatusPresentBg,
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, StatusPresentBorder)
-                                    ) {
-                                        Text(
-                                            text = "${session.totalPresent} Present",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = StatusPresent,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "${session.totalPresent} Present",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = StatusPresent
+                                    )
                                     if (session.totalAbsent > 0) {
-                                        Surface(
-                                            shape = PillShape,
-                                            color = StatusAbsentBg,
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, StatusAbsentBorder)
-                                        ) {
-                                            Text(
-                                                text = "${session.totalAbsent} Absent",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = StatusAbsent,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
+                                        Text(
+                                            text = "· ${session.totalAbsent} Absent",
+                                            fontSize = 12.sp,
+                                            color = TextSecondary
+                                        )
                                     }
                                 }
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        shareSessionCsv(context, session)
-                                    }
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            shareSessionCsv(context, session)
+                                        }
+                                        .padding(vertical = 4.dp, horizontal = 2.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Share,
@@ -403,7 +408,7 @@ fun TeacherAttendanceHistoryScreen(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Export CSV",
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = BrandAccent
                                     )
@@ -424,7 +429,7 @@ fun TeacherAttendanceHistoryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
-                    .border(1.dp, BorderHairline, DialogShape),
+                    .border(1.dp, BorderSubtle, DialogShape),
                 colors = CardDefaults.cardColors(containerColor = CardBackground),
                 shape = DialogShape
             ) {
@@ -436,7 +441,7 @@ fun TeacherAttendanceHistoryScreen(
                     ) {
                         Column {
                             Text(
-                                text = sess.subjectCode + " • " + sess.room,
+                                text = sess.subjectCode + " · " + sess.room,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = BrandAccent
@@ -468,8 +473,9 @@ fun TeacherAttendanceHistoryScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
-                            shape = CardShape,
+                            shape = RoundedCornerShape(8.dp),
                             color = StatusPresentBg,
+                            border = BorderStroke(1.dp, StatusPresentBorder),
                             modifier = Modifier.weight(1f)
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
@@ -478,8 +484,9 @@ fun TeacherAttendanceHistoryScreen(
                             }
                         }
                         Surface(
-                            shape = CardShape,
+                            shape = RoundedCornerShape(8.dp),
                             color = StatusAbsentBg,
+                            border = BorderStroke(1.dp, StatusAbsentBorder),
                             modifier = Modifier.weight(1f)
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
@@ -521,9 +528,9 @@ fun TeacherAttendanceHistoryScreen(
                         ) {
                             items(sess.records) { rec ->
                                 Surface(
-                                    shape = BadgeShape,
+                                    shape = RoundedCornerShape(8.dp),
                                     color = SurfaceNeutral,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                                    border = BorderStroke(1.dp, BorderHairline),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -557,7 +564,7 @@ fun TeacherAttendanceHistoryScreen(
                                                     color = TextPrimary
                                                 )
                                                 Text(
-                                                    text = rec.rollNumber + " • " + rec.verificationMethod,
+                                                    text = rec.rollNumber + " · " + rec.verificationMethod,
                                                     fontSize = 10.sp,
                                                     color = TextSecondary
                                                 )
@@ -565,7 +572,7 @@ fun TeacherAttendanceHistoryScreen(
                                         }
 
                                         Surface(
-                                            shape = PillShape,
+                                            shape = RoundedCornerShape(6.dp),
                                             color = if (rec.status == "PRESENT") StatusPresentBg else StatusAbsentBg
                                         ) {
                                             Text(
@@ -591,7 +598,7 @@ fun TeacherAttendanceHistoryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp),
-                        shape = ButtonShape,
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -611,7 +618,7 @@ private fun formatIsoDate(isoString: String): String {
         }
         val clean = isoString.take(19)
         val date = parser.parse(clean) ?: Date()
-        val formatter = SimpleDateFormat("EEE, MMM d, yyyy • hh:mm a", Locale.getDefault())
+        val formatter = SimpleDateFormat("EEE, MMM d, yyyy · hh:mm a", Locale.getDefault())
         formatter.format(date)
     } catch (_: Exception) {
         isoString.take(10)
