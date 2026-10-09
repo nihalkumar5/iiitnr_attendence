@@ -641,7 +641,7 @@ fun TeacherScheduleScreen(
                 Text(
                     text = "My Subjects",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Normal,
                     color = TextPrimary,
                     fontSize = 24.sp,
                     maxLines = 1,

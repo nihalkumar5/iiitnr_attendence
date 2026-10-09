@@ -869,7 +869,7 @@ export default function TeacherAppConsole() {
                 <div className="space-y-3.5 animate-in fade-in">
                   {/* Header: Title and active subject count */}
                   <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">My Subjects</h1>
+                    <h1 className="text-2xl font-normal text-slate-900 tracking-tight">My Subjects</h1>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
                       {classes.length} {classes.length === 1 ? "active subject" : "active subjects"}
                     </p>
