@@ -479,8 +479,9 @@ fun StudentHomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .intersemesterBackground()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp)
+            .padding(top = 16.dp, bottom = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
         // TAB 1: LIVE RADAR (Home View with Date Card, Greeting, Live Lecture, Radar)
