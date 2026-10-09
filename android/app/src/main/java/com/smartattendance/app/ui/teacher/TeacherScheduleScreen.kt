@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartattendance.app.core.network.EnrolledStudentInfo
@@ -97,6 +98,21 @@ fun TeacherScheduleScreen(
     var createdClassSuccess by remember { mutableStateOf<TeacherClassItem?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isDeletingSubject by remember { mutableStateOf(false) }
+
+    // Edit Subject Dialog State
+    var showEditClassDialog by remember { mutableStateOf(false) }
+    var editingClass by remember { mutableStateOf<TeacherClassItem?>(null) }
+    var editSubjectName by remember { mutableStateOf("") }
+    var editSubjectCode by remember { mutableStateOf("") }
+    var editProgram by remember { mutableStateOf("") }
+    var editRoom by remember { mutableStateOf("") }
+    var editTimeSlot by remember { mutableStateOf("") }
+    var editStartTime by remember { mutableStateOf("10:00:00") }
+    var editEndTime by remember { mutableStateOf("11:00:00") }
+    var editDayOfWeek by remember { mutableStateOf(1) }
+    var editIsPractical by remember { mutableStateOf(false) }
+    var isSavingEdit by remember { mutableStateOf(false) }
+    var editError by remember { mutableStateOf<String?>(null) }
 
     fun copyToClipboard(text: String, label: String = "Join Code") {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -603,9 +619,36 @@ fun TeacherScheduleScreen(
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
                             DetailRow(label = "Assigned Venue", value = currentClass.room)
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
+                            DetailRow(label = "Course Type", value = if (currentClass.isPractical) "🔬 Practical / Lab" else "📖 Theory Lecture")
+                            HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
                             DetailRow(label = "Status", value = "Active")
                             HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    editingClass = currentClass
+                                    editSubjectName = currentClass.subjectName.replace("\r", " ").replace("\n", " ").trim()
+                                    editSubjectCode = currentClass.subjectCode.trim()
+                                    editProgram = currentClass.program.replace("\r", " ").replace("\n", " ").trim()
+                                    editRoom = currentClass.room.trim()
+                                    editTimeSlot = currentClass.timeSlot.trim()
+                                    editStartTime = currentClass.startTime.trim()
+                                    editEndTime = currentClass.endTime.trim()
+                                    editDayOfWeek = currentClass.dayOfWeek
+                                    editIsPractical = currentClass.isPractical
+                                    editError = null
+                                    showEditClassDialog = true
+                                },
+                                shape = ButtonShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Edit Subject Details", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Button(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -834,6 +877,12 @@ fun TeacherScheduleScreen(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     filteredSubjectClasses.forEach { item ->
+                        val cleanName = item.subjectName.replace("\r", " ").replace("\n", " ").trim()
+                        val cleanProgram = item.program.replace("\r", " ").replace("\n", " ").trim().ifBlank { "M.Tech I Semester DSAI" }
+                        val cleanSlot = item.timeSlot.replace("\r", " ").replace("\n", " ").trim()
+                        val cleanRoom = item.room.replace("\r", " ").replace("\n", " ").trim().ifBlank { "Room 319" }
+                        val cleanCode = item.subjectCode.trim().ifBlank { "CS301" }
+
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = CardBackground,
@@ -846,68 +895,138 @@ fun TeacherScheduleScreen(
                                     subjectTab = "Overview"
                                 }
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                // Line 1: Subject Name (dominant) & Student count (secondary)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Text(
-                                        text = item.subjectName,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary,
-                                        modifier = Modifier.weight(1f, fill = false),
-                                        lineHeight = 21.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = "${item.enrolledStudents} ${if (item.enrolledStudents == 1) "student" else "students"}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextSecondary
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                // Line 2: Subject code
-                                Text(
-                                    text = item.subjectCode,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = BrandAccent
-                                )
-
-                                Spacer(modifier = Modifier.height(3.dp))
-
-                                // Line 3: Program · Semester · Section
-                                Text(
-                                    text = item.program,
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                // Line 4: Room & Subtle Chevron
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                // Row 1: Title (weight 1f, single line ellipsis) + Format Pill + Edit Button
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = item.room,
-                                        fontSize = 12.sp,
-                                        color = TextMuted
-                                    )
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = cleanName,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
 
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = "View Details",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(16.dp)
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (item.isPractical) Color(0xFFF3E8FF) else Color(0xFFEFF6FF),
+                                            border = BorderStroke(0.5.dp, if (item.isPractical) Color(0xFFD8B4FE) else Color(0xFFBFDBFE))
+                                        ) {
+                                            Text(
+                                                text = if (item.isPractical) "PRACTICAL" else "THEORY",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (item.isPractical) Color(0xFF7E22CE) else Color(0xFF1D4ED8),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Surface(
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            editingClass = item
+                                            editSubjectName = cleanName
+                                            editSubjectCode = cleanCode
+                                            editProgram = cleanProgram
+                                            editRoom = cleanRoom
+                                            editTimeSlot = cleanSlot
+                                            editStartTime = item.startTime.trim()
+                                            editEndTime = item.endTime.trim()
+                                            editDayOfWeek = item.dayOfWeek
+                                            editIsPractical = item.isPractical
+                                            editError = null
+                                            showEditClassDialog = true
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = SurfaceNeutral,
+                                        border = BorderStroke(1.dp, BorderSubtle)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit Class",
+                                                tint = TextSecondary,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Text(
+                                                text = "Edit",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = TextPrimary
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Row 2: Subject code · Room
+                                Text(
+                                    text = "$cleanCode · $cleanRoom",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandAccent
+                                )
+
+                                // Row 3: Program / Semester (single line)
+                                Text(
+                                    text = cleanProgram,
+                                    fontSize = 12.sp,
+                                    color = TextSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                // Row 4: Time Slot & Enrolled Count
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Schedule,
+                                            contentDescription = null,
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = cleanSlot,
+                                            fontSize = 12.sp,
+                                            color = TextMuted,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+
+                                    val studentCountLabel = if (item.enrolledStudents == 1) "1 student" else "${item.enrolledStudents} students"
+                                    Text(
+                                        text = studentCountLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextSecondary
                                     )
                                 }
                             }
@@ -1325,6 +1444,491 @@ fun TeacherScheduleScreen(
                         ) {
                             Text("Done", fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+            )
+        }
+
+        // DIALOG: DETAILED EDIT SUBJECT (Minimal, Premium Editorial UX/UI)
+        if (showEditClassDialog && editingClass != null) {
+            val target = editingClass!!
+            AlertDialog(
+                onDismissRequest = { if (!isSavingEdit) showEditClassDialog = false },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = Color.White,
+                title = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Drag Handle
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(Color(0xFFE2E8F0), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "COURSE SPECIFICATION",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.2.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Edit Subject Details",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFEFF6FF),
+                                    border = BorderStroke(0.5.dp, Color(0xFFBFDBFE))
+                                ) {
+                                    Text(
+                                        text = "Join Code: ${target.joinCode}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF2563EB),
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Surface(
+                                onClick = { if (!isSavingEdit) showEditClassDialog = false },
+                                shape = CircleShape,
+                                color = Color(0xFFF1F5F9),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close",
+                                        tint = Color(0xFF64748B),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // 1. Course Format: Sleek Segmented Switcher (Theory vs Practical / Lab)
+                        Column {
+                            Text(
+                                text = "Course Format",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF475569)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFF1F5F9),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    // Option 1: Theory Lecture
+                                    Surface(
+                                        onClick = { editIsPractical = false },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (!editIsPractical) Color.White else Color.Transparent,
+                                        border = if (!editIsPractical) BorderStroke(1.dp, Color(0xFFE2E8F0)) else null,
+                                        shadowElevation = if (!editIsPractical) 1.dp else 0.dp,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Theory Lecture",
+                                                fontSize = 12.sp,
+                                                fontWeight = if (!editIsPractical) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (!editIsPractical) Color(0xFF0F172A) else Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+
+                                    // Option 2: Practical / Lab
+                                    Surface(
+                                        onClick = { editIsPractical = true },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (editIsPractical) Color.White else Color.Transparent,
+                                        border = if (editIsPractical) BorderStroke(1.dp, Color(0xFFE2E8F0)) else null,
+                                        shadowElevation = if (editIsPractical) 1.dp else 0.dp,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Practical / Lab",
+                                                fontSize = 12.sp,
+                                                fontWeight = if (editIsPractical) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (editIsPractical) Color(0xFF7E22CE) else Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Subject Name
+                        Column {
+                            Text(
+                                text = "Subject Name *",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF475569)
+                            )
+                            Spacer(modifier = Modifier.height(5.dp))
+                            OutlinedTextField(
+                                value = editSubjectName,
+                                onValueChange = { editSubjectName = it },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color(0xFFF8FAFC),
+                                    focusedBorderColor = Color(0xFF0F172A),
+                                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                                )
+                            )
+                        }
+
+                        // 3. Subject Code & Room / Venue Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Subject Code *",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF475569)
+                                )
+                                Spacer(modifier = Modifier.height(5.dp))
+                                OutlinedTextField(
+                                    value = editSubjectCode,
+                                    onValueChange = { editSubjectCode = it },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                                        focusedBorderColor = Color(0xFF0F172A),
+                                        unfocusedBorderColor = Color(0xFFE2E8F0)
+                                    )
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Room / Venue",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF475569)
+                                )
+                                Spacer(modifier = Modifier.height(5.dp))
+                                OutlinedTextField(
+                                    value = editRoom,
+                                    onValueChange = { editRoom = it },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                                        focusedBorderColor = Color(0xFF0F172A),
+                                        unfocusedBorderColor = Color(0xFFE2E8F0)
+                                    )
+                                )
+                            }
+                        }
+
+                        // 4. Scheduled Day of Week
+                        Column {
+                            Text(
+                                text = "Scheduled Day",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF475569)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val days = listOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                days.forEach { (dInt, dName) ->
+                                    val isSelected = editDayOfWeek == dInt
+                                    Surface(
+                                        onClick = {
+                                            editDayOfWeek = dInt
+                                            val dayFull = when (dInt) {
+                                                1 -> "Monday"
+                                                2 -> "Tuesday"
+                                                3 -> "Wednesday"
+                                                4 -> "Thursday"
+                                                5 -> "Friday"
+                                                6 -> "Saturday"
+                                                else -> "Monday"
+                                            }
+                                            editTimeSlot = "$dayFull, ${com.smartattendance.app.core.engine.TimetableEngine.formatDisplaySlot(editStartTime, editEndTime)}"
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelected) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                        border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = dName,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else Color(0xFF475569),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 9.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 5. Time Schedule & Quick University Presets
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Start Time",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF475569)
+                                    )
+                                    Spacer(modifier = Modifier.height(5.dp))
+                                    OutlinedTextField(
+                                        value = editStartTime,
+                                        onValueChange = {
+                                            editStartTime = it
+                                            val dayFull = when (editDayOfWeek) {
+                                                1 -> "Monday"; 2 -> "Tuesday"; 3 -> "Wednesday"; 4 -> "Thursday"; 5 -> "Friday"; 6 -> "Saturday"; else -> "Monday"
+                                            }
+                                            editTimeSlot = "$dayFull, ${com.smartattendance.app.core.engine.TimetableEngine.formatDisplaySlot(it, editEndTime)}"
+                                        },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color(0xFFF8FAFC),
+                                            focusedBorderColor = Color(0xFF0F172A),
+                                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                                        )
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "End Time",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF475569)
+                                    )
+                                    Spacer(modifier = Modifier.height(5.dp))
+                                    OutlinedTextField(
+                                        value = editEndTime,
+                                        onValueChange = {
+                                            editEndTime = it
+                                            val dayFull = when (editDayOfWeek) {
+                                                1 -> "Monday"; 2 -> "Tuesday"; 3 -> "Wednesday"; 4 -> "Thursday"; 5 -> "Friday"; 6 -> "Saturday"; else -> "Monday"
+                                            }
+                                            editTimeSlot = "$dayFull, ${com.smartattendance.app.core.engine.TimetableEngine.formatDisplaySlot(editStartTime, it)}"
+                                        },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color(0xFFF8FAFC),
+                                            focusedBorderColor = Color(0xFF0F172A),
+                                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Slot Presets:",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF64748B)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val presets = listOf(
+                                ("09:00" to "10:55") to "09:00 - 10:55",
+                                ("11:00" to "12:55") to "11:00 - 12:55",
+                                ("14:00" to "15:55") to "02:00 - 03:55",
+                                ("16:00" to "17:55") to "04:00 - 05:55"
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                presets.forEach { (times, label) ->
+                                    Surface(
+                                        onClick = {
+                                            editStartTime = "${times.first}:00"
+                                            editEndTime = "${times.second}:00"
+                                            val dayFull = when (editDayOfWeek) {
+                                                1 -> "Monday"; 2 -> "Tuesday"; 3 -> "Wednesday"; 4 -> "Thursday"; 5 -> "Friday"; 6 -> "Saturday"; else -> "Monday"
+                                            }
+                                            editTimeSlot = "$dayFull, ${com.smartattendance.app.core.engine.TimetableEngine.formatDisplaySlot(editStartTime, editEndTime)}"
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFF8FAFC),
+                                        border = BorderStroke(0.5.dp, Color(0xFFCBD5E1)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF334155),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 6. Program / Batch
+                        Column {
+                            Text(
+                                text = "Program / Batch",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF475569)
+                            )
+                            Spacer(modifier = Modifier.height(5.dp))
+                            OutlinedTextField(
+                                value = editProgram,
+                                onValueChange = { editProgram = it },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color(0xFFF8FAFC),
+                                    focusedBorderColor = Color(0xFF0F172A),
+                                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                                )
+                            )
+                        }
+
+                        if (editError != null) {
+                            Text(editError!!, color = Color(0xFFDC2626), fontSize = 12.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (editSubjectName.isBlank() || editSubjectCode.isBlank()) {
+                                editError = "Subject name and code are required."
+                                return@Button
+                            }
+                            isSavingEdit = true
+                            val updatedItem = target.copy(
+                                subjectName = editSubjectName.replace("\r", " ").replace("\n", " ").trim(),
+                                subjectCode = editSubjectCode.trim().uppercase(),
+                                room = editRoom.trim().ifBlank { "Room 319" },
+                                program = editProgram.replace("\r", " ").replace("\n", " ").trim().ifBlank { "M.Tech I Semester DSAI" },
+                                timeSlot = editTimeSlot.trim().ifBlank { "10:00 – 11:00 AM" },
+                                startTime = editStartTime.trim().ifBlank { "10:00:00" },
+                                endTime = editEndTime.trim().ifBlank { "11:00:00" },
+                                dayOfWeek = editDayOfWeek,
+                                isPractical = editIsPractical
+                            )
+                            val updatedList = classList.map {
+                                if (it.id == target.id || (it.joinCode.isNotBlank() && it.joinCode == target.joinCode)) updatedItem else it
+                            }
+                            updateClassList(updatedList)
+                            if (selectedClassForDetail?.id == target.id) {
+                                selectedClassForDetail = updatedItem
+                            }
+                            coroutineScope.launch {
+                                SupabaseAttendanceService.updateCourse(
+                                    classId = target.id,
+                                    subjectName = updatedItem.subjectName,
+                                    subjectCode = updatedItem.subjectCode,
+                                    room = updatedItem.room,
+                                    program = updatedItem.program,
+                                    timeSlot = updatedItem.timeSlot,
+                                    dayOfWeek = updatedItem.dayOfWeek,
+                                    startTime = updatedItem.startTime,
+                                    endTime = updatedItem.endTime,
+                                    joinCode = target.joinCode,
+                                    isPractical = updatedItem.isPractical
+                                )
+                                isSavingEdit = false
+                                showEditClassDialog = false
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                Toast.makeText(context, "✅ Subject updated successfully!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = !isSavingEdit,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
+                        modifier = Modifier.height(46.dp)
+                    ) {
+                        Text(if (isSavingEdit) "Saving..." else "Save Changes", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { showEditClassDialog = false },
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isSavingEdit,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFF8FAFC)),
+                        modifier = Modifier.height(46.dp)
+                    ) {
+                        Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 }
             )

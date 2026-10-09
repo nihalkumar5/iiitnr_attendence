@@ -80,7 +80,8 @@ data class TeacherClassItem(
     val startTime: String = "10:00:00",
     val endTime: String = "11:00:00",
     val isLocked: Boolean = false,
-    val lockedDate: String? = null
+    val lockedDate: String? = null,
+    val isPractical: Boolean = false
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -101,6 +102,7 @@ data class TeacherClassItem(
         put("endTime", endTime)
         put("isLocked", isLocked)
         put("lockedDate", lockedDate ?: "")
+        put("isPractical", isPractical)
     }
 
     companion object {
@@ -131,7 +133,8 @@ data class TeacherClassItem(
                 startTime = obj.optString("startTime", "10:00:00"),
                 endTime = obj.optString("endTime", "11:00:00"),
                 isLocked = obj.optBoolean("isLocked", false),
-                lockedDate = obj.optString("lockedDate", "").ifEmpty { null }
+                lockedDate = obj.optString("lockedDate", "").ifEmpty { null },
+                isPractical = obj.optBoolean("isPractical", false)
             )
         }
 
@@ -154,7 +157,14 @@ internal fun loadPersistedSchedule(context: android.content.Context): List<Teach
         val list = mutableListOf<TeacherClassItem>()
         var needsResave = false
         for (i in 0 until arr.length()) {
-            val item = TeacherClassItem.fromJson(arr.getJSONObject(i))
+            val rawItem = TeacherClassItem.fromJson(arr.getJSONObject(i))
+            val item = rawItem.copy(
+                subjectName = rawItem.subjectName.replace("\r", " ").replace("\n", " ").trim(),
+                subjectCode = rawItem.subjectCode.trim(),
+                room = rawItem.room.trim(),
+                program = rawItem.program.replace("\r", " ").replace("\n", " ").trim(),
+                timeSlot = rawItem.timeSlot.replace("\r", " ").replace("\n", " ").trim()
+            )
             // Midnight 12:00 AM Auto-Unlock:
             // If item was locked on a past date or without today date lock, reset to SCHEDULED / unlocked
             if (item.isLocked && item.lockedDate != null && item.lockedDate != today) {
@@ -267,6 +277,12 @@ fun TeacherHomeScreen(
 
     // Schedule state
     var classList by remember { mutableStateOf(loadPersistedSchedule(context)) }
+    LaunchedEffect(Unit) {
+        val persisted = loadPersistedSchedule(context)
+        if (persisted != classList) {
+            classList = persisted
+        }
+    }
     var pendingUnbindCount by remember { mutableStateOf(0) }
     val facultyUuid = remember {
         prefs.getString("faculty_supabase_user_id", "977d23e7-4b43-4a7a-af74-b3fb2855beae") ?: "977d23e7-4b43-4a7a-af74-b3fb2855beae"
@@ -319,7 +335,7 @@ fun TeacherHomeScreen(
                 classList = loadPersistedSchedule(context)
             } else {
                 val persisted = loadPersistedSchedule(context)
-                if (persisted.size != classList.size) {
+                if (persisted != classList) {
                     classList = persisted
                 }
             }

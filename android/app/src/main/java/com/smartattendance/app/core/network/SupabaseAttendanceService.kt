@@ -2951,6 +2951,60 @@ object SupabaseAttendanceService {
         }
     }
 
+    suspend fun updateCourse(
+        classId: String,
+        subjectName: String,
+        subjectCode: String,
+        room: String,
+        program: String,
+        timeSlot: String,
+        dayOfWeek: Int = 1,
+        startTime: String = "10:00:00",
+        endTime: String = "11:00:00",
+        joinCode: String = "",
+        isPractical: Boolean = false
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val cleanName = subjectName.trim()
+            val cleanCode = subjectCode.trim().uppercase()
+            val cleanRoom = room.trim().ifBlank { "Room A-204" }
+
+            // Update local memory cache if present
+            if (joinCode.isNotBlank()) {
+                val existing = localClassesRegistry[joinCode]
+                if (existing != null) {
+                    localClassesRegistry[joinCode] = existing.copy(
+                        subjectCode = cleanCode,
+                        subjectName = cleanName,
+                        room = cleanRoom
+                    )
+                }
+            }
+
+            // Sync with Supabase REST API
+            try {
+                val payload = JSONObject().apply {
+                    put("name", cleanName)
+                    put("code", cleanCode)
+                    put("room_no", cleanRoom)
+                }
+                val req = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/classes?id=eq.$classId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(payload.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(req).execute().close()
+            } catch (_: Exception) {}
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in updateCourse", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun enrollSingleStudentInCourse(
         classId: String,
         rollNumber: String,

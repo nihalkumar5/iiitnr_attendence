@@ -52,6 +52,7 @@ export interface DBClass {
   startTime?: string;
   endTime?: string;
   program?: string;
+  isPractical?: boolean;
 }
 
 export interface DBSession {
@@ -158,7 +159,10 @@ export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
         dayOfWeek: c.day_of_week || 1,
         startTime: c.start_time || "10:00:00",
         endTime: c.end_time || "11:00:00",
-        program: "M.Tech I Semester DSAI"
+        program: "M.Tech I Semester DSAI",
+        isPractical: (subject.name || "").toLowerCase().includes("lab") || 
+                     (subject.name || "").toLowerCase().includes("practical") || 
+                     (c as any).is_practical === true
       };
     });
   } catch (err) {
@@ -1336,6 +1340,51 @@ export async function deleteClassFromDB(classId: string, subjectCode?: string): 
     return true;
   } catch (err) {
     console.error("deleteClassFromDB error:", err);
+    return false;
+  }
+}
+
+export async function updateClassInDB(params: {
+  id: string;
+  subjectName: string;
+  subjectCode: string;
+  roomNo: string;
+  dayOfWeek?: number;
+  startTime?: string;
+  endTime?: string;
+  program?: string;
+  isPractical?: boolean;
+}): Promise<boolean> {
+  try {
+    const { data: clsData } = await supabase
+      .from("classes")
+      .select("subject_id")
+      .eq("id", params.id)
+      .maybeSingle();
+
+    if (clsData?.subject_id) {
+      await supabase
+        .from("subjects")
+        .update({
+          name: params.subjectName.trim(),
+          code: params.subjectCode.trim().toUpperCase()
+        })
+        .eq("id", clsData.subject_id);
+    }
+
+    const { error: clsErr } = await supabase
+      .from("classes")
+      .update({
+        room: params.roomNo.trim() || "Room 319",
+        day_of_week: params.dayOfWeek || 1,
+        start_time: params.startTime || "10:00:00",
+        end_time: params.endTime || "11:00:00"
+      })
+      .eq("id", params.id);
+
+    return !clsErr;
+  } catch (err) {
+    console.error("updateClassInDB exception:", err);
     return false;
   }
 }

@@ -277,19 +277,39 @@ fun TeacherSignatureTicketCard(
                     }
                 }
 
-                if (!isSessionLive) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Course Format Pill (PRACTICAL / THEORY)
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = LavenderSoft,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, LavenderAccent.copy(alpha = 0.25f))
+                        color = if (classItem.isPractical) Color(0xFF7E22CE).copy(alpha = 0.25f) else Color(0xFF3B82F6).copy(alpha = 0.2f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, if (classItem.isPractical) Color(0xFFA855F7) else Color(0xFF60A5FA))
                     ) {
                         Text(
-                            text = classItem.timeSlot.takeIf { it.isNotBlank() } ?: "Scheduled",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = LavenderAccent,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            text = if (classItem.isPractical) "PRACTICAL" else "THEORY",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (classItem.isPractical) Color(0xFFD8B4FE) else Color(0xFF93C5FD),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
+                    }
+
+                    if (!isSessionLive) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = LavenderSoft,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, LavenderAccent.copy(alpha = 0.25f))
+                        ) {
+                            Text(
+                                text = classItem.timeSlot.takeIf { it.isNotBlank() } ?: "Scheduled",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = LavenderAccent,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            )
+                        }
                     }
                 }
             }
