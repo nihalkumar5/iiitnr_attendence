@@ -163,63 +163,33 @@ fun NoActiveLectureScreen(
                         lineHeight = 18.sp
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    Button(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showClassSelectionSheet = true
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TextPrimary),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text = "Choose a Class ↗",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            // 3. UP NEXT (Eligible class ticket card)
-            item {
-                val nextEligibleClass = eligibleClasses.firstOrNull()
-                Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showClassSelectionSheet = true
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = TextPrimary),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                         ) {
                             Text(
-                                text = "UP NEXT",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF64748B),
-                                letterSpacing = 1.5.sp
-                            )
-                            Text(
-                                text = "·",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
-                            Text(
-                                text = "${eligibleClasses.size} ${if (eligibleClasses.size == 1) "class" else "classes"} available today",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextSecondary
+                                text = "Choose a Class ↗",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
                             )
                         }
 
                         Text(
                             text = "View Schedule →",
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = BrandAccent,
                             modifier = Modifier
@@ -228,23 +198,7 @@ fun NoActiveLectureScreen(
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onGoToSchedule()
                                 }
-                                .padding(vertical = 4.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (nextEligibleClass != null) {
-                        TeacherSignatureTicketCard(
-                            classItem = nextEligibleClass,
-                            isSessionLive = false,
-                            isPrimaryInProgress = false,
-                            isPendingLateHero = false,
-                            onStartAttendance = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onStartClass(nextEligibleClass)
-                            },
-                            onCopyJoinCode = {}
+                                .padding(horizontal = 8.dp, vertical = 8.dp)
                         )
                     }
                 }
