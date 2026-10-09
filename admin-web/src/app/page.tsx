@@ -7,7 +7,7 @@ import {
   ArrowRight, 
   ShieldCheck, 
   CheckCircle2,
-  Sparkles
+  Sparkles, KeyRound
 } from "lucide-react";
 
 export default function HomeGateway() {
@@ -32,7 +32,7 @@ export default function HomeGateway() {
       </header>
 
       {/* Main 2-Portal Cards Selection */}
-      <div className="max-w-3xl mx-auto w-full my-auto py-8">
+      <div className="max-w-5xl mx-auto w-full my-auto py-8">
         <div className="text-center space-y-2 mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Choose Your Portal
@@ -42,7 +42,7 @@ export default function HomeGateway() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-5">
           {/* Card 1: Faculty Portal */}
           <Link
             href="/teacher"
@@ -131,6 +131,52 @@ export default function HomeGateway() {
 
             <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-blue-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
               <span>Open Student Portal</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          {/* Card 3: Central Admin Portal */}
+          <Link
+            href="/dashboard/devices"
+            className="group bg-white border border-slate-200 hover:border-amber-500 rounded-2xl p-6 transition-all duration-200 hover:shadow-lg flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mb-5 group-hover:scale-105 transition-transform">
+                <KeyRound className="w-6 h-6" />
+              </div>
+
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
+                  Admin Portal
+                </span>
+              </div>
+
+              <h2 className="text-xl font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
+                Central Admin Console
+              </h2>
+
+              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                Institutional IT administration. Authorize hardware device unbind requests and manage anti-proxy security.
+              </p>
+
+              <div className="mt-5 space-y-2 text-xs text-slate-600">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Central Device Unbind Authorization</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>1 Student = 1 Device Anti-Proxy Control</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Campus Hardware Registry & Audits</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-amber-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+              <span>Open Admin Console</span>
               <ArrowRight className="w-4 h-4" />
             </div>
           </Link>

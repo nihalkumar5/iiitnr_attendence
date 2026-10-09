@@ -1537,7 +1537,7 @@ export default function StudentPortal() {
                 <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
                 <p className="text-xs font-bold text-emerald-300">{unbindMessage}</p>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Your request has been forwarded to faculty administration. You will be able to register this device as soon as your teacher approves it in their portal.
+                  Your request has been forwarded to Central IT Administration. You will be able to register this device as soon as the administrator approves it in the Central Admin Console.
                 </p>
               </div>
             ) : (
@@ -1570,10 +1570,10 @@ export default function StudentPortal() {
                   className="w-full py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Key className="w-4 h-4 text-white" />
-                  <span>{unbindSubmitting ? "Submitting Request..." : "Request Device Unbind From Teacher"}</span>
+                  <span>{unbindSubmitting ? "Submitting Request..." : "Request Device Unbind From Central Admin"}</span>
                 </button>
                 <p className="text-[10px] text-slate-400 text-center">
-                  Only course faculty can authorize device re-registration for proxy prevention.
+                  Only Central IT Administration can authorize device re-registration for anti-proxy compliance.
                 </p>
               </div>
             )}
@@ -2449,7 +2449,7 @@ export default function StudentPortal() {
                     }}
                     className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
                   >
-                    {unbindSubmitting ? "Submitting..." : "Request Device Unbind from Teacher →"}
+                    {unbindSubmitting ? "Submitting..." : "Request Device Unbind from Central Admin →"}
                   </button>
                 </div>
               )}

@@ -13,7 +13,8 @@ import {
   Settings, 
   LogOut,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  KeyRound
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -111,7 +112,20 @@ export default function DashboardLayout({
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-secondary hover:text-primary hover:bg-pill/60 transition-colors"
             >
               <GraduationCap className="w-4 h-4" />
-              <span>Students & Devices</span>
+              <span>Students Directory</span>
+            </Link>
+
+            <Link
+              href="/dashboard/devices"
+              className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-secondary hover:text-primary hover:bg-pill/60 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <KeyRound className="w-4 h-4 text-amber-600" />
+                <span>Device Approvals</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                ADMIN
+              </span>
             </Link>
 
             <Link

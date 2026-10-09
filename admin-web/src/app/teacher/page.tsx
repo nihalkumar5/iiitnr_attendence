@@ -2039,6 +2039,22 @@ export default function TeacherAppConsole() {
                   </button>
                 </div>
 
+                {/* Central Admin Routing Banner */}
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                    <p className="text-xs text-amber-900 font-medium leading-tight">
+                      Hardware unbinding is centralized under <strong>Central IT Administration</strong>.
+                    </p>
+                  </div>
+                  <Link
+                    href="/dashboard/devices"
+                    className="shrink-0 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-100/80 hover:bg-amber-100 px-3 py-1.5 rounded-xl border border-amber-300 transition-colors"
+                  >
+                    Open Admin Console →
+                  </Link>
+                </div>
+
                 {/* Summary Card */}
                 <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
