@@ -483,7 +483,9 @@ fun StudentHomeScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // 1. COMPACT DATE & POCKET MODE STATUS (AT VERY TOP)
+        // TAB 1: LIVE RADAR (Home View with Date Card, Greeting, Live Lecture, Radar)
+        if (selectedTab == StudentTab.RADAR) {
+            // 1. COMPACT DATE & POCKET MODE STATUS (AT VERY TOP)
         // COMPACT DATE & POCKET MODE STATUS
             Card(
                 modifier = Modifier
@@ -594,8 +596,6 @@ fun StudentHomeScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // TAB 1: LIVE RADAR (Schedule, Pocket Mode, Live Lecture, Today's Classes, Attendance Summary)
-        if (selectedTab == StudentTab.RADAR) {
             // ACTIVE CLASS SESSION (IF LIVE)
             if (activeSession != null) {
                 Card(
@@ -1883,6 +1883,84 @@ fun StudentHomeScreen(
                     style = TabularCodeStyle,
                     color = TextPrimary
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(thickness = 1.dp, color = BorderHairline)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // EDIT PROFILE BUTTON
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = CardBackground,
+                        border = BorderStroke(1.dp, BorderHairline),
+                        onClick = {
+                            editNameInput = activeName
+                            editRollInput = activeRoll
+                            editProgInput = prog
+                            editSemInput = sem
+                            showEditProfileDialog = true
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = "Edit Profile",
+                                tint = PrimaryBlack,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Edit Profile",
+                                color = PrimaryBlack,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    // LOGOUT BUTTON
+                    if (onLogout != null) {
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFEF2F2),
+                            border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onLogout()
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                                    contentDescription = "Logout",
+                                    tint = Color(0xFFDC2626),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Logout",
+                                    color = Color(0xFFDC2626),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
