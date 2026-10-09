@@ -79,7 +79,19 @@ fun TeacherScheduleScreen(
     var roomInput by remember { mutableStateOf("Room A-302") }
     var timeSlotInput by remember { mutableStateOf("10:00 – 11:00 AM") }
     var selectedDayOfWeek by remember { mutableStateOf("Monday") }
-    var selectedDayFilter by remember { mutableStateOf("TODAY") }
+    val currentIsoDay = remember { TimetableEngine.getIsoDayOfWeek() }
+    val todayDayCode = remember(currentIsoDay) {
+        when (currentIsoDay) {
+            1 -> "MON"
+            2 -> "TUE"
+            3 -> "WED"
+            4 -> "THU"
+            5 -> "FRI"
+            6 -> "SAT"
+            else -> "MON"
+        }
+    }
+    var selectedDayFilter by remember { mutableStateOf(todayDayCode) }
     var isCreatingSubject by remember { mutableStateOf(false) }
     var addClassError by remember { mutableStateOf<String?>(null) }
     var createdClassSuccess by remember { mutableStateOf<TeacherClassItem?>(null) }
@@ -613,10 +625,8 @@ fun TeacherScheduleScreen(
             }
         } else {
             // VIEW 2: MY SUBJECTS LIST SCREEN (Clean, Single Page Header, No Outer Card)
-            val currentIsoDay = remember { TimetableEngine.getIsoDayOfWeek() }
             val activeClasses = classList.filter { it.status != ClassScheduleStatus.CANCELLED }
             val filteredSubjectClasses = when (selectedDayFilter) {
-                "TODAY" -> activeClasses.filter { it.dayOfWeek == currentIsoDay }
                 "MON" -> activeClasses.filter { it.dayOfWeek == 1 }
                 "TUE" -> activeClasses.filter { it.dayOfWeek == 2 }
                 "WED" -> activeClasses.filter { it.dayOfWeek == 3 }
@@ -722,16 +732,14 @@ fun TeacherScheduleScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 3. DAY FILTER ROW (Properly aligned, constrained horizontal scroll, no page overflow)
-            val todayCount = activeClasses.count { it.dayOfWeek == currentIsoDay }
+            // 3. DAY FILTER ROW (Weekly days Mon-Sat, today automatically marked and selected)
             val dayTabs = listOf(
-                "TODAY" to "Today ($todayCount)",
-                "MON" to "Mon",
-                "TUE" to "Tue",
-                "WED" to "Wed",
-                "THU" to "Thu",
-                "FRI" to "Fri",
-                "SAT" to "Sat"
+                "MON" to (if (currentIsoDay == 1) "Mon (Today)" else "Mon"),
+                "TUE" to (if (currentIsoDay == 2) "Tue (Today)" else "Tue"),
+                "WED" to (if (currentIsoDay == 3) "Wed (Today)" else "Wed"),
+                "THU" to (if (currentIsoDay == 4) "Thu (Today)" else "Thu"),
+                "FRI" to (if (currentIsoDay == 5) "Fri (Today)" else "Fri"),
+                "SAT" to (if (currentIsoDay == 6) "Sat (Today)" else "Sat")
             )
 
             Row(
