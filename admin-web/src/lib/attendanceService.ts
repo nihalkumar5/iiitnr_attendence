@@ -48,6 +48,10 @@ export interface DBClass {
   teacherName: string;
   students: DBStudent[];
   createdAt: string;
+  dayOfWeek?: number;
+  startTime?: string;
+  endTime?: string;
+  program?: string;
 }
 
 export interface DBSession {
@@ -74,7 +78,7 @@ export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
     const { data, error } = await supabase
       .from("classes")
       .select(`
-        id, room, is_active, created_at,
+        id, room, day_of_week, start_time, end_time, is_active, created_at,
         subjects ( id, name, code ),
         teachers ( id, employee_id, users ( name, email ) )
       `)
@@ -150,7 +154,11 @@ export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
         teacherId: teacher.id || c.teacher_id,
         teacherName: teacherUser.name || "Dr. Rajesh Sharma",
         students: enrolledStudents,
-        createdAt: c.created_at
+        createdAt: c.created_at,
+        dayOfWeek: c.day_of_week || 1,
+        startTime: c.start_time || "10:00:00",
+        endTime: c.end_time || "11:00:00",
+        program: "M.Tech I Semester DSAI"
       };
     });
   } catch (err) {

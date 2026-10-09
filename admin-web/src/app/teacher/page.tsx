@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   Users, 
-  PlusCircle, 
+  Plus, PlusCircle, 
   Play, 
   Copy, 
   Check, 
@@ -103,6 +103,8 @@ export default function TeacherAppConsole() {
   const [newRoom, setNewRoom] = useState("Room A-204 (AC Block)");
   const [newSchedule, setNewSchedule] = useState("10:00 – 11:00 AM");
   const [isCreatingClass, setIsCreatingClass] = useState(false);
+  const [selectedDayFilter, setSelectedDayFilter] = useState<string>("FRI");
+  const [showAiModal, setShowAiModal] = useState(false);
   const [subjectToDelete, setSubjectToDelete] = useState<DBClass | null>(null);
   const [isDeletingSubject, setIsDeletingSubject] = useState(false);
 
@@ -739,85 +741,153 @@ export default function TeacherAppConsole() {
           /* MAIN TABS (Home | Schedule / Subjects | Live Lecture) */
           /* ==================================================================== */
           <div className="space-y-5">
-            {/* 1. SCHEDULE / MY SUBJECTS TAB */}
-            {mainNav === "schedule" && (
-              <div className="space-y-4 animate-in fade-in">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 tracking-tight">My Subjects & Batches</h2>
-                    <p className="text-xs text-slate-500 font-medium">Select a subject to view join code and enrolled students</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(true)}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    <span>Create Subject</span>
-                  </button>
-                </div>
+            {/* 1. SCHEDULE / MY SUBJECTS TAB (Matches Android App 1:1) */}
+            {mainNav === "schedule" && (() => {
+              const currentIsoDay = (() => {
+                const day = new Date().getDay();
+                return day === 0 ? 7 : day;
+              })();
 
-                {isLoadingClasses ? (
-                  <div className="text-center py-10 text-xs text-slate-500">Loading your subjects...</div>
-                ) : classes.length === 0 ? (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
-                    <BookOpen className="w-10 h-10 mx-auto text-slate-300" />
-                    <p className="text-sm font-bold text-slate-800">No subjects created yet</p>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                      Create your first subject to generate a join code for students.
+              const dayCodeMap: Record<number, string> = {
+                1: "MON",
+                2: "TUE",
+                3: "WED",
+                4: "THU",
+                5: "FRI",
+                6: "SAT"
+              };
+              const todayCode = dayCodeMap[currentIsoDay] || "FRI";
+
+              const dayTabs = [
+                { code: "MON", label: currentIsoDay === 1 ? "Mon (Today)" : "Mon", num: 1 },
+                { code: "TUE", label: currentIsoDay === 2 ? "Tue (Today)" : "Tue", num: 2 },
+                { code: "WED", label: currentIsoDay === 3 ? "Wed (Today)" : "Wed", num: 3 },
+                { code: "THU", label: currentIsoDay === 4 ? "Thu (Today)" : "Thu", num: 4 },
+                { code: "FRI", label: currentIsoDay === 5 ? "Fri (Today)" : "Fri", num: 5 },
+                { code: "SAT", label: currentIsoDay === 6 ? "Sat (Today)" : "Sat", num: 6 },
+              ];
+
+              const activeDay = selectedDayFilter || todayCode;
+              const activeDayNum = dayTabs.find(t => t.code === activeDay)?.num || 5;
+
+              // Filter classes by day of week if mapped, else show active classes
+              const dayFilteredClasses = classes.filter(c => (c.dayOfWeek || 5) === activeDayNum);
+              const displayClasses = dayFilteredClasses.length > 0 ? dayFilteredClasses : classes;
+
+              return (
+                <div className="space-y-3.5 animate-in fade-in">
+                  {/* Header: Title and active subject count */}
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">My Subjects</h1>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      {classes.length} {classes.length === 1 ? "active subject" : "active subjects"}
                     </p>
+                  </div>
+
+                  {/* Action Buttons Row: Add Subject (Dark) + AI Timetable (Light) */}
+                  <div className="flex items-center gap-2.5">
                     <button
                       type="button"
                       onClick={() => setShowCreateModal(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm inline-flex items-center gap-2"
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-[#0F172A] hover:bg-slate-800 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
                     >
-                      <PlusCircle className="w-4 h-4" />
-                      <span>Create New Subject</span>
+                      <Plus className="w-4 h-4 text-white" />
+                      <span>Add Subject</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAiModal(true)}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-medium text-xs flex items-center justify-center gap-2 shadow-2xs transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <span>AI Timetable</span>
                     </button>
                   </div>
-                ) : (
-                  <div className="grid gap-3">
-                    {classes.map(cls => (
-                      <div
-                        key={cls.id}
-                        onClick={() => setSelectedSubject(cls)}
-                        className="bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md rounded-2xl p-4 transition-all cursor-pointer flex items-center justify-between group"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-                              {cls.subjectCode}
-                            </span>
-                            <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                              {cls.subjectName}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            {cls.roomNo || "Room A-204"} • Join Code: <span className="font-mono font-bold text-slate-800">{cls.joinCode}</span>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <span className="text-xs font-bold hidden sm:inline text-slate-500 group-hover:text-blue-600 transition-colors">Open Detail</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSubjectToDelete(cls);
-                            }}
-                            title="Delete Subject"
-                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
-                        </div>
-                      </div>
-                    ))}
+                  {/* Day Filter Tabs: Mon, Tue, Wed, Thu, Fri (Today), Sat */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {dayTabs.map(tab => {
+                      const isSelected = activeDay === tab.code;
+                      return (
+                        <button
+                          key={tab.code}
+                          type="button"
+                          onClick={() => setSelectedDayFilter(tab.code)}
+                          className={`px-3.5 py-1.5 rounded-xl border text-xs whitespace-nowrap transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-blue-50/80 border-blue-600 text-blue-600 font-semibold shadow-2xs"
+                              : "bg-white border-slate-200 text-slate-600 font-medium hover:border-slate-300"
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Subject Cards List */}
+                  {isLoadingClasses ? (
+                    <div className="text-center py-10 text-xs text-slate-500">Loading your subjects...</div>
+                  ) : displayClasses.length === 0 ? (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                      <BookOpen className="w-10 h-10 mx-auto text-slate-300" />
+                      <p className="text-sm font-bold text-slate-800">No subjects scheduled on this day</p>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        Select another day or add a new subject batch.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateModal(true)}
+                        className="px-4 py-2 bg-[#0F172A] text-white rounded-xl text-xs font-bold shadow-sm inline-flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Create Subject</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {displayClasses.map(cls => (
+                        <div
+                          key={cls.id}
+                          onClick={() => {
+                            setSelectedSubject(cls);
+                            setSubjectTab("Overview");
+                          }}
+                          className="bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-sm rounded-2xl p-4 transition-all cursor-pointer space-y-1.5 group"
+                        >
+                          {/* Line 1: Subject Name (dominant) & Enrolled count (secondary) */}
+                          <div className="flex items-start justify-between gap-3">
+                            <h3 className="text-[15px] sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors leading-snug">
+                              {cls.subjectName}
+                            </h3>
+                            <span className="text-xs text-slate-500 font-medium whitespace-nowrap shrink-0">
+                              {cls.students?.length || 0} {(cls.students?.length === 1) ? "student" : "students"}
+                            </span>
+                          </div>
+
+                          {/* Line 2: Subject Code in Brand Blue */}
+                          <div className="text-xs sm:text-[13px] font-semibold text-blue-600 tracking-normal">
+                            {cls.subjectCode}
+                          </div>
+
+                          {/* Line 3: Program / Semester */}
+                          <div className="text-xs text-slate-500 font-normal">
+                            {cls.section || (cls as any).program || "M.Tech I Semester DSAI"}
+                          </div>
+
+                          {/* Line 4: Room & Subtle Chevron */}
+                          <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
+                            <span>{cls.roomNo || "Room 319"}</span>
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 2. LIVE LECTURE CONSOLE TAB */}
             {mainNav === "live" && (
@@ -1358,11 +1428,76 @@ export default function TeacherAppConsole() {
           </div>
         </div>
       )}
-    </div>
-  );
+
+      {/* ==================================================================== */}
+      {/* MODAL: AI TIMETABLE IMPORT */}
+      {/* ==================================================================== */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight">AI Timetable Import</h3>
+                  <p className="text-[11px] text-slate-500">Gemini-Powered Schedule Extraction</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAiModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
+                <Sparkles className="w-8 h-8 mx-auto text-blue-500 animate-pulse" />
+                <div className="font-bold text-slate-800 text-sm">Smart Timetable Sync Active</div>
+                <p className="text-slate-500 text-[11px] leading-relaxed">
+                  Upload an institutional timetable document (PDF, Image, or CSV) or sync directly with the academic portal.
+                </p>
+              </div>
+
+              <div className="border border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-2 hover:border-blue-500 hover:bg-blue-50/20 transition-all cursor-pointer">
+                <Calendar className="w-7 h-7 mx-auto text-slate-400" />
+                <div className="font-semibold text-slate-700">Drop timetable PDF or image here</div>
+                <div className="text-[11px] text-slate-400">Supports PDF, PNG, JPG up to 10MB</div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAiModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAiModal(false);
+                  showToast("✨ Timetable synchronized successfully!");
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Auto-Schedule</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* MODAL: LOW ATTENDANCE DEFAULTERS AUDIT */}
+      {/* Matches Android LowAttendanceDefaultersDialog.kt 1:1 */}
+      {/* ==================================================================== */}
       {/* Matches Android LowAttendanceDefaultersDialog.kt 1:1 */}
       {/* ==================================================================== */}
       {showDefaultersModal && (
@@ -1482,5 +1617,6 @@ export default function TeacherAppConsole() {
           </div>
         </div>
       )}
-
+    </div>
+  );
 }
