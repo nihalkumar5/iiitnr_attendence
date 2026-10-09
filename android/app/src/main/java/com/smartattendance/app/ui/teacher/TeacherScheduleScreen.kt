@@ -189,61 +189,39 @@ fun TeacherScheduleScreen(
         if (selectedClassForDetail != null) {
             val currentClass = selectedClassForDetail!!
 
-            // BACK HEADER WITH TITLE AND LOGOUT
+            // BACK HEADER WITH TITLE
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
+                IconButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        selectedClassForDetail = null
+                    },
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    IconButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedClassForDetail = null
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to Subjects",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Column {
-                        Text(
-                            text = currentClass.subjectName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "${currentClass.subjectCode} · ${currentClass.program}",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back to Subjects",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
-
-                if (onLogout != null) {
-                    IconButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLogout()
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Logout",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                Spacer(modifier = Modifier.width(6.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = currentClass.subjectName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "${currentClass.subjectCode} · ${currentClass.program}",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
                 }
             }
 
@@ -648,109 +626,103 @@ fun TeacherScheduleScreen(
                 else -> activeClasses
             }
 
-            // CLEAN SINGLE PAGE HEADER
+            // 1. CLEAN SINGLE PAGE HEADER (Full-width hierarchy, zero collision)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "My Subjects",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    fontSize = 24.sp,
+                    maxLines = 1,
+                    letterSpacing = (-0.5).sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${activeClasses.size} ${if (activeClasses.size == 1) "active subject" else "active subjects"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 2. ACTION ROW (Full width, balanced, distinct visual hierarchy)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "My Subjects",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        fontSize = 24.sp
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        subjectNameInput = ""
+                        subjectCodeInput = ""
+                        roomInput = "Room A-302"
+                        addClassError = null
+                        showAddClassDialog = true
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "${activeClasses.size} ${if (activeClasses.size == 1) "active subject" else "active subjects"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        fontSize = 13.sp
+                        text = "Add Subject",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1
                     )
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                OutlinedButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showAiTimetableDialog = true
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = CardBackground,
+                        contentColor = TextPrimary
+                    ),
+                    border = BorderStroke(1.dp, BorderSubtle),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showAiTimetableDialog = true
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandAccent),
-                        border = BorderStroke(1.dp, BrandAccent.copy(alpha = 0.5f)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = BrandAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "AI Timetable",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = BrandAccent
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            subjectNameInput = ""
-                            subjectCodeInput = ""
-                            roomInput = "Room A-302"
-                            addClassError = null
-                            showAddClassDialog = true
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Add Subject",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
-                    }
-
-                    if (onLogout != null) {
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onLogout()
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Logout,
-                                contentDescription = "Logout",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = BrandAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "AI Timetable",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary,
+                        maxLines = 1
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // DAY FILTER ROW (Properly constrained horizontal scroll)
+            // 3. DAY FILTER ROW (Properly aligned, constrained horizontal scroll, no page overflow)
             val todayCount = activeClasses.count { it.dayOfWeek == currentIsoDay }
             val dayTabs = listOf(
                 "ALL" to "All (${activeClasses.size})",
@@ -774,10 +746,10 @@ fun TeacherScheduleScreen(
                     val isSelected = selectedDayFilter == code
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) BrandAccent else CardBackground,
-                        border = androidx.compose.foundation.BorderStroke(
+                        color = if (isSelected) BrandAccent.copy(alpha = 0.08f) else CardBackground,
+                        border = BorderStroke(
                             1.dp,
-                            if (isSelected) BrandAccent else BorderHairline
+                            if (isSelected) BrandAccent else BorderSubtle
                         ),
                         modifier = Modifier.clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -788,21 +760,21 @@ fun TeacherScheduleScreen(
                             text = label,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else TextSecondary,
+                            color = if (isSelected) BrandAccent else TextSecondary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // SUBJECT ITEMS LIST (Placed directly on CanvasBackground, NO giant outer card)
+            // 4. SUBJECT ITEMS LIST (Refined, lightweight list on CanvasBackground)
             if (filteredSubjectClasses.isEmpty()) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = CardBackground,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                    border = BorderStroke(1.dp, BorderSubtle),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -858,7 +830,7 @@ fun TeacherScheduleScreen(
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = CardBackground,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                            border = BorderStroke(1.dp, BorderSubtle),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
@@ -876,12 +848,13 @@ fun TeacherScheduleScreen(
                                 ) {
                                     Text(
                                         text = item.subjectName,
-                                        fontSize = 18.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = TextPrimary,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        lineHeight = 21.sp
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         text = "${item.enrolledStudents} ${if (item.enrolledStudents == 1) "student" else "students"}",
                                         fontSize = 12.sp,
@@ -892,24 +865,24 @@ fun TeacherScheduleScreen(
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // Line 2: Subject Code
+                                // Line 2: Subject code
                                 Text(
                                     text = item.subjectCode,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = BrandAccent
                                 )
 
                                 Spacer(modifier = Modifier.height(3.dp))
 
-                                // Line 3: Program & Semester
+                                // Line 3: Program · Semester · Section
                                 Text(
                                     text = item.program,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     color = TextSecondary
                                 )
 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
                                 // Line 4: Room & Subtle Chevron
                                 Row(
@@ -919,7 +892,7 @@ fun TeacherScheduleScreen(
                                 ) {
                                     Text(
                                         text = item.room,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = TextMuted
                                     )
 
@@ -936,7 +909,7 @@ fun TeacherScheduleScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(84.dp))
         }
 
                 // DIALOG: DELETE SUBJECT CONFIRMATION
