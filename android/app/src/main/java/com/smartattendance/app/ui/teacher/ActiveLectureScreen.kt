@@ -124,7 +124,7 @@ fun ActiveLectureScreen(
         val key = "session_start_epoch_${classId}"
         val saved = prefs.getLong(key, 0L)
         val now = System.currentTimeMillis()
-        if (saved > 0L && (now - saved) < 12 * 3600 * 1000L) {
+        if (saved > 0L && (now - saved) < 2 * 3600 * 1000L) {
             saved
         } else {
             prefs.edit().putLong(key, now).apply()
@@ -1002,6 +1002,7 @@ fun ActiveLectureScreen(
                         showCancelConfirmDialog = false
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         coroutineScope.launch(Dispatchers.IO) {
+                            prefs.edit().remove("session_start_epoch_$classId").apply()
                             val sId = activeSessionId
                             if (!sId.isNullOrBlank()) {
                                 SupabaseAttendanceService.endAttendanceSession(sId)
@@ -1074,6 +1075,7 @@ fun ActiveLectureScreen(
                         showSubmitConfirmDialog = false
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         coroutineScope.launch(Dispatchers.IO) {
+                            prefs.edit().remove("session_start_epoch_$classId").apply()
                             val sId = activeSessionId
                             if (!sId.isNullOrBlank()) {
                                 val facultyKey = prefs.getString("logged_in_faculty_id", "FAC-DEFAULT") ?: "FAC-DEFAULT"

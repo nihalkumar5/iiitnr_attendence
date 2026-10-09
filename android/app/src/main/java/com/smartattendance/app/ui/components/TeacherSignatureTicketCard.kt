@@ -168,24 +168,15 @@ fun TeacherSignatureTicketCard(
     // Minimal live timer calculation
     var elapsedSeconds by remember(isSessionLive, classItem.id) { mutableLongStateOf(0L) }
 
-    LaunchedEffect(isSessionLive, isPrimaryInProgress, classItem.id, classItem.startTime) {
-        if (isSessionLive || isPrimaryInProgress) {
+    LaunchedEffect(isSessionLive, classItem.id) {
+        if (isSessionLive) {
             val sessionKey = "session_start_epoch_${classItem.id}"
             var startEpoch = prefs.getLong(sessionKey, 0L)
             val nowMs = System.currentTimeMillis()
 
-            if (startEpoch <= 0L || (nowMs - startEpoch) > 12 * 3600 * 1000L) {
-                val cal = Calendar.getInstance()
-                val nowH = cal.get(Calendar.HOUR_OF_DAY)
-                val nowM = cal.get(Calendar.MINUTE)
-                val nowS = cal.get(Calendar.SECOND)
-                val startM = TimetableEngine.parseTimeToMinutes(classItem.startTime)
-                val diffSec = ((nowH * 60 + nowM) - startM) * 60 + nowS
-                if (diffSec in 0..14400) {
-                    startEpoch = nowMs - (diffSec * 1000L)
-                } else {
-                    startEpoch = nowMs
-                }
+            // Timer starts strictly when attendance is initiated, never backdated to timetable start
+            if (startEpoch <= 0L || (nowMs - startEpoch) > 4 * 3600 * 1000L) {
+                startEpoch = nowMs
                 prefs.edit().putLong(sessionKey, startEpoch).apply()
             }
 
@@ -194,6 +185,8 @@ fun TeacherSignatureTicketCard(
                 elapsedSeconds = ((current - startEpoch) / 1000L).coerceAtLeast(0L)
                 delay(1000L)
             }
+        } else {
+            elapsedSeconds = 0L
         }
     }
 
@@ -288,7 +281,7 @@ fun TeacherSignatureTicketCard(
                     )
                 }
 
-                if (isSessionLive || isPrimaryInProgress) {
+                if (isSessionLive) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
                         color = Color(0x2610B981),
