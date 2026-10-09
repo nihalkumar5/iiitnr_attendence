@@ -26,7 +26,9 @@ import {
   User,
   GraduationCap,
   Trash2,
-  Pencil
+  Pencil,
+  Mail,
+  Hash
 } from "lucide-react";
 import { 
   getBrowserGeofence, 
@@ -2023,21 +2025,44 @@ export default function StudentPortal() {
 
         {/* TAB 4: STUDENT PROFILE */}
         {activeTab === "profile" && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-5 shadow-xs">
+          <div className="space-y-4 animate-in fade-in duration-300">
+            {/* Main Profile Hero Card */}
+            <div className="relative overflow-hidden bg-gradient-to-b from-white via-white to-blue-50/40 border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-lg shadow-slate-200/50 space-y-6">
+              {/* Decorative Subtle Ambient Glow */}
+              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+
               {/* Profile Card Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/25">
-                    {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-black text-slate-900 tracking-tight truncate">{studentName}</h3>
-                    <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 inline-block mt-0.5">
-                      {rollNo}
+              <div className="relative flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="relative shrink-0">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30 ring-4 ring-blue-50">
+                      {studentName ? studentName.slice(0, 2).toUpperCase() : "ST"}
+                    </div>
+                    {/* Active verified presence pulse dot */}
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center shadow-xs" title="Device Active">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
                     </span>
                   </div>
+
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">{studentName || "Student"}</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200/80">
+                        Verified
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono font-bold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                        {rollNo || "No Roll"}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium truncate">
+                        IIIT Naya Raipur
+                      </span>
+                    </div>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -2047,7 +2072,7 @@ export default function StudentPortal() {
                     setProfileSaveSuccess(null);
                     setShowEditProfileModal(true);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                  className="shrink-0 px-3.5 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 hover:border-blue-300 text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                   title="Edit Profile"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -2055,28 +2080,56 @@ export default function StudentPortal() {
                 </button>
               </div>
 
-              {/* Student Metadata Table */}
-              <div className="divide-y divide-slate-100 text-xs">
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-500">Email:</span>
-                  <span className="font-medium text-slate-900 truncate max-w-[200px]">{studentEmail}</span>
+              {/* Pro Metric Widgets Grid (2x2) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {/* Email Widget */}
+                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Mail className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Email Address</span>
+                  </div>
+                  <p className="font-semibold text-slate-900 truncate" title={studentEmail}>
+                    {studentEmail || "Not Provided"}
+                  </p>
                 </div>
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-500">Institution:</span>
-                  <span className="font-bold text-slate-900">IIIT Naya Raipur</span>
+
+                {/* Institution Widget */}
+                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Campus & Institute</span>
+                  </div>
+                  <p className="font-bold text-slate-900 truncate">
+                    IIIT Naya Raipur
+                  </p>
                 </div>
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-500">Enrolled Courses:</span>
-                  <span className="font-bold text-slate-900">{myClasses.length} Subjects</span>
+
+                {/* Enrolled Courses Widget */}
+                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Enrolled Subjects</span>
+                  </div>
+                  <p className="font-bold text-slate-900">
+                    {myClasses.length} Active Courses
+                  </p>
                 </div>
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-500">Device Lock:</span>
-                  <span className="font-bold text-emerald-600">Hardware Bound</span>
+
+                {/* Hardware Security Widget */}
+                <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Device Security</span>
+                  </div>
+                  <p className="font-bold text-emerald-600 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Hardware Bound & Protected
+                  </p>
                 </div>
               </div>
 
-              {/* Quick Navigation Links */}
-              <div className="space-y-2 pt-2">
+              {/* Action Buttons Hub */}
+              <div className="space-y-2.5 pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -2086,18 +2139,18 @@ export default function StudentPortal() {
                     setProfileSaveSuccess(null);
                     setShowEditProfileModal(true);
                   }}
-                  className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold border border-blue-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white rounded-2xl text-xs font-extrabold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <Pencil className="w-4 h-4 text-blue-600" />
-                  <span>Edit Profile</span>
+                  <Pencil className="w-4 h-4 text-blue-100" />
+                  <span>Edit Profile Details</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold border border-rose-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-rose-50/80 hover:bg-rose-100/90 active:scale-[0.99] text-rose-600 rounded-2xl text-xs font-bold border border-rose-200/80 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4 text-rose-500" />
                   <span>Sign Out of Account</span>
                 </button>
               </div>
@@ -2106,9 +2159,9 @@ export default function StudentPortal() {
         )}
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION BAR (Fixed at bottom on phones) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/90 shadow-2xl pb-[max(0.6rem,env(safe-area-inset-bottom))]">
-        <div className="max-w-md mx-auto px-4 py-2 flex items-center justify-around">
+      {/* MOBILE BOTTOM NAVIGATION BAR (Floating App Dock on phones) */}
+      <nav className="md:hidden fixed bottom-3 inset-x-3 z-40 max-w-md mx-auto bg-white/95 backdrop-blur-2xl border border-slate-200/90 rounded-3xl shadow-xl shadow-slate-900/10 px-2 py-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center justify-around">
           {[
             { id: "radar", label: "Live Radar", icon: Radio, badge: activeSession ? "LIVE" : null },
             { id: "subjects", label: "Subjects", icon: BookOpen, count: myClasses.length },
@@ -2122,24 +2175,21 @@ export default function StudentPortal() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`relative flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
-                  isActive ? "text-blue-600 scale-105" : "text-slate-400 hover:text-slate-700"
+                className={`relative flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+                  isActive ? "text-blue-600 scale-105 font-black" : "text-slate-400 hover:text-slate-600 font-semibold"
                 }`}
               >
-                <div className={`p-1 rounded-xl transition-all ${isActive ? "bg-blue-50 text-blue-600" : ""}`}>
-                  <Icon className="w-5 h-5" />
+                <div className={`p-1.5 rounded-xl transition-all ${isActive ? "bg-blue-600 text-white shadow-md shadow-blue-500/30" : ""}`}>
+                  <Icon className="w-4 h-4" />
                 </div>
-                <span className={`text-[10px] font-bold leading-none ${isActive ? "text-blue-600" : "text-slate-500"}`}>
-                  {tab.label}
-                </span>
-
+                <span className="text-[10px] tracking-tight">{tab.label}</span>
                 {tab.badge && (
-                  <span className="absolute -top-1 right-1 px-1.5 py-0.2 rounded-full text-[8px] font-black bg-emerald-500 text-white animate-pulse">
+                  <span className="absolute -top-1 -right-0.5 px-1.5 py-0.2 bg-emerald-500 text-white text-[8px] font-black rounded-full animate-pulse shadow-xs">
                     {tab.badge}
                   </span>
                 )}
-                {tab.count !== null && tab.count !== undefined && !tab.badge && (
-                  <span className={`absolute -top-0.5 right-1 px-1 rounded-full text-[9px] font-bold font-mono ${isActive ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                {tab.count !== undefined && tab.count > 0 && !tab.badge && (
+                  <span className="absolute -top-1 -right-0.5 px-1.5 py-0.2 bg-slate-100 border border-slate-300 text-slate-700 text-[8px] font-bold rounded-full">
                     {tab.count}
                   </span>
                 )}
@@ -2151,74 +2201,117 @@ export default function StudentPortal() {
 
       {/* EDIT PROFILE MODAL */}
       {showEditProfileModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white border border-slate-200 shadow-2xl rounded-3xl p-6 sm:p-7 max-w-md w-full space-y-5 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200/90 shadow-2xl rounded-3xl p-6 sm:p-7 max-w-md w-full space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Header */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <div className="flex items-center gap-2.5 text-slate-900 font-extrabold text-base">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
                   <Pencil className="w-4 h-4" />
                 </div>
-                <span>Edit Student Profile</span>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 leading-tight">Edit Student Profile</h3>
+                  <p className="text-[11px] text-slate-500 font-medium leading-none mt-0.5">Update your identity details</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditProfileModal(false)}
-                className="text-slate-400 hover:text-slate-700 text-xs px-2 py-1 rounded-lg bg-slate-100 cursor-pointer"
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs cursor-pointer transition-all"
               >
-                ✕ Close
+                ✕
               </button>
             </div>
 
+            {/* Dynamic Avatar Live Preview */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-100 flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-base shadow-md shadow-blue-500/20 shrink-0">
+                {editName ? editName.trim().slice(0, 2).toUpperCase() : (studentName ? studentName.slice(0, 2).toUpperCase() : "ST")}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate">
+                  {editName || studentName || "Student Name"}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] font-mono font-bold text-blue-700 bg-white/90 px-1.5 py-0.2 rounded border border-blue-200">
+                    {editRollNo || rollNo || "ROLL"}
+                  </span>
+                  <span className="text-[10px] text-slate-500 truncate">
+                    IIIT Naya Raipur
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {profileSaveSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-700 text-xs font-bold animate-in fade-in">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-emerald-800 text-xs font-bold animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>{profileSaveSuccess}</span>
               </div>
             )}
 
-            <form onSubmit={handleSaveProfile} className="space-y-4">
+            <form onSubmit={handleSaveProfile} className="space-y-3.5">
+              {/* Full Name Field */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Full Name
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="e.g. Archana Prajapati"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="e.g. Archana Prajapati"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-500/15 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all"
+                  />
+                </div>
               </div>
 
+              {/* Roll Number Field */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Roll Number / Student ID
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={editRollNo}
-                  onChange={(e) => setEditRollNo(e.target.value.toUpperCase())}
-                  placeholder="e.g. 89 or 26CS101"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Hash className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={editRollNo}
+                    onChange={(e) => setEditRollNo(e.target.value.toUpperCase())}
+                    placeholder="e.g. 89 or 26CS101"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-500/15 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none transition-all uppercase"
+                  />
+                </div>
               </div>
 
+              {/* Email Address Field */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Email Address
                 </label>
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  placeholder="e.g. archanaprajapati917@gmail.com"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="e.g. archanaprajapati917@gmail.com"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50/80 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-500/15 rounded-xl text-xs font-medium text-slate-900 focus:outline-none transition-all"
+                  />
+                </div>
               </div>
 
-              <div className="pt-2 flex gap-2">
+              {/* Form Action Buttons */}
+              <div className="pt-2 flex gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowEditProfileModal(false)}
@@ -2229,7 +2322,7 @@ export default function StudentPortal() {
                 <button
                   type="submit"
                   disabled={isSavingProfile || !editName.trim() || !editRollNo.trim()}
-                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   {isSavingProfile ? (
                     <>
