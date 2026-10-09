@@ -293,6 +293,19 @@ fun TeacherHomeScreen(
     var defaulterStudents by remember { mutableStateOf<List<DefaulterStudentItem>>(emptyList()) }
     var showDefaultersDialog by remember { mutableStateOf(false) }
     var showTeacherProfileDialog by remember { mutableStateOf(false) }
+    var currentTeacherName by remember {
+        mutableStateOf(prefs.getString("logged_in_faculty_name", teacherName)?.takeIf { it.isNotBlank() } ?: teacherName)
+    }
+    var currentDept by remember {
+        mutableStateOf(prefs.getString("logged_in_faculty_dept", department)?.takeIf { it.isNotBlank() } ?: department)
+    }
+    var currentWifiSsid by remember {
+        mutableStateOf(prefs.getString("faculty_chosen_wifi_ssid", teacherCleanSsid)?.takeIf { it.isNotBlank() } ?: teacherCleanSsid)
+    }
+    var isEditingProfile by remember { mutableStateOf(false) }
+    var editNameInput by remember { mutableStateOf(currentTeacherName) }
+    var editDeptInput by remember { mutableStateOf(currentDept) }
+    var editWifiInput by remember { mutableStateOf(currentWifiSsid) }
     val teacherEmail = remember {
         prefs.getString("logged_in_faculty_email", "")?.takeIf { it.isNotBlank() }
             ?: prefs.getString("faculty_email", "")?.takeIf { it.isNotBlank() }
@@ -577,7 +590,7 @@ fun TeacherHomeScreen(
 
     // Format display name
     val facultyDisplayName = remember(teacherName) {
-        val clean = teacherName.trim()
+        val clean = currentTeacherName.trim()
         if (clean.isNotBlank()) clean else "Faculty Member"
     }
 
@@ -619,8 +632,8 @@ fun TeacherHomeScreen(
                 modifier = Modifier.size(36.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    val initials = remember(teacherName) {
-                        val clean = teacherName.replace("Dr.", "").replace("Prof.", "").trim()
+                    val initials = remember(currentTeacherName) {
+                        val clean = currentTeacherName.replace("Dr.", "").replace("Prof.", "").trim()
                         val parts = clean.split(" ").filter { it.isNotBlank() }
                         if (parts.size >= 2) "${parts[0].first()}${parts[1].first()}".uppercase()
                         else if (parts.isNotEmpty()) parts[0].take(2).uppercase()
@@ -653,7 +666,7 @@ fun TeacherHomeScreen(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "$department · $facultyId",
+            text = "$currentDept · $facultyId",
             fontSize = 13.sp,
             color = TextSecondary
         )
@@ -1157,14 +1170,14 @@ fun TeacherHomeScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = teacherName,
+                        text = currentTeacherName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "$facultyId · $department",
+                        text = "$facultyId · $currentDept",
                         fontSize = 12.sp,
                         color = Color(0xFF64748B)
                     )
@@ -1200,50 +1213,89 @@ fun TeacherHomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    if (isEditingProfile) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("Email", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                Text(teacherEmail, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                                OutlinedTextField(
+                                    value = editNameInput,
+                                    onValueChange = { editNameInput = it },
+                                    label = { Text("Full Name", fontSize = 10.sp) },
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = editDeptInput,
+                                    onValueChange = { editDeptInput = it },
+                                    label = { Text("Department", fontSize = 10.sp) },
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = editWifiInput,
+                                    onValueChange = { editWifiInput = it },
+                                    label = { Text("Presence Wi-Fi SSID", fontSize = 10.sp) },
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
                             }
-                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("Institution", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                Text("DSPM IIIT Naya Raipur", fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
-                            }
-                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Active Courses", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                Text("${classList.size} Assigned Batches", fontSize = 11.sp, color = Color(0xFF2563EB), fontWeight = FontWeight.SemiBold)
-                            }
-                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Broadcast Wi-Fi", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                Text(teacherCleanSsid, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Email", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                    Text(teacherEmail, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                                }
+                                HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Institution", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                    Text("DSPM IIIT Naya Raipur", fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                                }
+                                HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Active Courses", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                    Text("${classList.size} Assigned Batches", fontSize = 11.sp, color = Color(0xFF2563EB), fontWeight = FontWeight.SemiBold)
+                                }
+                                HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Broadcast Wi-Fi", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                    Text(currentWifiSsid, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     }
@@ -1286,13 +1338,63 @@ fun TeacherHomeScreen(
                 }
             },
             confirmButton = {
-                OutlinedButton(
-                    onClick = { showTeacherProfileDialog = false },
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Close", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    if (isEditingProfile) {
+                        OutlinedButton(
+                            onClick = { isEditingProfile = false },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f).height(42.dp)
+                        ) {
+                            Text("Cancel", color = Color(0xFF475569), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = {
+                                if (editNameInput.isNotBlank()) {
+                                    prefs.edit()
+                                        .putString("logged_in_faculty_name", editNameInput.trim())
+                                        .putString("logged_in_faculty_dept", editDeptInput.trim())
+                                        .putString("faculty_chosen_wifi_ssid", editWifiInput.trim())
+                                        .apply()
+                                    currentTeacherName = editNameInput.trim()
+                                    currentDept = editDeptInput.trim()
+                                    currentWifiSsid = editWifiInput.trim()
+                                    isEditingProfile = false
+                                    Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                            modifier = Modifier.weight(1f).height(42.dp)
+                        ) {
+                            Text("Save", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                editNameInput = currentTeacherName
+                                editDeptInput = currentDept
+                                editWifiInput = currentWifiSsid
+                                isEditingProfile = true
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f).height(42.dp)
+                        ) {
+                            Text("Edit Profile", color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = { showTeacherProfileDialog = false },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                            modifier = Modifier.weight(1f).height(42.dp)
+                        ) {
+                            Text("Close", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
         )
