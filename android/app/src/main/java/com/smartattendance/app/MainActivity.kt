@@ -135,10 +135,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var facultyName by remember {
-                    mutableStateOf(prefs.getString("logged_in_faculty_name", "Dr. S. Sharma") ?: "Dr. S. Sharma")
+                    mutableStateOf(prefs.getString("logged_in_faculty_name", "Nihal Kumar") ?: "Nihal Kumar")
                 }
                 var facultyId by remember {
-                    mutableStateOf(prefs.getString("logged_in_faculty_id", "FAC-CSE-042") ?: "FAC-CSE-042")
+                    mutableStateOf(prefs.getString("logged_in_faculty_id", "FAC-NIHAL26302") ?: "FAC-NIHAL26302")
                 }
                 var facultyDept by remember {
                     mutableStateOf(

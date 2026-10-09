@@ -10,6 +10,7 @@ import {
   resetClassroomAnchor,
 } from "@/lib/geoFence";
 import { generateAttendanceToken, getOrCreatePwaDeviceId } from "@/lib/pwaAuth";
+import { bindStudentDeviceInDB, requestStudentDeviceUnbindInDB } from "@/lib/attendanceService";
 import {
   Search,
   Bell,
@@ -120,6 +121,7 @@ export default function StudentPwaPage() {
   const [historyFilter, setHistoryFilter] = useState<"ALL" | "EARLY" | "LATE">("ALL");
   const [historySearch, setHistorySearch] = useState<string>("");
   const [deviceId, setDeviceId] = useState<string>("");
+  const [deviceLockError, setDeviceLockError] = useState<string | null>(null);
   const [deviceStatus, setDeviceStatus] = useState<"ACTIVE" | "PENDING_APPROVAL" | "UNBOUND" | "BLOCKED">("ACTIVE");
 
   // Dynamic Island Expansion
@@ -172,6 +174,18 @@ export default function StudentPwaPage() {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.rollNumber) {
           setCurrentStudent(parsed);
+          bindStudentDeviceInDB({
+            rollNo: parsed.rollNumber,
+            name: parsed.name,
+            installationId: dev,
+            deviceModel: "Web PWA Client"
+          }).then((res) => {
+            if (!res.success && (res.message?.includes("ANTI") || res.message?.includes("DEVICE") || (res as any).isDeviceMismatch)) {
+              setDeviceLockError(res.message);
+            } else {
+              setDeviceLockError(null);
+            }
+          }).catch(() => {});
         }
       }
     } catch (e) {

@@ -1624,18 +1624,10 @@ object SupabaseAttendanceService {
                 val registeredPlatform = sDev.optString("platform", "ANDROID")
                 val registeredInst = sDev.optString("installation_id", "")
 
-                // If previous registration was from WEB/Browser or same student on Android, seamlessly sync this Android phone!
-                val isWebClient = registeredPlatform == "WEB" ||
-                    registeredInst.startsWith("inst_") ||
-                    registeredModel.contains("Web", ignoreCase = true) ||
-                    registeredModel.contains("Safari", ignoreCase = true) ||
-                    registeredModel.contains("Chrome", ignoreCase = true) ||
-                    registeredModel.contains("Laptop", ignoreCase = true)
-
-                if (isWebClient || registeredInst == cleanInst) {
+                // STRICT ANTI-PROXY LOCK: 1 Student = 1 Physical Device
+                if (registeredInst == cleanInst) {
                     val currentModel = android.os.Build.MODEL ?: "Android Device"
                     val updatePayload = JSONObject().apply {
-                        put("installation_id", cleanInst)
                         put("device_model", currentModel)
                         put("os_version", "Android ${android.os.Build.VERSION.RELEASE}")
                         put("platform", "ANDROID")
@@ -1649,7 +1641,6 @@ object SupabaseAttendanceService {
                         .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
                         .build()
                     client.newCall(updateReq).execute()
-                    Log.d(TAG, "Device $sDevId synced to native Android app for student $cleanRoll")
                     return@withContext Result.success(sDevId)
                 }
 
@@ -2876,6 +2867,44 @@ object SupabaseAttendanceService {
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun updateFacultyProfile(
+        teacherId: String = "977d23e7-4b43-4a7a-af74-b3fb2855beae",
+        newName: String,
+        newDept: String = "Computer Science & Engineering"
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("$SUPABASE_URL/rest/v1/teachers?id=eq.$teacherId&select=user_id")
+                .addHeader("apikey", ANON_KEY)
+                .addHeader("Authorization", "Bearer $ANON_KEY")
+                .get()
+                .build()
+            val res = client.newCall(req).execute()
+            val body = res.body?.string() ?: "[]"
+            val arr = JSONArray(body)
+            if (arr.length() > 0) {
+                val userId = arr.getJSONObject(0).getString("user_id")
+                val patchUser = JSONObject().apply {
+                    put("name", newName)
+                }
+                val updateReq = Request.Builder()
+                    .url("$SUPABASE_URL/rest/v1/users?id=eq.$userId")
+                    .addHeader("apikey", ANON_KEY)
+                    .addHeader("Authorization", "Bearer $ANON_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(patchUser.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                client.newCall(updateReq).execute()
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating faculty profile in Supabase", e)
+            false
         }
     }
 

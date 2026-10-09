@@ -99,18 +99,7 @@ export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
         attendance_sessions ( class_id )
       `);
 
-    const seenSubjectNames = new Set<string>();
-    const uniqueList: any[] = [];
-    for (const item of data) {
-      const subObj: any = Array.isArray(item.subjects) ? item.subjects[0] : item.subjects;
-      const subName = (subObj?.name || "").toLowerCase().trim();
-      if (!seenSubjectNames.has(subName)) {
-        seenSubjectNames.add(subName);
-        uniqueList.push(item);
-      }
-    }
-
-    return uniqueList.map((c: any) => {
+    return (data || []).map((c: any) => {
       const subject = (Array.isArray(c.subjects) ? c.subjects[0] : c.subjects) || {};
       const teacher = c.teachers || {};
       const teacherUser = teacher.users || {};
@@ -599,7 +588,7 @@ export async function createClassInDB(params: {
     const departmentId = depts?.[0]?.id || "117c2f09-1977-4ab9-b922-558f39699168";
 
     const { data: teachers } = await supabase.from("teachers").select("id").limit(1);
-    const teacherId = params.teacherId || teachers?.[0]?.id || "6885fced-5d3e-4b9c-94fd-85d115cc9d9b";
+    const teacherId = params.teacherId || teachers?.[0]?.id || "977d23e7-4b43-4a7a-af74-b3fb2855beae";
 
     const { data: sections } = await supabase.from("sections").select("id").limit(1);
     const sectionId = sections?.[0]?.id || "42bf3cde-a3a2-45ee-b82a-eec10845001a";
@@ -713,7 +702,7 @@ export async function enrollStudentInClassInDB(params: {
       sessionId = sess.id;
     } else {
       const { data: teachers } = await supabase.from("teachers").select("id").limit(1);
-      const teacherId = teachers?.[0]?.id || "6885fced-5d3e-4b9c-94fd-85d115cc9d9b";
+      const teacherId = teachers?.[0]?.id || "977d23e7-4b43-4a7a-af74-b3fb2855beae";
       const { data: newSess } = await supabase
         .from("attendance_sessions")
         .insert({
@@ -800,7 +789,7 @@ export async function bindStudentDeviceInDB(params: {
   installationId: string;
   deviceModel: string;
   osVersion?: string;
-}): Promise<{ success: boolean; message: string; device?: any; conflictRoll?: string }> {
+}): Promise<{ success: boolean; message: string; device?: any; conflictRoll?: string; isDeviceMismatch?: boolean; registeredModel?: string }> {
   try {
     const studentId = await registerOrGetStudentInDB({
       rollNo: params.rollNo,
@@ -838,15 +827,21 @@ export async function bindStudentDeviceInDB(params: {
       .eq("status", "ACTIVE")
       .maybeSingle();
 
-    // 3. Register or update device binding (Seamless student browser & mobile access)
+    // 3. Strict 1 Student = 1 Device Check (Anti-Proxy Protection)
     if (existingStudentDevice) {
-      // Legitimate student accessing from phone browser (iOS Safari / Android Chrome / Web):
-      // Anti-proxy check #1 guarantees this hardware/browser is not shared with any other student.
-      // Update installation key, platform, and last_seen without blocking student with device mismatch.
+      if (existingStudentDevice.installation_id !== params.installationId) {
+        return {
+          success: false,
+          isDeviceMismatch: true,
+          message: `ANTI_PROXY_LOCK: Your profile is locked to registered device (${existingStudentDevice.device_model || "Registered Device"}). Logging into multiple devices is strictly prohibited to prevent proxy attendance. Request unbind from your teacher.`,
+          registeredModel: existingStudentDevice.device_model
+        };
+      }
+
+      // Verified original device: update last_seen
       const { data: updatedDev } = await supabase
         .from("devices")
         .update({
-          installation_id: params.installationId,
           last_seen: new Date().toISOString(),
           device_model: params.deviceModel,
           platform: params.osVersion?.includes("Android") ? "ANDROID" : "WEB"
@@ -1415,6 +1410,39 @@ export async function updateClassInDB(params: {
     return !clsErr;
   } catch (err) {
     console.error("updateClassInDB exception:", err);
+    return false;
+  }
+}
+
+
+/**
+ * Sync updated teacher profile to Supabase users table
+ */
+export async function syncTeacherProfileToDB(params: {
+  teacherId: string;
+  name: string;
+  department?: string;
+  email?: string;
+}): Promise<boolean> {
+  try {
+    const { data: teacher } = await supabase
+      .from("teachers")
+      .select("id, user_id")
+      .eq("id", params.teacherId)
+      .maybeSingle();
+
+    if (teacher?.user_id) {
+      await supabase
+        .from("users")
+        .update({
+          name: params.name,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", teacher.user_id);
+    }
+    return true;
+  } catch (e) {
+    console.error("syncTeacherProfileToDB error:", e);
     return false;
   }
 }

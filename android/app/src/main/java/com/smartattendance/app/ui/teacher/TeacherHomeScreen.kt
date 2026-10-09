@@ -838,6 +838,7 @@ fun TeacherHomeScreen(
                                     val effectiveSsid = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
                                     prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
                                     coroutineScope.launch {
+                                        SupabaseAttendanceService.updateFacultyProfile(facultyUuid, editNameInput.trim(), editDeptInput.trim())
                                         SupabaseAttendanceService.updateClassroomWifiForSession(effectiveSsid)
                                     }
                                     onStartLecture(classItem)

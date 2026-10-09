@@ -43,7 +43,7 @@ import { SignatureTicketCard } from "@/components/SignatureTicketCard";
 import { 
   fetchCompletedSessionsFromDB,
   DBCompletedSession,
-  fetchLiveClassesFromDB, 
+  fetchLiveClassesFromDB, syncTeacherProfileToDB, 
   getActiveSessionFromDB, 
   startAttendanceSessionInDB,
   finalizeSessionInDB,
@@ -76,8 +76,8 @@ export default function TeacherAppConsole() {
   const [showDefaultersModal, setShowDefaultersModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [defaulterSearch, setDefaulterSearch] = useState("");
-  const [teacherEmail, setTeacherEmail] = useState("");
-  const [teacherId, setTeacherId] = useState("6885fced-5d3e-4b9c-94fd-85d115cc9d9b");
+  const [teacherEmail, setTeacherEmail] = useState("nihal26302@iiitnr.edu.in");
+  const [teacherId, setTeacherId] = useState("977d23e7-4b43-4a7a-af74-b3fb2855beae");
 
   // Navigation: "schedule" (default) | "home" | "live" | "profile"
   const [mainNav, setMainNav] = useState<"home" | "schedule" | "live" | "records" | "devices" | "profile">("home");
@@ -177,6 +177,17 @@ export default function TeacherAppConsole() {
         });
       } catch (authErr) {
         console.warn("Could not sync user_metadata:", authErr);
+      }
+
+      try {
+        await syncTeacherProfileToDB({
+          teacherId,
+          name: updatedProfile.name,
+          department: updatedProfile.department,
+          email: updatedProfile.email
+        });
+      } catch (dbSyncErr) {
+        console.warn("Could not sync teacher profile to DB:", dbSyncErr);
       }
 
       setIsEditingProfile(false);
@@ -1051,7 +1062,7 @@ export default function TeacherAppConsole() {
 
               // Filter classes by day of week if mapped, else show active classes
               const dayFilteredClasses = classes.filter(c => (c.dayOfWeek || 5) === activeDayNum);
-              const displayClasses = dayFilteredClasses.length > 0 ? dayFilteredClasses : classes;
+              const displayClasses = dayFilteredClasses;
 
               return (
                 <div className="space-y-3.5 animate-in fade-in">

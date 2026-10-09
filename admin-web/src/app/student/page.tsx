@@ -11,7 +11,7 @@ import {
   Clock, 
   MapPin, 
   Wifi, 
-  ShieldCheck, 
+  ShieldCheck, ShieldAlert, Lock, Key, 
   Check, 
   AlertCircle,
   Crosshair,
@@ -180,7 +180,7 @@ export default function StudentPortal() {
         deviceModel: model
       });
 
-      if (!res.success && res.message.includes("ANTI-PROXY")) {
+      if (!res.success && (res.message?.includes("ANTI") || res.message?.includes("DEVICE") || (res as any).isDeviceMismatch)) {
         setDeviceMismatchError(res.message);
       } else {
         setDeviceMismatchError(null);
@@ -945,6 +945,10 @@ export default function StudentPortal() {
     overrideRoll?: string,
     overrideEmail?: string
   ) => {
+    if (deviceMismatchError) {
+      console.warn("Device mismatch active. Cannot mark attendance.");
+      return;
+    }
     const activeStudentName = overrideName || studentName;
     const activeRollNo = overrideRoll || rollNo;
     const activeEmail = overrideEmail || studentEmail || `${activeRollNo.toLowerCase()}@student.iiitnr.edu.in`;
@@ -1465,6 +1469,119 @@ export default function StudentPortal() {
 
         <footer className="text-center text-xs text-slate-500 py-4">
           IIIT-NR Smart Attendance System • Cryptographic Presence
+        </footer>
+      </div>
+    );
+  }
+
+  // IF DEVICE MISMATCH (ANTI-PROXY LOCK ACTIVE): BLOCK ATTENDANCE
+  if (deviceMismatchError) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-between p-4 selection:bg-rose-500 selection:text-white">
+        <header className="max-w-md mx-auto w-full flex items-center justify-between py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-rose-600/30">
+              <ShieldAlert className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <span className="font-bold tracking-tight text-white block text-xs">SECURITY PROTOCOL</span>
+              <span className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider block">Anti-Proxy Hardware Lock</span>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            onClick={handleLogout} 
+            className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-medium transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </header>
+
+        <div className="max-w-md mx-auto w-full my-auto py-6">
+          <div className="bg-slate-800/90 border border-rose-500/30 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto shadow-inner">
+                <Lock className="w-8 h-8 text-rose-500" />
+              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">Device Access Locked</h2>
+              <p className="text-xs text-rose-300 font-medium leading-relaxed">
+                Anti-Proxy Security: Multiple device access is prohibited
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-800/50 text-xs text-rose-200 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed font-mono text-[11px]">
+                  {deviceMismatchError}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-700/60 text-xs text-slate-300 space-y-2">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-400">Student Account:</span>
+                <span className="font-bold text-white">{studentName} ({rollNo})</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-400">Current Device:</span>
+                <span className="font-mono text-slate-300">
+                  {typeof navigator !== "undefined" && navigator.userAgent.includes("Android") ? "Android Phone" : typeof navigator !== "undefined" && navigator.userAgent.includes("iPhone") ? "iPhone" : "Browser Client"}
+                </span>
+              </div>
+            </div>
+
+            {unbindMessage ? (
+              <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-center space-y-2">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
+                <p className="text-xs font-bold text-emerald-300">{unbindMessage}</p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Your request has been forwarded to faculty administration. You will be able to register this device as soon as your teacher approves it in their portal.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-2">
+                <textarea
+                  value={unbindReason}
+                  onChange={(e) => setUnbindReason(e.target.value)}
+                  placeholder="Enter reason for device change (e.g. Phone lost, reset, or new device)..."
+                  className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 resize-none h-20"
+                />
+                <button
+                  type="button"
+                  disabled={unbindSubmitting}
+                  onClick={async () => {
+                    setUnbindSubmitting(true);
+                    try {
+                      const ok = await requestStudentDeviceUnbindInDB(rollNo, unbindReason || "Device Change / Reset");
+                      if (ok) {
+                        setUnbindMessage("✓ Device Unbind Request Submitted");
+                        /* request sent */
+                      } else {
+                        setUnbindMessage("Failed to submit request. Please try again.");
+                      }
+                    } catch (e: any) {
+                      setUnbindMessage("Error: " + e.message);
+                    } finally {
+                      setUnbindSubmitting(false);
+                    }
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Key className="w-4 h-4 text-white" />
+                  <span>{unbindSubmitting ? "Submitting Request..." : "Request Device Unbind From Teacher"}</span>
+                </button>
+                <p className="text-[10px] text-slate-400 text-center">
+                  Only course faculty can authorize device re-registration for proxy prevention.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <footer className="text-center text-xs text-slate-500 py-4">
+          IIIT-NR Anti-Proxy Security System • 1 Device = 1 Student
         </footer>
       </div>
     );
