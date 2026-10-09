@@ -580,7 +580,7 @@ fun TeacherHomeScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = liveDateStr,
-                    fontFamily = CaveatFont,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Cursive,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF475569)
