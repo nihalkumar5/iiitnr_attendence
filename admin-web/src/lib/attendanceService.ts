@@ -578,6 +578,10 @@ export async function createClassInDB(params: {
   roomNo?: string;
   wifiSsid?: string;
   teacherId?: string;
+  dayOfWeek?: number;
+  startTime?: string;
+  endTime?: string;
+  program?: string;
 }): Promise<DBClass | null> {
   try {
     const cleanName = params.subjectName.trim();
@@ -625,9 +629,9 @@ export async function createClassInDB(params: {
         section_id: sectionId,
         classroom_id: classroomId,
         room: room,
-        day_of_week: 1,
-        start_time: "10:00:00",
-        end_time: "11:00:00",
+        day_of_week: params.dayOfWeek || 1,
+        start_time: params.startTime || "10:00:00",
+        end_time: params.endTime || "11:00:00",
         is_active: true
       })
       .select()

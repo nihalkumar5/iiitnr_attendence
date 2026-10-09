@@ -51,6 +51,7 @@ import {
   deleteClassFromDB
 } from "@/lib/attendanceService";
 import { LiveWifiSearchSelector } from "@/components/LiveWifiSearchSelector";
+import { AiTimetableModal } from "@/components/AiTimetableModal";
 
 export default function TeacherAppConsole() {
   const router = useRouter();
@@ -1430,69 +1431,21 @@ export default function TeacherAppConsole() {
       )}
 
       {/* ==================================================================== */}
-      {/* MODAL: AI TIMETABLE IMPORT */}
+      {/* MODAL: AI TIMETABLE IMPORT & AUTO-SCHEDULER */}
+      {/* Matches Android AiTimetableImportDialog.kt 1:1 with Gemini AI */}
       {/* ==================================================================== */}
-      {showAiModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 leading-tight">AI Timetable Import</h3>
-                  <p className="text-[11px] text-slate-500">Gemini-Powered Schedule Extraction</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAiModal(false)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
-                <Sparkles className="w-8 h-8 mx-auto text-blue-500 animate-pulse" />
-                <div className="font-bold text-slate-800 text-sm">Smart Timetable Sync Active</div>
-                <p className="text-slate-500 text-[11px] leading-relaxed">
-                  Upload an institutional timetable document (PDF, Image, or CSV) or sync directly with the academic portal.
-                </p>
-              </div>
-
-              <div className="border border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-2 hover:border-blue-500 hover:bg-blue-50/20 transition-all cursor-pointer">
-                <Calendar className="w-7 h-7 mx-auto text-slate-400" />
-                <div className="font-semibold text-slate-700">Drop timetable PDF or image here</div>
-                <div className="text-[11px] text-slate-400">Supports PDF, PNG, JPG up to 10MB</div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowAiModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAiModal(false);
-                  showToast("✨ Timetable synchronized successfully!");
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Auto-Schedule</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AiTimetableModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        teacherName={teacherName}
+        teacherId={classes[0]?.teacherId}
+        onImportComplete={(newClasses) => {
+          if (newClasses.length > 0) {
+            setClasses(prev => [...newClasses, ...prev]);
+            showToast(`✨ Timetable updated (${newClasses.length} lectures scheduled)!`);
+          }
+        }}
+      />
 
       {/* ==================================================================== */}
       {/* MODAL: LOW ATTENDANCE DEFAULTERS AUDIT */}
