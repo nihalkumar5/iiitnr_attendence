@@ -2002,11 +2002,13 @@ export default function TeacherAppConsole() {
         isOpen={showAiModal}
         onClose={() => setShowAiModal(false)}
         teacherName={teacherName}
-        teacherId={classes[0]?.teacherId}
-        onImportComplete={(newClasses) => {
+        teacherId={classes[0]?.teacherId || teacherId}
+        existingClasses={classes}
+        onImportComplete={async (newClasses) => {
           if (newClasses.length > 0) {
-            setClasses(prev => [...newClasses, ...prev]);
-            showToast(`✨ Timetable updated (${newClasses.length} lectures scheduled)!`);
+            setClasses(newClasses);
+            await loadClasses();
+            showToast(`✨ Previous timetable replaced! (${newClasses.length} lectures scheduled)`);
           }
         }}
       />

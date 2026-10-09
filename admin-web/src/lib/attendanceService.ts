@@ -1344,6 +1344,36 @@ export async function deleteClassFromDB(classId: string, subjectCode?: string): 
   }
 }
 
+/**
+ * Replace entire teacher schedule:
+ * Purges previous classes of the teacher so newly imported timetable cleanly replaces them.
+ */
+export async function replaceTeacherClassesInDB(
+  teacherId?: string,
+  existingClasses: DBClass[] = []
+): Promise<boolean> {
+  try {
+    for (const cls of existingClasses) {
+      await deleteClassFromDB(cls.id, cls.subjectCode);
+    }
+    if (teacherId) {
+      const { data: leftovers } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("teacher_id", teacherId);
+      if (leftovers && leftovers.length > 0) {
+        for (const lo of leftovers) {
+          await deleteClassFromDB(lo.id);
+        }
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("replaceTeacherClassesInDB error:", err);
+    return false;
+  }
+}
+
 export async function updateClassInDB(params: {
   id: string;
   subjectName: string;

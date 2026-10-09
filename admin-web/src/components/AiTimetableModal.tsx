@@ -15,10 +15,11 @@ import {
   MapPin,
   BookOpen,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  Pencil
 } from "lucide-react";
 import { ParsedLecture } from "@/app/api/ai-timetable/route";
-import { createClassInDB, DBClass } from "@/lib/attendanceService";
+import { createClassInDB, replaceTeacherClassesInDB, DBClass } from "@/lib/attendanceService";
 
 interface AiTimetableModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ interface AiTimetableModalProps {
   onImportComplete: (createdClasses: DBClass[]) => void;
   teacherName?: string;
   teacherId?: string;
+  existingClasses?: DBClass[];
 }
 
 export function AiTimetableModal({
@@ -34,6 +36,7 @@ export function AiTimetableModal({
   onImportComplete,
   teacherName = "Prof. Nihal26302",
   teacherId,
+  existingClasses = [],
 }: AiTimetableModalProps) {
   const [activeTab, setActiveTab] = useState<"image" | "text">("image");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -81,7 +84,7 @@ export function AiTimetableModal({
     setAnalysisError(null);
 
     try {
-      let body: any = {};
+      let body: any = { teacherName: teacherName.trim() };
       if (apiKey) body.apiKey = apiKey;
 
       if (activeTab === "image") {
@@ -135,10 +138,27 @@ export function AiTimetableModal({
     }
   };
 
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  const handleUpdateLecture = (idx: number, updatedFields: Partial<ParsedLecture>) => {
+    if (!parsedLectures) return;
+    setParsedLectures(prev => {
+      if (!prev) return null;
+      return prev.map((item, i) => i === idx ? { ...item, ...updatedFields } : item);
+    });
+  };
+
   const handleImportClasses = async () => {
     if (!parsedLectures || selectedIndices.length === 0) return;
 
     setIsImporting(true);
+    setImportProgress("Replacing previous timetable classes...");
+
+    // 1. Purge previous timetable classes completely
+    if (existingClasses && existingClasses.length > 0) {
+      await replaceTeacherClassesInDB(teacherId, existingClasses);
+    }
+
     const created: DBClass[] = [];
     const chosen = selectedIndices.map((i) => parsedLectures[i]);
 
@@ -256,13 +276,18 @@ export function AiTimetableModal({
             /* VIEW 2: EXTRACTED RESULTS REVIEW */
             /* ==================================================================== */
             <div className="space-y-3.5 animate-in fade-in">
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-[11px] text-amber-800 flex items-center justify-between">
+                <span>⚡ Notice: Importing will replace your previous timetable so only the new schedule is active.</span>
+                <span className="font-bold text-amber-900 uppercase text-[10px] bg-amber-100 px-2 py-0.5 rounded-md">Clean Replace</span>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
                     Extracted {parsedLectures.length} Lecture Slots
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Select classes to automatically import into your schedule
+                    Review or tweak timings before importing into your schedule
                   </p>
                 </div>
 
@@ -308,32 +333,123 @@ export function AiTimetableModal({
                         className="mt-0.5 w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-0 cursor-pointer"
                       />
 
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-bold text-slate-900 text-[13px] leading-tight">
-                            {lec.subjectName}
-                          </h4>
-                          <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-mono font-bold text-[10px] shrink-0">
-                            {lec.subjectCode}
-                          </span>
-                        </div>
+                      <div className="flex-1 space-y-1.5 min-w-0">
+                        {editingIndex === idx ? (
+                          <div className="space-y-2 p-2 bg-white rounded-xl border border-blue-200" onClick={(e) => e.stopPropagation()}>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600">Subject Name</label>
+                                <input
+                                  type="text"
+                                  value={lec.subjectName}
+                                  onChange={(e) => handleUpdateLecture(idx, { subjectName: e.target.value })}
+                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600">Course Code</label>
+                                <input
+                                  type="text"
+                                  value={lec.subjectCode}
+                                  onChange={(e) => handleUpdateLecture(idx, { subjectCode: e.target.value })}
+                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600">Day</label>
+                                <select
+                                  value={lec.dayOfWeek}
+                                  onChange={(e) => handleUpdateLecture(idx, { dayOfWeek: Number(e.target.value) })}
+                                  className="w-full px-1.5 py-1 border border-slate-200 rounded text-xs"
+                                >
+                                  <option value={1}>Monday</option>
+                                  <option value={2}>Tuesday</option>
+                                  <option value={3}>Wednesday</option>
+                                  <option value={4}>Thursday</option>
+                                  <option value={5}>Friday</option>
+                                  <option value={6}>Saturday</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600">Start (HH:mm:ss)</label>
+                                <input
+                                  type="text"
+                                  value={lec.startTime}
+                                  onChange={(e) => handleUpdateLecture(idx, { startTime: e.target.value })}
+                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600">End (HH:mm:ss)</label>
+                                <input
+                                  type="text"
+                                  value={lec.endTime}
+                                  onChange={(e) => handleUpdateLecture(idx, { endTime: e.target.value })}
+                                  className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between pt-1">
+                              <input
+                                type="text"
+                                placeholder="Room (e.g. Room 319)"
+                                value={lec.room}
+                                onChange={(e) => handleUpdateLecture(idx, { room: e.target.value })}
+                                className="px-2 py-1 border border-slate-200 rounded text-xs w-1/2"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setEditingIndex(null)}
+                                className="px-3 py-1 bg-blue-600 text-white rounded text-[11px] font-bold hover:bg-blue-700"
+                              >
+                                Done
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-bold text-slate-900 text-[13px] leading-tight">
+                                {lec.subjectName}
+                              </h4>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-mono font-bold text-[10px]">
+                                  {lec.subjectCode}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingIndex(idx);
+                                  }}
+                                  title="Edit slot timing"
+                                  className="p-1 hover:bg-slate-200/70 rounded-md text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
 
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 pt-0.5">
-                          <span className="flex items-center gap-1 font-semibold text-slate-700">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            <span>{getDayName(lec.dayOfWeek)}</span>
-                          </span>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 pt-0.5">
+                              <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                <Calendar className="w-3 h-3 text-slate-400" />
+                                <span>{getDayName(lec.dayOfWeek)}</span>
+                              </span>
 
-                          <span className="flex items-center gap-1 text-slate-600 font-medium">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            <span>{formatTimeSlot(lec.startTime, lec.endTime)}</span>
-                          </span>
+                              <span className="flex items-center gap-1 text-slate-600 font-medium">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{formatTimeSlot(lec.startTime, lec.endTime)}</span>
+                              </span>
 
-                          <span className="flex items-center gap-1 text-slate-500">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span>{lec.room || "Room 319"}</span>
-                          </span>
-                        </div>
+                              <span className="flex items-center gap-1 text-slate-500">
+                                <MapPin className="w-3 h-3 text-slate-400" />
+                                <span>{lec.room || "Room 319"}</span>
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   );

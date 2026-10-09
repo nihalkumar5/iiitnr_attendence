@@ -16,32 +16,57 @@ const DEFAULT_GEMINI_KEY = Buffer.from(
 ).toString("utf-8");
 
 const SYSTEM_PROMPT = `
-You are an academic timetable analyzer AI.
-Analyze the provided timetable image or schedule text and extract all lecture/lab classes.
+You are an expert academic timetable and syllabus schedule parser.
+Your task is to accurately analyze the provided timetable image or text and extract all class/lab/lecture slots.
 
-CRITICAL CONSECUTIVE / CONTINUOUS SLOTS MERGE RULE:
-If the same subject has consecutive, back-to-back, or continuous periods/slots on the same day (for example, Period 1 from 10:00 to 11:00 and Period 2 from 11:00 to 12:00, or a 2-hour / 3-hour practical lab):
-You MUST automatically MERGE them into ONE single continuous lecture slot with the overall start time of the first period and the final end time of the last period (e.g. startTime: "10:00:00", endTime: "12:00:00").
-DO NOT return separate entries for continuous periods of the same course. Merge them together into one slot.
+CRITICAL TIMETABLE GRID & TIME EXTRACTION RULES:
+1. UNIVERSITY TIMINGS:
+   - Lectures and labs take place during daytime between 08:00 (8:00 AM) and 18:00 (6:00 PM).
+   - ALL times MUST be converted to 24-hour ISO format "HH:mm:ss" (e.g., "09:00:00", "11:55:00", "14:00:00", "15:55:00").
+   - Morning slots: 08:00 to 11:59 (e.g. 10:00 - 11:00 AM is startTime: "10:00:00", endTime: "11:00:00").
+   - Noon slots: 12:00 to 13:00 (startTime: "12:00:00", endTime: "13:00:00").
+   - Afternoon slots (PM): College timetables commonly list slots as 1:00 - 2:00, 2:00 - 3:00, 2:00 - 3:55, 3:00 - 4:00, 4:00 - 5:00.
+     You MUST convert these to 24-hour PM times:
+     - 1:00 -> "13:00:00"
+     - 2:00 -> "14:00:00"
+     - 3:00 -> "15:00:00"
+     - 3:55 -> "15:55:00"
+     - 4:00 -> "16:00:00"
+     - 5:00 -> "17:00:00"
+     NEVER output early morning hours like "02:00:00" or "03:00:00" for afternoon classes.
 
-For each lecture, extract:
-- subjectName: Full subject or course name (e.g., "Computer Networks", "Database Management", "Machine Learning Lab").
-- subjectCode: Subject code (e.g., "CS301", "DS-502", "IT204"). If not explicitly mentioned, generate an appropriate 4-6 char code.
-- program: Academic program/branch/semester (e.g., "B.Tech CSE - Sem 5", "M.Tech I Semester DSAI"). Default to "M.Tech I Semester DSAI" if not specified.
-- room: Classroom/Lab/Hall (e.g., "Room 319", "Room A-302", "Lab 2"). Default to "Room 319" if not specified.
-- dayOfWeek: Integer representing the day of the week:
-    1 = Monday
-    2 = Tuesday
-    3 = Wednesday
-    4 = Thursday
-    5 = Friday
-    6 = Saturday
-- startTime: Start time in 24-hour ISO format "HH:mm:ss" (e.g., "09:00:00", "10:30:00", "14:00:00").
-- endTime: End time in 24-hour ISO format "HH:mm:ss" (e.g., "10:00:00", "11:30:00", "15:55:00").
+2. PERIOD COLUMNS OR LABELS:
+   - If columns list period times (e.g. "09:00-10:00", "10:00-11:00", "11:00-11:55", "12:00-01:00", "02:00-03:55", etc.), match the row (Day) and column (Time) intersection carefully.
+   - If periods are labeled only as Period 1, 2, 3... without times, map them to standard university periods:
+     Period 1: "09:00:00" - "10:00:00"
+     Period 2: "10:00:00" - "11:00:00"
+     Period 3: "11:00:00" - "12:00:00"
+     Period 4: "12:00:00" - "13:00:00"
+     Period 5: "14:00:00" - "15:00:00"
+     Period 6: "15:00:00" - "16:00:00"
+     Period 7: "16:00:00" - "17:00:00"
 
-IMPORTANT INSTRUCTION:
-Return ONLY a raw valid JSON array of lecture objects.
-Do not enclose in markdown ticks, do not include comments, no conversational text.
+3. CONTINUOUS & LAB SLOTS:
+   - If the same subject spans 2 continuous periods (e.g., Period 5 and 6, or 2:00 PM to 4:00 PM lab):
+     MERGE into one continuous entry: startTime: "14:00:00", endTime: "16:00:00".
+
+4. REQUIRED OUTPUT FIELDS FOR EACH CLASS:
+   - subjectName: Full subject or course name (e.g. "Digital Transformation-I", "Data Structures and Algorithm Analysis", "Advanced Operating Systems").
+   - subjectCode: Academic course code (e.g. "DT50-363", "DSA501", "CS302"). If not explicitly given, generate a clean 4-6 char uppercase code.
+   - program: Department/branch/batch (e.g. "M.Tech I Semester DSAI", "B.Tech CSE Sem 5"). Default: "M.Tech I Semester DSAI".
+   - room: Classroom/Lab number (e.g. "Room 319", "Room A-204", "Lab 3"). Default: "Room 319".
+   - dayOfWeek: Integer representing the day of the week:
+       1 = Monday
+       2 = Tuesday
+       3 = Wednesday
+       4 = Thursday
+       5 = Friday
+       6 = Saturday
+   - startTime: 24-hour "HH:mm:ss"
+   - endTime: 24-hour "HH:mm:ss"
+
+CRITICAL FORMAT REQUIREMENT:
+Return ONLY a valid JSON array of lecture objects. No markdown ticks, no preamble, no commentary.
 Example:
 [
   {
@@ -52,13 +77,47 @@ Example:
     "dayOfWeek": 5,
     "startTime": "11:00:00",
     "endTime": "11:55:00"
+  },
+  {
+    "subjectName": "Digital Transformation-I",
+    "subjectCode": "DT50-363",
+    "program": "M.Tech I Semester DSAI",
+    "room": "Room 319",
+    "dayOfWeek": 5,
+    "startTime": "14:00:00",
+    "endTime": "15:55:00"
   }
 ]
 `.trim();
 
 function parseTimeMinutes(t: string): number {
+  if (!t) return 0;
   const parts = t.split(":").map(Number);
   return (parts[0] || 0) * 60 + (parts[1] || 0);
+}
+
+function normalizeTime(t: any, defaultTime = "10:00:00"): string {
+  if (!t || typeof t !== "string") return defaultTime;
+  let clean = t.trim().toLowerCase().replace(".", ":");
+  const isPm = clean.includes("pm");
+  const isAm = clean.includes("am");
+  clean = clean.replace(/[^\d:]/g, "");
+  const parts = clean.split(":").map(Number);
+  let h = parts[0] ?? 10;
+  const m = parts[1] ?? 0;
+  const s = parts[2] ?? 0;
+
+  if (isPm && h < 12) {
+    h += 12;
+  } else if (isAm && h === 12) {
+    h = 0;
+  } else if (!isPm && !isAm) {
+    // University timetable heuristic: 1 to 7 is PM (13:00 to 19:00)
+    if (h >= 1 && h <= 7) {
+      h += 12;
+    }
+  }
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function mergeConsecutiveLectures(lectures: ParsedLecture[]): ParsedLecture[] {
@@ -88,7 +147,7 @@ function mergeConsecutiveLectures(lectures: ParsedLecture[]): ParsedLecture[] {
       const currStart = parseTimeMinutes(curr.startTime);
       const currEnd = parseTimeMinutes(curr.endTime);
 
-      if ((sameCode || sameName) && currStart <= prevEnd + 15 && currEnd > prevEnd) {
+      if ((sameCode || sameName) && currStart <= prevEnd + 20 && currEnd > prevEnd) {
         merged[merged.length - 1] = {
           ...prev,
           endTime: curr.endTime,
@@ -111,17 +170,18 @@ function mergeConsecutiveLectures(lectures: ParsedLecture[]): ParsedLecture[] {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { rawText, base64Image, mimeType = "image/jpeg", apiKey } = body;
+    const { rawText, base64Image, mimeType = "image/jpeg", apiKey, teacherName } = body;
 
     const key = (apiKey && apiKey.trim()) || process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`;
 
     const parts: any[] = [];
+    const facultyContext = teacherName ? `\nFaculty Member: "${teacherName}". Extract all scheduled lecture/lab sessions for this professor.` : "";
 
     if (base64Image) {
       const cleanData = base64Image.includes(",") ? base64Image.split(",")[1] : base64Image;
       parts.push({
-        text: SYSTEM_PROMPT,
+        text: `${SYSTEM_PROMPT}${facultyContext}`,
       });
       parts.push({
         inline_data: {
@@ -131,7 +191,7 @@ export async function POST(req: Request) {
       });
     } else if (rawText) {
       parts.push({
-        text: `${SYSTEM_PROMPT}\n\nTimetable Content to Analyze:\n${rawText}`,
+        text: `${SYSTEM_PROMPT}${facultyContext}\n\nTimetable Content to Analyze:\n${rawText}`,
       });
     } else {
       return NextResponse.json(
@@ -185,6 +245,34 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    // Post-process, validate and normalize all timings
+    parsed = parsed.map((lec) => {
+      let start = normalizeTime(lec.startTime, "10:00:00");
+      let end = normalizeTime(lec.endTime, "11:00:00");
+      let startMins = parseTimeMinutes(start);
+      let endMins = parseTimeMinutes(end);
+
+      if (endMins <= startMins) {
+        endMins = startMins + 55;
+        const endH = Math.floor(endMins / 60);
+        const endM = endMins % 60;
+        end = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}:00`;
+      }
+
+      let day = Number(lec.dayOfWeek) || 1;
+      if (day < 1 || day > 6) day = 1;
+
+      return {
+        subjectName: (lec.subjectName || "Subject Lecture").trim(),
+        subjectCode: (lec.subjectCode || "SUB101").trim().toUpperCase(),
+        program: (lec.program || "M.Tech I Semester DSAI").trim(),
+        room: (lec.room || "Room 319").trim(),
+        dayOfWeek: day,
+        startTime: start,
+        endTime: end,
+      };
+    });
 
     const merged = mergeConsecutiveLectures(parsed);
 
