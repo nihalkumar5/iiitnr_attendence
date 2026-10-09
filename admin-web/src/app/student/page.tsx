@@ -155,6 +155,7 @@ export default function StudentPortal() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [greeting, setGreeting] = useState("Good morning");
   const [todayDateStr, setTodayDateStr] = useState("");
+  const [liveTimeStr, setLiveTimeStr] = useState("");
 
   useEffect(() => {
     const updateTimeContext = () => {
@@ -168,9 +169,10 @@ export default function StudentPortal() {
       const dateNum = now.getDate();
       const month = now.toLocaleDateString("en-US", { month: "short" });
       setTodayDateStr(`${day}, ${dateNum} ${month}`);
+      setLiveTimeStr(now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
     };
     updateTimeContext();
-    const interval = setInterval(updateTimeContext, 60000);
+    const interval = setInterval(updateTimeContext, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1754,10 +1756,12 @@ export default function StudentPortal() {
                       Academic Schedule
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-medium text-emerald-700 shadow-2xs">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Automated Presence Scan Active</span>
-                  </div>
+                  {liveTimeStr && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-mono font-bold text-slate-700 shadow-2xs">
+                      <Clock className="w-3 h-3 text-blue-600" />
+                      <span>{liveTimeStr}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="h-px bg-slate-100 my-2.5" />
                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
