@@ -390,7 +390,6 @@ fun StudentHomeScreen(
     var liveDateStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveDate()) }
     var liveTimeStr by remember { mutableStateOf(TimetableEngine.formatCurrentLiveTime()) }
     var currentIsoDay by remember { mutableStateOf(TimetableEngine.getIsoDayOfWeek()) }
-    var selectedDayFilter by remember { mutableStateOf("TODAY") }
     var currentDateIso by remember { mutableStateOf(TimetableEngine.todayDateIso()) }
 
     LaunchedEffect(Unit) {
@@ -430,18 +429,8 @@ fun StudentHomeScreen(
         }
     }
 
-    val filteredEnrolledCourses = remember(coursesWithCalculatedAttendance, selectedDayFilter, currentIsoDay) {
-        val sortedList = coursesWithCalculatedAttendance.sortedBy { it.startTime }
-        when (selectedDayFilter) {
-            "TODAY" -> sortedList.filter { it.dayOfWeek == currentIsoDay }
-            "MON" -> sortedList.filter { it.dayOfWeek == 1 }
-            "TUE" -> sortedList.filter { it.dayOfWeek == 2 }
-            "WED" -> sortedList.filter { it.dayOfWeek == 3 }
-            "THU" -> sortedList.filter { it.dayOfWeek == 4 }
-            "FRI" -> sortedList.filter { it.dayOfWeek == 5 }
-            "SAT" -> sortedList.filter { it.dayOfWeek == 6 }
-            else -> sortedList
-        }
+    val todayClasses = remember(coursesWithCalculatedAttendance, currentIsoDay) {
+        coursesWithCalculatedAttendance.filter { it.dayOfWeek == currentIsoDay }.sortedBy { it.startTime }
     }
 
     val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
@@ -610,44 +599,7 @@ fun StudentHomeScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // DAY SELECTOR TABS
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            val todayCount = enrolledCourses.count { it.dayOfWeek == currentIsoDay }
-            val days = listOf(
-                "TODAY" to "Today ($todayCount)",
-                "MON" to "Mon",
-                "TUE" to "Tue",
-                "WED" to "Wed",
-                "THU" to "Thu",
-                "FRI" to "Fri",
-                "SAT" to "Sat",
-                "ALL" to "All (${enrolledCourses.size})"
-            )
-            days.forEach { (code, label) ->
-                val isSelected = selectedDayFilter == code
-                Surface(
-                    shape = PillShape,
-                    color = if (isSelected) BrandAccent else SurfaceNeutral,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) BrandAccent else BorderHairline),
-                    modifier = Modifier.clickable { selectedDayFilter = code }
-                ) {
-                    Text(
-                        text = label,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.White else TextSecondary,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(14.dp))
 
         // 2. TODAY'S CLASSES
         Card(
@@ -853,9 +805,9 @@ fun StudentHomeScreen(
                             }
                         }
                     }
-                } else if (filteredEnrolledCourses.isNotEmpty()) {
+                } else if (todayClasses.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        filteredEnrolledCourses.forEach { course ->
+                        todayClasses.forEach { course ->
                             val isCourseLocked = TimetableEngine.isStudentSubjectLockedToday(context, course.subjectCode, currentDateIso) ||
                                 TimetableEngine.isStudentSubjectLockedToday(context, course.classId, currentDateIso)
                             val slotState = TimetableEngine.evaluateSlotState(course.dayOfWeek, course.startTime, course.endTime, isCourseLocked)
@@ -1569,6 +1521,7 @@ fun StudentHomeScreen(
                                 showJoinCourseDialog = false
                                 newlyJoinedCourse = newCourse
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                refreshStatsAndHistory()
                             }.onFailure { err ->
                                 val rawMsg = err.message ?: ""
                                 joinErrorMessage = when {

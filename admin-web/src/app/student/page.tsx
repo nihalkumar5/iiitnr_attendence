@@ -862,28 +862,6 @@ export default function StudentPortal() {
         const merged = Array.from(map.values());
         setMyClasses(merged);
         localStorage.setItem(`smart_attendance_enrolled_${currentRoll}`, JSON.stringify(merged));
-      } else if (localList.length === 0) {
-        const liveClasses = await fetchLiveClassesFromDB();
-        if (liveClasses.length > 0) {
-          const autoEnrolled: EnrolledClass[] = liveClasses.map(c => ({
-            id: c.id,
-            subjectCode: c.subjectCode,
-            subjectName: c.subjectName,
-            section: "Section A",
-            joinCode: c.subjectCode,
-            roomNo: c.roomNo || "Room 135",
-            wifiSsid: "Pranjal",
-            latitude: 21.128456,
-            longitude: 81.766184,
-            joinedAt: "Active",
-            attendancePct: 100,
-            dayOfWeek: c.dayOfWeek,
-            startTime: c.startTime,
-            endTime: c.endTime
-          }));
-          setMyClasses(autoEnrolled);
-          localStorage.setItem(`smart_attendance_enrolled_${currentRoll}`, JSON.stringify(autoEnrolled));
-        }
       }
     } catch (e) {
       console.warn("Enrollment load sync note:", e);
