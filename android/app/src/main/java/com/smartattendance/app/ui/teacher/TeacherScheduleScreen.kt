@@ -79,7 +79,7 @@ fun TeacherScheduleScreen(
     var roomInput by remember { mutableStateOf("Room A-302") }
     var timeSlotInput by remember { mutableStateOf("10:00 – 11:00 AM") }
     var selectedDayOfWeek by remember { mutableStateOf("Monday") }
-    var selectedDayFilter by remember { mutableStateOf("ALL") }
+    var selectedDayFilter by remember { mutableStateOf("TODAY") }
     var isCreatingSubject by remember { mutableStateOf(false) }
     var addClassError by remember { mutableStateOf<String?>(null) }
     var createdClassSuccess by remember { mutableStateOf<TeacherClassItem?>(null) }
@@ -623,7 +623,7 @@ fun TeacherScheduleScreen(
                 "THU" -> activeClasses.filter { it.dayOfWeek == 4 }
                 "FRI" -> activeClasses.filter { it.dayOfWeek == 5 }
                 "SAT" -> activeClasses.filter { it.dayOfWeek == 6 }
-                else -> activeClasses
+                else -> activeClasses.filter { it.dayOfWeek == currentIsoDay }
             }
 
             // 1. CLEAN SINGLE PAGE HEADER (Full-width hierarchy, zero collision)
@@ -725,7 +725,6 @@ fun TeacherScheduleScreen(
             // 3. DAY FILTER ROW (Properly aligned, constrained horizontal scroll, no page overflow)
             val todayCount = activeClasses.count { it.dayOfWeek == currentIsoDay }
             val dayTabs = listOf(
-                "ALL" to "All (${activeClasses.size})",
                 "TODAY" to "Today ($todayCount)",
                 "MON" to "Mon",
                 "TUE" to "Tue",
@@ -798,7 +797,7 @@ fun TeacherScheduleScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (activeClasses.isEmpty()) "Create your first subject to start taking attendance" else "Select 'All' to view all registered subjects",
+                            text = if (activeClasses.isEmpty()) "Create your first subject to start taking attendance" else "Select another day to view scheduled subjects",
                             fontSize = 12.sp,
                             color = TextSecondary,
                             textAlign = TextAlign.Center
