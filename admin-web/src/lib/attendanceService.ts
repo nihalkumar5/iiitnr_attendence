@@ -814,33 +814,36 @@ export async function bindStudentDeviceInDB(params: {
       };
     }
 
-    // 2. Check if this student is already bound to a DIFFERENT physical device
+    // 2. Check if this student already has an active bound device record
     const { data: existingStudentDevice } = await supabase
       .from("devices")
-      .select("id, installation_id, device_model, status")
+      .select("id, installation_id, device_model, status, platform")
       .eq("student_id", studentId)
       .eq("status", "ACTIVE")
       .maybeSingle();
 
-    if (existingStudentDevice && existingStudentDevice.installation_id !== params.installationId) {
-      // Check if there is an approved unbind or allow binding
-      return {
-        success: false,
-        message: `DEVICE MISMATCH: Account ${params.rollNo} is bound to another device (${existingStudentDevice.device_model}). Request device unbind from faculty to switch phones.`,
-        device: existingStudentDevice
-      };
-    }
-
-    // 3. Register or update device binding
+    // 3. Register or update device binding (Seamless student browser & mobile access)
     if (existingStudentDevice) {
-      await supabase
+      // Legitimate student accessing from phone browser (iOS Safari / Android Chrome / Web):
+      // Anti-proxy check #1 guarantees this hardware/browser is not shared with any other student.
+      // Update installation key, platform, and last_seen without blocking student with device mismatch.
+      const { data: updatedDev } = await supabase
         .from("devices")
         .update({
+          installation_id: params.installationId,
           last_seen: new Date().toISOString(),
-          device_model: params.deviceModel
+          device_model: params.deviceModel,
+          platform: params.osVersion?.includes("Android") ? "ANDROID" : "WEB"
         })
-        .eq("id", existingStudentDevice.id);
-      return { success: true, message: "Device verified", device: existingStudentDevice };
+        .eq("id", existingStudentDevice.id)
+        .select()
+        .single();
+
+      return {
+        success: true,
+        message: "Device verified",
+        device: updatedDev || existingStudentDevice
+      };
     }
 
     const { data: newDev, error: insErr } = await supabase

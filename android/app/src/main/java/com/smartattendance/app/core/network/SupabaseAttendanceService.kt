@@ -1546,7 +1546,7 @@ object SupabaseAttendanceService {
 
             // Step 2: Device installation_id is NOT in Supabase. Check if this student already has an active phone registered elsewhere.
             val studentDevReq = Request.Builder()
-                .url("$SUPABASE_URL/rest/v1/devices?student_id=eq.$studentId&status=eq.ACTIVE&select=id,installation_id,device_model&limit=1")
+                .url("$SUPABASE_URL/rest/v1/devices?student_id=eq.$studentId&status=eq.ACTIVE&select=id,installation_id,device_model,platform&limit=1")
                 .addHeader("apikey", ANON_KEY)
                 .addHeader("Authorization", "Bearer $ANON_KEY")
                 .get()
@@ -1558,7 +1558,40 @@ object SupabaseAttendanceService {
 
             if (studentDevArr.length() > 0) {
                 val sDev = studentDevArr.getJSONObject(0)
+                val sDevId = sDev.getString("id")
                 val registeredModel = sDev.optString("device_model", "Registered Device")
+                val registeredPlatform = sDev.optString("platform", "ANDROID")
+                val registeredInst = sDev.optString("installation_id", "")
+
+                // If previous registration was from WEB/Browser or same student on Android, seamlessly sync this Android phone!
+                val isWebClient = registeredPlatform == "WEB" ||
+                    registeredInst.startsWith("inst_") ||
+                    registeredModel.contains("Web", ignoreCase = true) ||
+                    registeredModel.contains("Safari", ignoreCase = true) ||
+                    registeredModel.contains("Chrome", ignoreCase = true) ||
+                    registeredModel.contains("Laptop", ignoreCase = true)
+
+                if (isWebClient || registeredInst == cleanInst) {
+                    val currentModel = android.os.Build.MODEL ?: "Android Device"
+                    val updatePayload = JSONObject().apply {
+                        put("installation_id", cleanInst)
+                        put("device_model", currentModel)
+                        put("os_version", "Android ${android.os.Build.VERSION.RELEASE}")
+                        put("platform", "ANDROID")
+                        put("status", "ACTIVE")
+                    }
+                    val updateReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/devices?id=eq.$sDevId")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .addHeader("Content-Type", "application/json")
+                        .patch(updatePayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                        .build()
+                    client.newCall(updateReq).execute()
+                    Log.d(TAG, "Device $sDevId synced to native Android app for student $cleanRoll")
+                    return@withContext Result.success(sDevId)
+                }
+
                 Log.e(TAG, "DEVICE_MISMATCH: Student $cleanRoll already bound to $registeredModel, attempted new hardware $cleanInst.")
                 return@withContext Result.failure(
                     SecurityException("DEVICE_MISMATCH: Your account is locked to registered device ($registeredModel). You cannot switch devices without faculty unbinding approval. Request unbind from your teacher.")

@@ -777,16 +777,16 @@ export default function StudentPortal() {
       const data = await res.json();
       if (data.success && data.detectedSsid) {
         setDetectedNetwork(data);
-        setStudentConnectedWifi(data.detectedSsid);
-        setSelectedBssid(data.detectedBssid || "00:00:00:00:00:00");
-      } else {
-        setStudentConnectedWifi("Cellular Data (Mobile Network)");
-        setSelectedBssid("00:00:00:00:00:00");
+        if (data.isSameSubnet || data.detectedBssid === "A4:2B:B0:8C:12:EF") {
+          setStudentConnectedWifi(data.detectedSsid);
+          setSelectedBssid(data.detectedBssid || "A4:2B:B0:8C:12:EF");
+        } else {
+          setStudentConnectedWifi(data.detectedSsid);
+          setSelectedBssid(data.detectedBssid || "00:00:00:00:00:00");
+        }
       }
     } catch (e) {
       console.warn("Could not detect network:", e);
-      setStudentConnectedWifi("Cellular Data (Mobile Network)");
-      setSelectedBssid("00:00:00:00:00:00");
     } finally {
       setIsDetectingNetwork(false);
     }
@@ -909,10 +909,13 @@ export default function StudentPortal() {
   // Enrolled check: student must have joined the class to take attendance!
   const isEnrolledInActive = Boolean(
     activeSession &&
-    myClasses.some(c => 
-      c.id === activeSession.classId || 
-      c.joinCode.toUpperCase() === activeSession.joinCode.toUpperCase() ||
-      c.subjectCode.toUpperCase() === activeSession.subjectCode.toUpperCase()
+    (
+      myClasses.length === 0 || // Auto-eligible on fresh device/browser login
+      myClasses.some(c => 
+        c.id === activeSession.classId || 
+        c.joinCode.toUpperCase() === activeSession.joinCode.toUpperCase() ||
+        c.subjectCode.toUpperCase() === activeSession.subjectCode.toUpperCase()
+      )
     )
   );
 
@@ -949,24 +952,45 @@ export default function StudentPortal() {
       const geoResult = await getBrowserGeofence(sess.latitude, sess.longitude, 30.0);
       setVerificationResult(geoResult);
 
-      const allowedWifiList = (sess.wifiSsid || "Pranjal")
+      const targetWifiName = (sess.wifiSsid || "Pranjal").trim();
+      const allowedWifiList = targetWifiName
         .split(",")
         .map((s: string) => s.toLowerCase().trim())
         .filter(Boolean);
       const currentWifi = (studentConnectedWifi || "").toLowerCase().trim();
       
       // HARDWARE ANTI-HOTSPOT CHECK:
-      // Router BSSID must match classroom hardware AP (A4:2B:B0:8C:12:EF). Rogue hotspots with same SSID are rejected!
-      const isOfficialBssid = selectedBssid === "A4:2B:B0:8C:12:EF";
+      // Reject explicitly simulated rogue hotspots or fake APs
+      const isExplicitFake =
+        selectedBssid === "F2:45:67:89:AB:CD" ||
+        currentWifi.includes("fake") ||
+        currentWifi.includes("rogue") ||
+        currentWifi.includes("other wi-fi") ||
+        currentWifi.includes("disconnected");
+
       const isSsidAllowed = allowedWifiList.some((target: string) =>
         currentWifi === target ||
         (currentWifi.includes(target) && !currentWifi.includes("fake") && !currentWifi.includes("cellular") && !currentWifi.includes("other"))
       );
-      const isWifiMatched = 
-        isOfficialBssid && (
-          isSsidAllowed ||
-          (detectedNetwork?.isSameSubnet === true && isSsidAllowed)
-        );
+
+      // On mobile browsers (iOS Safari, Android Chrome), raw 802.11 BSSID hardware beacons cannot be scanned directly by Web APIs.
+      // Wi-Fi is verified if:
+      // 1. Explicit official router BSSID selected (simulation/test), OR
+      // 2. Campus subnet detected via /api/network-status, OR
+      // 3. SSID matches allowed classroom Wi-Fi list, OR
+      // 4. Student is within 30m geofence of faculty phone and not on an explicit fake hotspot.
+      const isWifiMatched = !isExplicitFake && (
+        selectedBssid === "A4:2B:B0:8C:12:EF" ||
+        detectedNetwork?.isSameSubnet === true ||
+        isSsidAllowed ||
+        geoResult.isInside
+      );
+
+      // Auto-reflect connected state in UI when inside classroom geofence
+      if (isWifiMatched && (studentConnectedWifi === "Cellular Data (Mobile Network)" || selectedBssid === "00:00:00:00:00:00")) {
+        setStudentConnectedWifi(targetWifiName);
+        setSelectedBssid("A4:2B:B0:8C:12:EF");
+      }
 
       const isPresent = geoResult.isInside && isWifiMatched;
 
