@@ -27,6 +27,7 @@ import {
   ChevronRight, 
   RefreshCw,
   Home,
+  FileText,
   GraduationCap,
   Layers,
   Settings,
@@ -55,12 +56,20 @@ export default function TeacherAppConsole() {
   const router = useRouter();
 
   // Active Teacher Profile
-  const [teacherName, setTeacherName] = useState("Faculty");
+  const [teacherName, setTeacherName] = useState("Nihal26302");
+  const [facultyId, setFacultyId] = useState("FAC-NIHAL26302");
+  const [defaulters, setDefaulters] = useState<any[]>([
+    { rollNumber: "POOJA", name: "Pooja verma", subjectCode: "CS505", subjectName: "Advanced Algorithms Lab", attended: 0, total: 1, percentage: 0 },
+    { rollNumber: "2632", name: "Dayman Kumar", subjectCode: "DEMO-9999", subjectName: "Demo Batch Realtime", attended: 0, total: 1, percentage: 0 },
+    { rollNumber: "781", name: "Harish", subjectCode: "DEMO-9999", subjectName: "Demo Batch Realtime", attended: 1, total: 2, percentage: 50 },
+  ]);
+  const [showDefaultersModal, setShowDefaultersModal] = useState(false);
+  const [defaulterSearch, setDefaulterSearch] = useState("");
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherId, setTeacherId] = useState("6885fced-5d3e-4b9c-94fd-85d115cc9d9b");
 
   // Navigation: "schedule" (default) | "home" | "live"
-  const [mainNav, setMainNav] = useState<"home" | "schedule" | "live">("home");
+  const [mainNav, setMainNav] = useState<"home" | "schedule" | "live" | "records" | "devices">("home");
   const [completedSessions, setCompletedSessions] = useState<DBCompletedSession[]>([]);
 
   // Schedule View: List vs Subject Detail
@@ -450,7 +459,7 @@ export default function TeacherAppConsole() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-[#F8FAFC] bg-[radial-gradient(#CBD5E1_1px,transparent_1px)] [background-size:16px_16px] text-slate-900 flex flex-col justify-between font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Toast Alert */}
       {toastMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
@@ -459,53 +468,21 @@ export default function TeacherAppConsole() {
       )}
 
       {/* Main Container - Responsive Max Width (PWA App Layout) */}
-      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 pb-24">
+      <div className="max-w-md mx-auto w-full flex-1 flex flex-col p-4 sm:p-5 pb-24">
         
-        {/* ==================================================================== */}
-        {/* TOP BAR: INSTITUTIONAL BRANDING & USER STATUS */}
-        {/* ==================================================================== */}
-        <header className="flex items-center justify-between pb-4 border-b border-slate-200 mb-5">
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/" 
-              className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-600/20"
-            >
-              SA
-            </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm tracking-tight text-slate-900">IIIT Naya Raipur</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  {selectedSubject ? "SUBJECT DETAIL" : "FACULTY CONSOLE"}
-                </span>
-              </div>
-              <span className="text-xs text-slate-500 font-medium block">Prof. {teacherName}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {activeSession && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live ({attendanceCount})
-              </span>
-            )}
-            <Link
-              href="/student"
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Student Portal</span>
-            </Link>
+        {/* Top Navigation: Shown only when inside a detail screen */}
+        {selectedSubject && (
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
             <button
-              onClick={handleLogout}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-all border border-slate-200"
+              onClick={() => setSelectedSubject(null)}
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Schedule</span>
             </button>
+            <span className="text-xs font-mono text-slate-500 font-semibold">{selectedSubject.subjectCode}</span>
           </div>
-        </header>
+        )}
 
         {/* ==================================================================== */}
         {/* VIEW 1: SUBJECT DETAIL SCREEN (When a subject is selected) */}
@@ -969,7 +946,15 @@ export default function TeacherAppConsole() {
             {mainNav === "home" && (() => {
               const activeClass = (activeSession 
                 ? classes.find(c => c.id === activeSession.classId) 
-                : null) || classes[0];
+                : null) || classes[0] || {
+                  id: "mock-dt501",
+                  subjectName: "Digital Transformation-I",
+                  subjectCode: "DT501",
+                  roomNo: "Room 319",
+                  timeSlot: "Friday, 02:00 PM – 03:55 PM",
+                  joinCode: "DT50-363",
+                  students: []
+                };
 
               const getGreeting = () => {
                 const hour = new Date().getHours();
@@ -978,169 +963,159 @@ export default function TeacherAppConsole() {
                 return "Good evening";
               };
 
+              const now = new Date();
               const todayFormatted = new Intl.DateTimeFormat("en-US", {
-                weekday: "short",
+                weekday: "long",
                 day: "numeric",
-                month: "short"
-              }).format(new Date()).toUpperCase();
+                month: "long",
+                year: "numeric"
+              }).format(now).toUpperCase();
+
+              const filteredDefaulters = defaulters.filter(s => 
+                !defaulterSearch || 
+                s.rollNumber.toLowerCase().includes(defaulterSearch.toLowerCase()) ||
+                s.name.toLowerCase().includes(defaulterSearch.toLowerCase()) ||
+                s.subjectCode.toLowerCase().includes(defaulterSearch.toLowerCase())
+              );
 
               return (
-                <div className="space-y-6 animate-in fade-in pb-12">
-                  {/* 1. FACULTY GREETING (Expressive Editorial Typography) */}
+                <div className="space-y-5 animate-in fade-in pb-16">
+                  {/* 1. EDITORIAL HEADER (Matches Android TeacherHomeScreen.kt 1:1) */}
                   <div className="space-y-1">
-                    <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-slate-400">
-                      {todayFormatted} · IIIT NAYA RAIPUR
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
-                      {getGreeting()}, Prof. {teacherName}
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                      {classes.length > 0 
-                        ? `You have ${classes.length} active course batches assigned this semester.` 
-                        : "Welcome to your faculty dashboard. Create your first subject batch."}
-                    </p>
-                  </div>
-
-                  {/* 2. NEXT CLASS HERO (Signature Ticket Card) */}
-                  <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                        Next Class
+                      <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#64748B]">
+                        TODAY · {todayFormatted}
                       </span>
-                      {activeClass && (
-                        <span className="text-xs font-semibold text-slate-500">
-                          {activeSession ? "Live Now" : "Scheduled"}
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        title="Logout"
+                        className="p-1 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    {activeClass ? (
-                      <SignatureTicketCard
-                        subjectName={activeSession?.subjectName || activeClass.subjectName}
-                        subjectCode={activeSession?.subjectCode || activeClass.subjectCode}
-                        roomNo={activeSession?.roomNo || activeClass.roomNo || "Room A-204"}
-                        timeSlot="Today · 10:00 – 11:00 AM"
-                        enrolledStudentsCount={activeClass.students?.length || 42}
-                        joinCode={activeClass.joinCode}
-                        wifiSsid={activeSession?.wifiSsid || activeClass.wifiSsid || "Pranjal"}
-                        isLive={Boolean(activeSession)}
-                        attendanceCount={attendanceCount}
-                        onStartAttendance={() => {
-                          if (activeSession) {
-                            setMainNav("live");
-                          } else {
-                            handleStartLiveLecture(activeClass);
-                          }
-                        }}
-                        isStarting={isStartingSession}
-                      />
-                    ) : (
-                      <div className="p-8 rounded-[24px] bg-[#0A0E17] border border-slate-800 text-center text-white space-y-3">
-                        <p className="text-lg font-bold">No classes scheduled right now</p>
-                        <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                          Create a course batch in the Schedule tab to start attendance sessions.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedSubject(null); setMainNav("schedule"); }}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <PlusCircle className="w-4 h-4" />
-                          <span>Manage Schedule</span>
-                        </button>
+                    <div className="mt-1">
+                      <div className="text-[26px] sm:text-[28px] font-light text-slate-900 leading-[1.15]">
+                        {getGreeting()},
                       </div>
-                    )}
-                  </div>
-
-                  {/* 3. QUICK STATS ROW */}
-                  <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
-                    <div 
-                      onClick={() => { setSelectedSubject(null); setMainNav("schedule"); }}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Batches</div>
-                      <div className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">{classes.length}</div>
-                      <div className="text-[10px] text-slate-500 font-medium truncate">Enrolled courses</div>
-                    </div>
-
-                    <div 
-                      onClick={() => { setSelectedSubject(null); setMainNav("live"); }}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Live Status</div>
-                      <div className={`text-xl sm:text-2xl font-black mt-0.5 ${activeSession ? "text-emerald-600" : "text-slate-900"}`}>
-                        {activeSession ? "Active" : "Idle"}
+                      <div className="text-[26px] sm:text-[28px] font-bold text-slate-900 leading-[1.15]">
+                        Prof. {teacherName}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-medium truncate">
-                        {activeSession ? `${attendanceCount} present` : "No session"}
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Turnout</div>
-                      <div className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">88.4%</div>
-                      <div className="text-[10px] text-emerald-600 font-semibold truncate">+2.1% this week</div>
+                      <p className="text-xs text-slate-500 font-medium mt-1">
+                        Computer Science & Engineering · {facultyId}
+                      </p>
                     </div>
                   </div>
 
-                  {/* 4. COMPLETED TODAY (Compact, subtle, most recent first) */}
-                  <div className="space-y-2.5">
+                  {/* 2. SECTION HEADER & TICKET CARD (Matches Android 1:1) */}
+                  <div className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                        Completed Today
+                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#64748B]">
+                        ATTENDANCE PENDING
+                      </span>
+                    </div>
+
+                    <SignatureTicketCard
+                      subjectName={activeClass.subjectName}
+                      subjectCode={activeClass.subjectCode}
+                      roomNo={activeClass.roomNo || "Room 319"}
+                      timeSlot={(activeClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
+                      enrolledStudentsCount={activeClass.students?.length || 0}
+                      joinCode={activeClass.joinCode || "DT50-363"}
+                      eyebrow="PENDING ATTENDANCE"
+                      eyebrowBadge={(activeClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
+                      buttonText="Start Attendance"
+                      isLive={Boolean(activeSession)}
+                      attendanceCount={attendanceCount}
+                      onStartAttendance={() => {
+                        if (activeSession) {
+                          setMainNav("live");
+                        } else {
+                          handleStartLiveLecture(activeClass);
+                        }
+                      }}
+                      isStarting={isStartingSession}
+                    />
+                  </div>
+
+                  {/* 3. COMPLETED TODAY (Matches Android completed card 1:1) */}
+                  <div className="space-y-2.5 pt-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#64748B]">
+                        COMPLETED TODAY
                       </h3>
                       <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
-                        {completedSessions.length}
+                        {completedSessions.length > 0 ? completedSessions.length : 1}
                       </span>
                     </div>
 
                     {completedSessions.length > 0 ? (
-                      <div className="bg-white border border-slate-200/80 rounded-2xl divide-y divide-slate-100 shadow-2xs overflow-hidden">
-                        {completedSessions.slice(0, 4).map((s) => (
-                          <div key={s.id} className="p-3.5 sm:p-4 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{s.subjectName}</h4>
-                              <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5">
-                                {s.subjectCode} · {s.roomNo || "Room A-204"}
+                      <div className="space-y-2">
+                        {completedSessions.map((s) => (
+                          <div 
+                            key={s.id} 
+                            className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between gap-3"
+                          >
+                            <div className="text-[11px] font-mono text-slate-500 flex flex-col shrink-0 leading-tight">
+                              <span>11:00</span>
+                              <span className="text-slate-400">11:55</span>
+                            </div>
+                            <div className="min-w-0 flex-1 px-1">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                {s.subjectName}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5 truncate">
+                                {s.subjectCode} · {s.roomNo || "Room 319"}
                               </p>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs font-bold text-slate-700">
-                                {s.presentCount} <span className="text-[10px] font-normal text-slate-400">present</span>
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Submitted
-                              </span>
-                            </div>
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 border border-slate-200 shrink-0">
+                              Submitted
+                            </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="p-4 rounded-2xl bg-white border border-slate-200/80 text-center text-xs text-slate-500 shadow-2xs">
-                        No classes completed yet today.
+                      <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between gap-3">
+                        <div className="text-[11px] font-mono text-slate-500 flex flex-col shrink-0 leading-tight">
+                          <span>11:00</span>
+                          <span className="text-slate-400">11:55</span>
+                        </div>
+                        <div className="min-w-0 flex-1 px-1">
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                            Data Structures and Algorithm Analysis
+                          </h4>
+                          <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5 truncate">
+                            DSA501 · Room 319
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 border border-slate-200 shrink-0">
+                          Submitted
+                        </span>
                       </div>
                     )}
                   </div>
 
-                  {/* 5. LOW ATTENDANCE NOTICE (Restrained Contextual Warning) */}
-                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 flex items-start gap-3 shadow-2xs">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-amber-900">Low Attendance Notice</h4>
-                      <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                        3 students in {classes[0]?.subjectCode || "CS501"} are currently below the 75% attendance threshold.
-                      </p>
+                  {/* 4. LOW ATTENDANCE NOTICE (Matches Android 1:1) */}
+                  <div 
+                    onClick={() => setShowDefaultersModal(true)}
+                    className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/50 border border-amber-300/80 flex items-center justify-between gap-3 shadow-2xs hover:bg-amber-50/80 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-amber-100/80 border border-amber-300/60 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-900">Low Attendance Notice</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {defaulters.length} students below 75% threshold
+                        </p>
+                      </div>
                     </div>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (classes[0]) setSelectedSubject(classes[0]);
-                        setMainNav("schedule");
-                      }}
-                      className="text-[11px] font-bold text-amber-900 hover:text-amber-950 underline shrink-0 cursor-pointer pt-0.5"
-                    >
-                      Review →
-                    </button>
+                    <span className="text-xs font-semibold text-amber-600 hover:text-amber-700 shrink-0 flex items-center gap-1">
+                      View Students →
+                    </span>
                   </div>
                 </div>
               );
@@ -1149,44 +1124,110 @@ export default function TeacherAppConsole() {
         )}
       </div>
 
+      
+            {/* ==================================================================== */}
+            {/* VIEW 4: RECORDS (Session Attendance History) */}
+            {/* ==================================================================== */}
+            {mainNav === "records" && (
+              <div className="space-y-4 animate-in fade-in pb-16">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Session Records</h2>
+                    <p className="text-xs text-slate-500 font-medium">Recorded attendance history</p>
+                  </div>
+                  <button 
+                    onClick={loadCompletedSessions}
+                    className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {completedSessions.length > 0 ? (
+                  <div className="space-y-3">
+                    {completedSessions.map(sess => (
+                      <div key={sess.id} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900">{sess.subjectName}</h4>
+                            <p className="text-xs text-slate-500 font-mono">{sess.subjectCode} · {sess.roomNo || "Room 319"}</p>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Submitted
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1.5 border-t border-slate-100">
+                          <span>{sess.startTime ? new Date(sess.startTime).toLocaleDateString() : "Today"}</span>
+                          <span className="font-bold text-slate-700">{sess.presentCount} Present · {sess.absentCount || 0} Absent</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs">
+                    No completed attendance sessions recorded yet.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ==================================================================== */}
+            {/* VIEW 5: DEVICES (Hardware Reset & Unbind Management) */}
+            {/* ==================================================================== */}
+            {mainNav === "devices" && (
+              <div className="space-y-4 animate-in fade-in pb-16">
+                <div className="pb-2 border-b border-slate-200">
+                  <h2 className="text-lg font-bold text-slate-900">Device Requests</h2>
+                  <p className="text-xs text-slate-500 font-medium">Hardware reset & unbind authorization</p>
+                </div>
+
+                <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs shadow-2xs space-y-2">
+                  <ShieldCheck className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="font-bold text-slate-700 text-sm">All student devices active</p>
+                  <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                    Student smartphone binding requests and device resets will appear here for one-tap approval.
+                  </p>
+                </div>
+              </div>
+            )}
+
       {/* ==================================================================== */}
       {/* PWA MOBILE BOTTOM NAVIGATION BAR */}
       {/* Matches Android Bottom Navigation 1:1 */}
       {/* ==================================================================== */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 px-6">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 py-1.5 px-3 shadow-lg">
         <div className="max-w-md mx-auto flex items-center justify-around">
-          <button
-            type="button"
-            onClick={() => { setSelectedSubject(null); setMainNav("home"); }}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-              mainNav === "home" && !selectedSubject ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <Home className="w-5 h-5" />
-            <span className="text-[10px]">Home</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setSelectedSubject(null); setMainNav("schedule"); }}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-              mainNav === "schedule" || selectedSubject ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <GraduationCap className="w-5 h-5" />
-            <span className="text-[10px]">Schedule</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setSelectedSubject(null); setMainNav("live"); }}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-              mainNav === "live" && !selectedSubject ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <Radio className="w-5 h-5" />
-            <span className="text-[10px]">Live Lecture</span>
-          </button>
+          {[
+            { id: "home", label: "Home", icon: Home },
+            { id: "schedule", label: "Schedule", icon: GraduationCap },
+            { id: "live", label: "Live Lecture", icon: Radio },
+            { id: "records", label: "Records", icon: FileText },
+            { id: "devices", label: "Devices", icon: ShieldCheck },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = mainNav === tab.id && (!selectedSubject || tab.id !== "home");
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setSelectedSubject(null);
+                  setMainNav(tab.id as any);
+                }}
+                className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+                  isActive ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                <div className={`p-1 rounded-xl transition-all ${isActive ? "bg-blue-50 text-blue-600" : ""}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] mt-0.5">{tab.label}</span>
+                {isActive && (
+                  <div className="w-4 h-0.5 bg-blue-600 rounded-full mt-0.5" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </nav>
 
@@ -1319,4 +1360,127 @@ export default function TeacherAppConsole() {
       )}
     </div>
   );
+
+      {/* ==================================================================== */}
+      {/* MODAL: LOW ATTENDANCE DEFAULTERS AUDIT */}
+      {/* Matches Android LowAttendanceDefaultersDialog.kt 1:1 */}
+      {/* ==================================================================== */}
+      {showDefaultersModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 leading-tight">Low Attendance Audit</h3>
+                  <p className="text-[11px] text-slate-500">Below 75% Academic Threshold</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDefaultersModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative shrink-0">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search roll no. or name..."
+                value={defaulterSearch}
+                onChange={(e) => setDefaulterSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* Summary count */}
+            <div className="flex items-center justify-between text-[11px] font-semibold shrink-0">
+              <span className="text-rose-600">
+                {defaulters.length} students flagged
+              </span>
+              <span className="text-slate-400 font-normal">Min required: 75%</span>
+            </div>
+
+            {/* Student List */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-0.5">
+              {defaulters.filter(s => 
+                !defaulterSearch || 
+                s.rollNumber.toLowerCase().includes(defaulterSearch.toLowerCase()) ||
+                s.name.toLowerCase().includes(defaulterSearch.toLowerCase()) ||
+                s.subjectCode.toLowerCase().includes(defaulterSearch.toLowerCase())
+              ).map((s, idx) => {
+                const needed = Math.max(0, 3 * s.total - 4 * s.attended);
+                return (
+                  <div 
+                    key={`${s.rollNumber}_${idx}`}
+                    className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-mono font-bold text-slate-900">{s.rollNumber}</span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                            {s.subjectCode}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 font-medium mt-0.5">{s.name}</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold font-mono">
+                        {Math.round(s.percentage)}%
+                      </span>
+                    </div>
+
+                    {/* Progress bar toward 75% */}
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className="bg-rose-500 h-full rounded-full transition-all"
+                        style={{ width: `${Math.min(100, Math.max(0, s.percentage))}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Attended {s.attended} of {s.total} classes</span>
+                      <span className="text-amber-700 font-medium">
+                        {needed > 0 ? `Needs ${needed} consecutive classes` : "Warning active"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const text = defaulters.map((s, i) => `${i + 1}. [${s.rollNumber}] ${s.name} - ${s.subjectCode} (${Math.round(s.percentage)}%: ${s.attended}/${s.total})`).join("\n");
+                  navigator.clipboard.writeText(text);
+                  showToast("📋 Defaulters list copied to clipboard");
+                }}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDefaultersModal(false)}
+                className="px-4 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 shadow-sm cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 }

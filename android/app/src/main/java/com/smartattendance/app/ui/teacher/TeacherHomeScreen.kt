@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartattendance.app.core.engine.TimetableEngine
 import com.smartattendance.app.core.engine.TimetableSlotState
+import com.smartattendance.app.core.network.DefaulterStudentItem
+import com.smartattendance.app.ui.teacher.LowAttendanceDefaultersDialog
 import com.smartattendance.app.core.network.SupabaseAttendanceService
 import com.smartattendance.app.core.sensor.ScannedWifiNetwork
 import com.smartattendance.app.core.sensor.WifiPresenceManager
@@ -266,6 +268,26 @@ fun TeacherHomeScreen(
     // Schedule state
     var classList by remember { mutableStateOf(loadPersistedSchedule(context)) }
     var pendingUnbindCount by remember { mutableStateOf(0) }
+    val facultyUuid = remember {
+        prefs.getString("faculty_supabase_user_id", "977d23e7-4b43-4a7a-af74-b3fb2855beae") ?: "977d23e7-4b43-4a7a-af74-b3fb2855beae"
+    }
+    val facultyKey = remember {
+        prefs.getString("logged_in_faculty_id", "FAC-DEFAULT") ?: "FAC-DEFAULT"
+    }
+    var defaulterStudents by remember { mutableStateOf<List<DefaulterStudentItem>>(emptyList()) }
+    var showDefaultersDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(facultyKey, facultyUuid) {
+        val recordedSessionIds = prefs.getStringSet("faculty_recorded_sessions_$facultyKey", emptySet()) ?: emptySet()
+        val res = SupabaseAttendanceService.fetchFacultyDefaulterStudents(
+            allowedSessionIds = recordedSessionIds,
+            teacherId = facultyUuid
+        )
+        res.onSuccess { list ->
+            defaulterStudents = list
+            prefs.edit().putInt("low_attendance_students_count", list.size).apply()
+        }
+    }
 
     LaunchedEffect(Unit) {
         val reqs = SupabaseAttendanceService.fetchPendingUnbindRequests()
@@ -991,9 +1013,7 @@ fun TeacherHomeScreen(
         // ====================================================================
         // 5. LOW ATTENDANCE ALERT (Restrained Contextual Warning)
         // ====================================================================
-        val lowAttendanceCount = remember {
-            prefs.getInt("low_attendance_students_count", 3)
-        }
+        val lowAttendanceCount = defaulterStudents.size
 
         if (lowAttendanceCount > 0) {
             Spacer(modifier = Modifier.height(20.dp))
@@ -1003,7 +1023,10 @@ fun TeacherHomeScreen(
                 border = BorderStroke(1.dp, StatusReviewBorder),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenSchedule() }
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showDefaultersDialog = true
+                    }
             ) {
                 Row(
                     modifier = Modifier
@@ -1049,5 +1072,12 @@ fun TeacherHomeScreen(
         }
 
         Spacer(modifier = Modifier.height(84.dp))
+    }
+
+    if (showDefaultersDialog) {
+        LowAttendanceDefaultersDialog(
+            defaulters = defaulterStudents,
+            onDismiss = { showDefaultersDialog = false }
+        )
     }
 }

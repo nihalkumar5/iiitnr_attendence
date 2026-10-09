@@ -412,19 +412,39 @@ fun StudentHomeScreen(
         }
     }
 
-    val filteredEnrolledCourses = remember(enrolledCourses, selectedDayFilter, currentIsoDay) {
+    val coursesWithCalculatedAttendance = remember(enrolledCourses, attendanceHistory) {
+        if (attendanceHistory.isEmpty()) {
+            enrolledCourses
+        } else {
+            enrolledCourses.map { course ->
+                val subHist = attendanceHistory.filter {
+                    it.subjectCode.equals(course.subjectCode, ignoreCase = true) ||
+                    it.subjectName.contains(course.subjectName, ignoreCase = true)
+                }
+                if (subHist.isNotEmpty()) {
+                    val attended = subHist.count { it.isPresent }
+                    val pct = (attended.toFloat() / subHist.size.toFloat()) * 100f
+                    course.copy(attendancePercentage = pct)
+                } else {
+                    course
+                }
+            }
+        }
+    }
+
+    val filteredEnrolledCourses = remember(coursesWithCalculatedAttendance, selectedDayFilter, currentIsoDay) {
         when (selectedDayFilter) {
             "TODAY" -> {
-                val list = enrolledCourses.filter { it.dayOfWeek == currentIsoDay }
-                if (list.isNotEmpty()) list else enrolledCourses
+                val list = coursesWithCalculatedAttendance.filter { it.dayOfWeek == currentIsoDay }
+                if (list.isNotEmpty()) list else coursesWithCalculatedAttendance
             }
-            "MON" -> enrolledCourses.filter { it.dayOfWeek == 1 }
-            "TUE" -> enrolledCourses.filter { it.dayOfWeek == 2 }
-            "WED" -> enrolledCourses.filter { it.dayOfWeek == 3 }
-            "THU" -> enrolledCourses.filter { it.dayOfWeek == 4 }
-            "FRI" -> enrolledCourses.filter { it.dayOfWeek == 5 }
-            "SAT" -> enrolledCourses.filter { it.dayOfWeek == 6 }
-            else -> enrolledCourses
+            "MON" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 1 }
+            "TUE" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 2 }
+            "WED" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 3 }
+            "THU" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 4 }
+            "FRI" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 5 }
+            "SAT" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 6 }
+            else -> coursesWithCalculatedAttendance
         }
     }
 
@@ -434,7 +454,7 @@ fun StudentHomeScreen(
         else -> "Good evening"
     }
 
-    val lowAttendanceSubject = enrolledCourses.firstOrNull { it.attendancePercentage < 75.0f }
+    val lowAttendanceSubject = coursesWithCalculatedAttendance.firstOrNull { it.attendancePercentage < 75.0f }
 
     Column(
         modifier = Modifier
@@ -1138,7 +1158,7 @@ fun StudentHomeScreen(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        enrolledCourses.forEach { course ->
+                        coursesWithCalculatedAttendance.forEach { course ->
                             Surface(
                                 shape = BadgeShape,
                                 color = SurfaceNeutral,

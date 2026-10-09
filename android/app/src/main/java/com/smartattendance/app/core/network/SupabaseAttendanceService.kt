@@ -156,6 +156,22 @@ data class EnrolledStudentInfo(
     val enrollmentType: String = "CORE"
 )
 
+data class DefaulterStudentItem(
+    val rollNumber: String,
+    val name: String,
+    val subjectCode: String,
+    val subjectName: String,
+    val attendedCount: Int,
+    val totalCount: Int,
+    val percentage: Float
+) {
+    val classesNeededFor75: Int
+        get() {
+            val diff = 3 * totalCount - 4 * attendedCount
+            return if (diff > 0) diff else 0
+        }
+}
+
 data class TeacherSessionHistoryRecord(
     val sessionId: String,
     val subjectName: String,
@@ -4468,6 +4484,76 @@ object SupabaseAttendanceService {
             Result.success(list)
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching teacher attendance history", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Compute students with attendance strictly below 75% across conducted sessions.
+     */
+    suspend fun fetchFacultyDefaulterStudents(
+        allowedSessionIds: Set<String>? = null,
+        teacherId: String? = null
+    ): Result<List<DefaulterStudentItem>> = withContext(Dispatchers.IO) {
+        try {
+            val historyRes = fetchTeacherAttendanceHistory(allowedSessionIds, teacherId)
+            val sessions = historyRes.getOrNull() ?: emptyList()
+            if (sessions.isEmpty()) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val sessionsBySubject = sessions.groupBy {
+                if (it.subjectCode.isNotBlank()) it.subjectCode else it.subjectName
+            }
+
+            val defaulters = mutableListOf<DefaulterStudentItem>()
+
+            for ((subjectKey, subSessions) in sessionsBySubject) {
+                val totalSessions = subSessions.size
+                if (totalSessions == 0) continue
+
+                val subjectName = subSessions.firstOrNull()?.subjectName ?: subjectKey
+
+                val studentMap = mutableMapOf<String, String>()
+                for (s in subSessions) {
+                    for (rec in s.records) {
+                        val r = rec.rollNumber.trim().uppercase()
+                        if (r.isNotBlank() && r != "N/A") {
+                            val currName = studentMap[r]
+                            if (currName == null || (currName == "Student" && rec.studentName.isNotBlank() && rec.studentName != "Student")) {
+                                studentMap[r] = rec.studentName.trim()
+                            }
+                        }
+                    }
+                }
+
+                for ((roll, name) in studentMap) {
+                    val attended = subSessions.count { s ->
+                        s.records.any { r ->
+                            r.rollNumber.trim().equals(roll, ignoreCase = true) &&
+                            (r.status.equals("PRESENT", ignoreCase = true) || r.presencePercentage >= 75.0)
+                        }
+                    }
+                    val pct = (attended.toFloat() / totalSessions.toFloat()) * 100f
+                    if (pct < 75.0f) {
+                        defaulters.add(
+                            DefaulterStudentItem(
+                                rollNumber = roll,
+                                name = if (name.isNotBlank()) name else "Student $roll",
+                                subjectCode = subjectKey,
+                                subjectName = subjectName,
+                                attendedCount = attended,
+                                totalCount = totalSessions,
+                                percentage = pct
+                            )
+                        )
+                    }
+                }
+            }
+
+            Result.success(defaulters.sortedBy { it.percentage })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error computing faculty defaulter students", e)
             Result.failure(e)
         }
     }
