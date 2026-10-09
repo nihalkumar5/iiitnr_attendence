@@ -201,7 +201,10 @@ data class RegisteredClassRecord(
     val room: String,
     val joinCode: String,
     val isActive: Boolean = true,
-    val initialAttendancePercentage: Float = 100f
+    val initialAttendancePercentage: Float = 100f,
+    val dayOfWeek: Int = 1,
+    val startTime: String = "10:00:00",
+    val endTime: String = "11:00:00"
 )
 
 data class DeviceUnbindRequestItem(
@@ -3654,7 +3657,7 @@ object SupabaseAttendanceService {
             var remoteClassObj: JSONObject? = null
             try {
                 val classReq = Request.Builder()
-                    .url("$SUPABASE_URL/rest/v1/classes?select=id,is_active,room,subjects!inner(name,code),teachers(users(name))&subjects.code=ilike.$cleanCode&limit=1")
+                    .url("$SUPABASE_URL/rest/v1/classes?select=id,is_active,room,day_of_week,start_time,end_time,subjects!inner(name,code),teachers(users(name))&subjects.code=ilike.$cleanCode&limit=1")
                     .addHeader("apikey", ANON_KEY)
                     .addHeader("Authorization", "Bearer $ANON_KEY")
                     .get()
@@ -3688,6 +3691,10 @@ object SupabaseAttendanceService {
                 val teacherName = tObj?.optString("name") ?: "Dr. S. Sharma"
                 val code = remoteClassObj.optString("join_code", cleanCode)
 
+                val dayOfWeek = remoteClassObj.optInt("day_of_week", 1)
+                val startTime = remoteClassObj.optString("start_time", "10:00:00")
+                val endTime = remoteClassObj.optString("end_time", "11:00:00")
+
                 enrollSingleStudentInCourse(classId, cleanRoll, studentName, "${cleanRoll.lowercase()}@student.iiitnr.edu.in")
 
                 localStudentEnrollments.getOrPut(cleanRoll) { mutableSetOf() }.apply {
@@ -3703,7 +3710,10 @@ object SupabaseAttendanceService {
                         teacherName = teacherName,
                         room = room,
                         joinCode = code,
-                        attendancePercentage = 100f
+                        attendancePercentage = 100f,
+                        dayOfWeek = dayOfWeek,
+                        startTime = startTime,
+                        endTime = endTime
                     )
                 )
             }
@@ -3731,7 +3741,10 @@ object SupabaseAttendanceService {
                         teacherName = localMatch.teacherName,
                         room = localMatch.room,
                         joinCode = localMatch.joinCode,
-                        attendancePercentage = localMatch.initialAttendancePercentage
+                        attendancePercentage = localMatch.initialAttendancePercentage,
+                        dayOfWeek = localMatch.dayOfWeek,
+                        startTime = localMatch.startTime,
+                        endTime = localMatch.endTime
                     )
                 )
             }
@@ -3790,7 +3803,7 @@ object SupabaseAttendanceService {
                                 teacherName = teacherName,
                                 room = room,
                                 joinCode = joinCode,
-                                attendancePercentage = 88.0f,
+                                attendancePercentage = 100.0f,
                                 dayOfWeek = dayOfWeek,
                                 startTime = startTime,
                                 endTime = endTime
@@ -3800,7 +3813,7 @@ object SupabaseAttendanceService {
                 }
             } catch (_: Exception) {}
 
-            // Merge locally enrolled courses
+            // Merge locally enrolled courses & query real class timetable info
             val enrolledCodes = localStudentEnrollments[cleanRoll] ?: emptySet()
             for (code in enrolledCodes) {
                 val reg = localClassesRegistry[code]
@@ -3813,9 +3826,44 @@ object SupabaseAttendanceService {
                             teacherName = reg.teacherName,
                             room = reg.room,
                             joinCode = reg.joinCode,
-                            attendancePercentage = reg.initialAttendancePercentage
+                            attendancePercentage = reg.initialAttendancePercentage,
+                            dayOfWeek = reg.dayOfWeek,
+                            startTime = reg.startTime,
+                            endTime = reg.endTime
                         )
                     )
+                } else if (list.none { it.joinCode.equals(code, ignoreCase = true) || it.subjectCode.equals(code, ignoreCase = true) || it.classId == code }) {
+                    try {
+                        val cReq = Request.Builder()
+                            .url("$SUPABASE_URL/rest/v1/classes?select=id,room,day_of_week,start_time,end_time,subjects!inner(name,code),teachers(users(name))&or=(id.eq.$code,subjects.code.ilike.$code)&limit=1")
+                            .addHeader("apikey", ANON_KEY)
+                            .addHeader("Authorization", "Bearer $ANON_KEY")
+                            .get()
+                            .build()
+                        val cRes = client.newCall(cReq).execute()
+                        if (cRes.isSuccessful) {
+                            val cArr = JSONArray(cRes.body?.string() ?: "[]")
+                            if (cArr.length() > 0) {
+                                val cObj = cArr.getJSONObject(0)
+                                val subObj = cObj.optJSONObject("subjects")
+                                val tObj = cObj.optJSONObject("teachers")?.optJSONObject("users")
+                                list.add(
+                                    EnrolledCourseInfo(
+                                        classId = cObj.getString("id"),
+                                        subjectCode = subObj?.optString("code") ?: code,
+                                        subjectName = subObj?.optString("name") ?: "Subject $code",
+                                        teacherName = tObj?.optString("name") ?: "Faculty",
+                                        room = cObj.optString("room", "Room 135"),
+                                        joinCode = code,
+                                        attendancePercentage = 100f,
+                                        dayOfWeek = cObj.optInt("day_of_week", 1),
+                                        startTime = cObj.optString("start_time", "10:00:00"),
+                                        endTime = cObj.optString("end_time", "11:00:00")
+                                    )
+                                )
+                            }
+                        }
+                    } catch (_: Exception) {}
                 }
             }
 

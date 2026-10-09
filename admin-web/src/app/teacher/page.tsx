@@ -490,7 +490,7 @@ export default function TeacherAppConsole() {
     setIsLoadingDevices(true);
     try {
       const reqs = await fetchPendingUnbindRequestsFromDB();
-      setDeviceRequests(reqs.filter(r => r.status === "PENDING_UNBIND"));
+      setDeviceRequests(reqs.filter(r => r.status === "PENDING_UNBIND" || (r.status as string) === "PENDING_APPROVAL" || r.deviceModel.includes("[UNBIND REQUEST]")));
     } catch (e) {
       console.warn("Failed to load device requests:", e);
     } finally {

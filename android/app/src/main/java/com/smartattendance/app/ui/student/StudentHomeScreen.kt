@@ -79,9 +79,9 @@ fun StudentHomeScreen(
     facultyName: String = "Dr. S. Sharma",
     room: String = "Room A-204 (AC Block)",
     timeSlot: String = "10:00 – 11:00 AM",
-    attendanceRate: Double = 88.2,
-    attendedClasses: Int = 30,
-    totalClasses: Int = 34,
+    attendanceRate: Double = 100.0,
+    attendedClasses: Int = 0,
+    totalClasses: Int = 0,
     onLogout: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -139,10 +139,8 @@ fun StudentHomeScreen(
             val historyRes = SupabaseAttendanceService.fetchStudentAttendanceHistoryDetailed(activeRoll)
             historyRes.onSuccess { list ->
                 attendanceHistory = list
-                if (list.isNotEmpty()) {
-                    userTotalClasses = list.size
-                    userAttendedClasses = list.count { it.isPresent }
-                }
+                userTotalClasses = list.size
+                userAttendedClasses = list.count { it.isPresent }
             }
             val coursesRes = SupabaseAttendanceService.fetchStudentEnrolledCourses(activeRoll)
             coursesRes.onSuccess { list ->
@@ -385,7 +383,7 @@ fun StudentHomeScreen(
     val overallPercentage = if (userTotalClasses > 0) {
         (userAttendedClasses.toDouble() / userTotalClasses.toDouble()) * 100.0
     } else {
-        attendanceRate
+        100.0
     }
 
     // Live Clock & Real Date State
@@ -433,18 +431,16 @@ fun StudentHomeScreen(
     }
 
     val filteredEnrolledCourses = remember(coursesWithCalculatedAttendance, selectedDayFilter, currentIsoDay) {
+        val sortedList = coursesWithCalculatedAttendance.sortedBy { it.startTime }
         when (selectedDayFilter) {
-            "TODAY" -> {
-                val list = coursesWithCalculatedAttendance.filter { it.dayOfWeek == currentIsoDay }
-                if (list.isNotEmpty()) list else coursesWithCalculatedAttendance
-            }
-            "MON" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 1 }
-            "TUE" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 2 }
-            "WED" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 3 }
-            "THU" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 4 }
-            "FRI" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 5 }
-            "SAT" -> coursesWithCalculatedAttendance.filter { it.dayOfWeek == 6 }
-            else -> coursesWithCalculatedAttendance
+            "TODAY" -> sortedList.filter { it.dayOfWeek == currentIsoDay }
+            "MON" -> sortedList.filter { it.dayOfWeek == 1 }
+            "TUE" -> sortedList.filter { it.dayOfWeek == 2 }
+            "WED" -> sortedList.filter { it.dayOfWeek == 3 }
+            "THU" -> sortedList.filter { it.dayOfWeek == 4 }
+            "FRI" -> sortedList.filter { it.dayOfWeek == 5 }
+            "SAT" -> sortedList.filter { it.dayOfWeek == 6 }
+            else -> sortedList
         }
     }
 

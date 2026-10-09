@@ -918,7 +918,7 @@ export async function getStudentBoundDeviceFromDB(rollNo: string): Promise<Bound
 
     if (!dev) return null;
 
-    const isPendingUnbind = dev.device_model?.includes("[UNBIND REQUEST]") || dev.status === "REVOKED";
+    const isPendingUnbind = dev.device_model?.includes("[UNBIND REQUEST]") || dev.status === "PENDING_APPROVAL" || dev.status === "REVOKED";
 
     return {
       id: dev.id,
@@ -966,7 +966,7 @@ export async function requestStudentDeviceUnbindInDB(rollNo: string, reason?: st
         .from("devices")
         .update({
           device_model: `[UNBIND REQUEST] ${dev.device_model || "Mobile Device"} (Reason: ${reason || "Phone Change/Reset"})`,
-          status: "REVOKED"
+          status: "PENDING_APPROVAL"
         })
         .eq("id", dev.id);
     } else {
@@ -978,7 +978,7 @@ export async function requestStudentDeviceUnbindInDB(rollNo: string, reason?: st
           installation_id: `unbind_req_${Date.now()}`,
           device_model: `[UNBIND REQUEST] Student requested phone unbind (Reason: ${reason || "Device Lost/Upgraded"})`,
           platform: "WEB",
-          status: "REVOKED"
+          status: "PENDING_APPROVAL"
         });
     }
 
@@ -1000,13 +1000,14 @@ export async function fetchPendingUnbindRequestsFromDB(): Promise<BoundDevice[]>
         id, student_id, installation_id, device_model, os_version, platform, status, registered_at, last_seen,
         students ( id, roll_number, users ( name, email ) )
       `)
+      .or("status.eq.PENDING_APPROVAL,device_model.ilike.%[UNBIND REQUEST]%")
       .order("registered_at", { ascending: false });
 
     if (error || !data) return [];
 
     const list: BoundDevice[] = [];
     for (const d of data) {
-      const isUnbind = d.device_model?.includes("[UNBIND REQUEST]") || d.status === "REVOKED";
+      const isUnbind = d.device_model?.includes("[UNBIND REQUEST]") || d.status === "PENDING_APPROVAL" || d.status === "REVOKED";
       const s = (d as any).students || {};
       const u = s.users || {};
       list.push({
