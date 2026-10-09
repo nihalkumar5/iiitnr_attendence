@@ -1355,10 +1355,10 @@ fun TeacherScheduleScreen(
                 teacherName = teacherName,
                 onDismiss = { showAiTimetableDialog = false },
                 onImportComplete = { newClasses ->
-                    val updated = classList + newClasses
-                    updateClassList(updated)
+                    val mergedClasses = mergeConsecutiveClasses(newClasses)
+                    updateClassList(mergedClasses)
                     showAiTimetableDialog = false
-                    Toast.makeText(context, "✨ " + newClasses.size + " lectures added to your timetable!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "✨ Timetable updated (${mergedClasses.size} lectures scheduled)!", Toast.LENGTH_LONG).show()
                 }
             )
         }

@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit
 
 object GeminiTimetableParser {
 
-    // Configured Gemini API Key (User verified)
     private val DEFAULT_API_KEY: String by lazy {
         try {
             String(android.util.Base64.decode("QVEuQWI4Uk42S1lac0ZQU3hLWnZ1SGJ0QkdzTUpsTUNncWNPM2M2ay1KQlVxQlpibGU0U2c=", android.util.Base64.DEFAULT), Charsets.UTF_8).trim()
@@ -63,7 +62,7 @@ object GeminiTimetableParser {
     ) {
         fun toTeacherClassItem(): TeacherClassItem {
             val cid = UUID.randomUUID().toString()
-            val cleanCode = subjectCode.filter { it.isLetterOrDigit() }.uppercase().take(4).ifEmpty { "SUBJ" }
+            val cleanCode = subjectCode.filter { it.isLetterOrDigit() }.uppercase(Locale.US).take(4).ifEmpty { "SUBJ" }
             val joinCode = "$cleanCode-${kotlin.math.abs(cid.hashCode() % 9000 + 1000)}"
             val dayName = when (dayOfWeek) {
                 1 -> "Monday"
@@ -201,10 +200,11 @@ object GeminiTimetableParser {
         }
 
         val textPart = parts.getJSONObject(0).optString("text", "")
-        val lectures = extractLecturesFromJsonText(textPart)
+        val rawLectures = extractLecturesFromJsonText(textPart)
+        val mergedLectures = mergeConsecutiveLectures(rawLectures)
 
-        return if (lectures.isNotEmpty()) {
-            Result.success(lectures)
+        return if (mergedLectures.isNotEmpty()) {
+            Result.success(mergedLectures)
         } else {
             Result.failure(Exception("Could not extract any scheduled lectures from timetable. Response: $textPart"))
         }
@@ -214,6 +214,11 @@ object GeminiTimetableParser {
         return """
             You are an academic timetable analyzer AI.
             Analyze the provided timetable image or schedule and extract all lecture/lab classes.
+
+            CRITICAL CONSECUTIVE / CONTINUOUS SLOTS MERGE RULE:
+            If the same subject has consecutive, back-to-back, or continuous periods/slots on the same day (for example, Period 1 from 10:00 to 11:00 and Period 2 from 11:00 to 12:00, or a 2-hour / 3-hour practical lab):
+            You MUST automatically MERGE them into ONE single continuous lecture slot with the overall start time of the first period and the final end time of the last period (e.g. startTime: "10:00:00", endTime: "12:00:00").
+            DO NOT return separate entries for continuous periods of the same course. Merge them together into one slot.
 
             For each lecture, extract:
             - subjectName: Full subject or course name (e.g., "Computer Networks", "Database Management", "Machine Learning Lab").
@@ -243,7 +248,7 @@ object GeminiTimetableParser {
                 "room": "Room A-302",
                 "dayOfWeek": 1,
                 "startTime": "10:00:00",
-                "endTime": "11:00:00"
+                "endTime": "12:00:00"
               }
             ]
         """.trimIndent()
@@ -307,6 +312,66 @@ object GeminiTimetableParser {
             )
         }
         return result
+    }
+
+    /**
+     * Merge consecutive / back-to-back lecture slots of the same subject on the same day.
+     * E.g. 10:00 - 11:00 and 11:00 - 12:00 of CS302 merges into 10:00 - 12:00.
+     */
+    fun mergeConsecutiveLectures(lectures: List<ParsedLecture>): List<ParsedLecture> {
+        if (lectures.size <= 1) return lectures
+
+        val result = mutableListOf<ParsedLecture>()
+        val groupedByDay = lectures.groupBy { it.dayOfWeek }
+
+        for ((_, dayLectures) in groupedByDay) {
+            val sorted = dayLectures.sortedBy { TimetableEngine.parseTimeToMinutes(it.startTime) }
+            val mergedDay = mutableListOf<ParsedLecture>()
+
+            for (curr in sorted) {
+                if (mergedDay.isEmpty()) {
+                    mergedDay.add(curr)
+                    continue
+                }
+
+                val prev = mergedDay.last()
+                val sameSubject = isSameSubject(prev.subjectCode, prev.subjectName, curr.subjectCode, curr.subjectName)
+                val prevEndMin = TimetableEngine.parseTimeToMinutes(prev.endTime)
+                val currStartMin = TimetableEngine.parseTimeToMinutes(curr.startTime)
+                val currEndMin = TimetableEngine.parseTimeToMinutes(curr.endTime)
+
+                // If same subject, and consecutive (starts within 15 min of prev end and ends after prev)
+                if (sameSubject && currStartMin <= (prevEndMin + 15) && currEndMin > prevEndMin) {
+                    val merged = prev.copy(
+                        endTime = curr.endTime,
+                        room = if (prev.room.isNotBlank() && prev.room != "Room 101") prev.room else curr.room,
+                        program = if (prev.program.isNotBlank()) prev.program else curr.program
+                    )
+                    mergedDay[mergedDay.lastIndex] = merged
+                } else {
+                    mergedDay.add(curr)
+                }
+            }
+            result.addAll(mergedDay)
+        }
+
+        return result.sortedWith(compareBy({ it.dayOfWeek }, { TimetableEngine.parseTimeToMinutes(it.startTime) }))
+    }
+
+    fun isSameSubject(codeA: String, nameA: String, codeB: String, nameB: String): Boolean {
+        val cleanCodeA = codeA.trim().uppercase(Locale.US).filter { it.isLetterOrDigit() }
+        val cleanCodeB = codeB.trim().uppercase(Locale.US).filter { it.isLetterOrDigit() }
+        if (cleanCodeA.isNotEmpty() && cleanCodeB.isNotEmpty() && cleanCodeA == cleanCodeB) {
+            return true
+        }
+
+        val cleanNameA = nameA.trim().lowercase(Locale.US).replace(Regex("[^a-z0-9]"), "")
+        val cleanNameB = nameB.trim().lowercase(Locale.US).replace(Regex("[^a-z0-9]"), "")
+        if (cleanNameA.isNotEmpty() && cleanNameB.isNotEmpty()) {
+            if (cleanNameA == cleanNameB) return true
+            if (cleanNameA.contains(cleanNameB) || cleanNameB.contains(cleanNameA)) return true
+        }
+        return false
     }
 
     private fun parseDayOfWeek(raw: Any?): Int {

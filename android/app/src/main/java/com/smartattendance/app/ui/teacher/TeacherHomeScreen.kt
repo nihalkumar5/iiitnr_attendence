@@ -170,10 +170,69 @@ internal fun loadPersistedSchedule(context: android.content.Context): List<Teach
     }
 }
 
+internal fun mergeConsecutiveClasses(classes: List<TeacherClassItem>): List<TeacherClassItem> {
+    if (classes.size <= 1) return classes
+
+    val result = mutableListOf<TeacherClassItem>()
+    val groupedByDay = classes.groupBy { it.dayOfWeek }
+
+    for ((day, dayClasses) in groupedByDay) {
+        val sorted = dayClasses.sortedBy { com.smartattendance.app.core.engine.TimetableEngine.parseTimeToMinutes(it.startTime) }
+        val mergedDayList = mutableListOf<TeacherClassItem>()
+
+        for (curr in sorted) {
+            if (mergedDayList.isEmpty()) {
+                mergedDayList.add(curr)
+                continue
+            }
+
+            val prev = mergedDayList.last()
+            val sameSubject = com.smartattendance.app.core.ai.GeminiTimetableParser.isSameSubject(
+                prev.subjectCode, prev.subjectName,
+                curr.subjectCode, curr.subjectName
+            )
+            val prevEndMin = com.smartattendance.app.core.engine.TimetableEngine.parseTimeToMinutes(prev.endTime)
+            val currStartMin = com.smartattendance.app.core.engine.TimetableEngine.parseTimeToMinutes(curr.startTime)
+            val currEndMin = com.smartattendance.app.core.engine.TimetableEngine.parseTimeToMinutes(curr.endTime)
+
+            // If same subject, and consecutive (starts within 15 min of prev end and ends after prev)
+            if (sameSubject && currStartMin <= (prevEndMin + 15) && currEndMin > prevEndMin) {
+                val newStart = prev.startTime
+                val newEnd = curr.endTime
+                val dayName = when (day) {
+                    1 -> "Monday"
+                    2 -> "Tuesday"
+                    3 -> "Wednesday"
+                    4 -> "Thursday"
+                    5 -> "Friday"
+                    6 -> "Saturday"
+                    7 -> "Sunday"
+                    else -> "Monday"
+                }
+                val newTimeSlot = "$dayName, ${com.smartattendance.app.core.engine.TimetableEngine.formatDisplaySlot(newStart, newEnd)}"
+                val mergedItem = prev.copy(
+                    endTime = newEnd,
+                    timeSlot = newTimeSlot,
+                    enrolledStudents = maxOf(prev.enrolledStudents, curr.enrolledStudents),
+                    room = if (prev.room.isNotBlank() && prev.room != "Room 101") prev.room else curr.room,
+                    program = if (prev.program.isNotBlank()) prev.program else curr.program
+                )
+                mergedDayList[mergedDayList.lastIndex] = mergedItem
+            } else {
+                mergedDayList.add(curr)
+            }
+        }
+        result.addAll(mergedDayList)
+    }
+
+    return result.sortedWith(compareBy({ it.dayOfWeek }, { com.smartattendance.app.core.engine.TimetableEngine.parseTimeToMinutes(it.startTime) }))
+}
+
 internal fun savePersistedSchedule(context: android.content.Context, list: List<TeacherClassItem>) {
+    val mergedList = mergeConsecutiveClasses(list)
     val prefs = context.getSharedPreferences("smart_attendance_prefs", android.content.Context.MODE_PRIVATE)
     val arr = JSONArray()
-    list.forEach { arr.put(it.toJson()) }
+    mergedList.forEach { arr.put(it.toJson()) }
     prefs.edit().putString(PREFS_FACULTY_SCHEDULE_KEY, arr.toString()).apply()
 }
 
