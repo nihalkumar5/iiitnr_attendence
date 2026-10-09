@@ -1,7 +1,9 @@
 package com.smartattendance.app.ui.teacher
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,6 +68,11 @@ fun ActiveLectureScreen(
     var showSecurityDetails by remember { mutableStateOf(false) }
     var showSubmitConfirmDialog by remember { mutableStateOf(false) }
     var showCancelConfirmDialog by remember { mutableStateOf(false) }
+
+    // Intercept hardware/gesture back to prevent accidental session exit
+    BackHandler {
+        showCancelConfirmDialog = true
+    }
 
     val wifiManager = remember { WifiPresenceManager(context) }
     var scannedNetworks by remember { mutableStateOf<List<ScannedWifiNetwork>>(emptyList()) }
@@ -173,7 +180,8 @@ fun ActiveLectureScreen(
     val presentRolls = liveAttendanceRecords.filter { it.status == "PRESENT" }.map { it.rollNumber }.toSet()
 
     val realPresentCount = presentStudentIds.size.coerceAtLeast(liveAttendanceRecords.count { it.status == "PRESENT" })
-    val effectiveTotalStudents = if (enrolledRoster.isNotEmpty()) enrolledRoster.size else totalStudents
+    val isZeroStudents = !isLoadingRoster && enrolledRoster.isEmpty() && liveAttendanceRecords.isEmpty()
+    val effectiveTotalStudents = if (isZeroStudents) 0 else if (enrolledRoster.isNotEmpty()) enrolledRoster.size else totalStudents
     val waitingCount = (effectiveTotalStudents - realPresentCount).coerceAtLeast(0)
     val livePercentage = if (effectiveTotalStudents > 0) (realPresentCount * 100) / effectiveTotalStudents else 0
 
@@ -255,7 +263,7 @@ fun ActiveLectureScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Discard Session",
+                                contentDescription = "Close active attendance session",
                                 tint = TextSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -544,14 +552,60 @@ fun ActiveLectureScreen(
                     }
                 } else if (unifiedList.isEmpty()) {
                     Surface(
-                        shape = BadgeShape,
+                        shape = RoundedCornerShape(12.dp),
                         color = SurfaceNeutral,
+                        border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("No students enrolled in this subject.", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(BrandAccent.copy(alpha = 0.08f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PeopleOutline,
+                                    contentDescription = null,
+                                    tint = BrandAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No students enrolled",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Students who join using the class code will appear here.", fontSize = 11.sp, color = TextMuted, textAlign = TextAlign.Center)
+                            Text(
+                                text = "Students must register for $subjectCode before they appear in the attendance roster.",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 16.sp
+                            )
+                            if (joinCode.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Surface(
+                                    shape = PillShape,
+                                    color = CardBackground,
+                                    border = BorderStroke(1.dp, BorderSubtle)
+                                ) {
+                                    Text(
+                                        text = "Join Code: $joinCode",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = BrandAccent,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 } else if (filteredRoster.isEmpty()) {
@@ -787,6 +841,8 @@ fun ActiveLectureScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // PRIMARY ACTION: SUBMIT ATTENDANCE
+        val hasEnrolledStudents = effectiveTotalStudents > 0
+
         Button(
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -796,15 +852,36 @@ fun ActiveLectureScreen(
                 .fillMaxWidth()
                 .height(48.dp),
             shape = ButtonShape,
-            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
+            enabled = hasEnrolledStudents,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = BrandAccent,
+                disabledContainerColor = SurfaceNeutral,
+                disabledContentColor = TextMuted
+            )
         ) {
-            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = if (hasEnrolledStudents) Color.White else TextMuted,
+                modifier = Modifier.size(18.dp)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Submit Attendance ($realPresentCount Present)",
-                color = Color.White,
+                text = if (hasEnrolledStudents) "Submit Attendance ($realPresentCount Present)" else "Submit Attendance (No Students)",
+                color = if (hasEnrolledStudents) Color.White else TextMuted,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
+            )
+        }
+
+        if (!hasEnrolledStudents) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Students must register for this subject before attendance can be submitted.",
+                fontSize = 12.sp,
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         }
 
@@ -820,7 +897,7 @@ fun ActiveLectureScreen(
             containerColor = CardBackground,
             title = {
                 Text(
-                    text = "Discard Live Session?",
+                    text = "End or Discard Session?",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = TextPrimary
@@ -828,9 +905,10 @@ fun ActiveLectureScreen(
             },
             text = {
                 Text(
-                    text = "Cancel live attendance for $subjectName? The session will be terminated without recording attendance.",
+                    text = "You are currently running an active attendance session for $subjectName. Closing the session will terminate it without saving pending attendance records. To save, submit attendance instead.",
                     fontSize = 13.sp,
-                    color = TextSecondary
+                    color = TextSecondary,
+                    lineHeight = 18.sp
                 )
             },
             confirmButton = {
@@ -965,48 +1043,91 @@ fun ActiveLectureScreen(
             .distinct()
             .filter { it.isNotBlank() }
 
-        AlertDialog(
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = { if (!isUpdatingWifi) showChangeWifiDialog = false },
-            shape = DialogShape,
-            containerColor = CardBackground,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Wifi, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Classroom Allowed Wi-Fi Networks", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
-                }
-            },
-            text = {
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .wrapContentHeight(),
+                shape = DialogShape,
+                color = CardBackground,
+                border = BorderStroke(1.dp, BorderSubtle)
+            ) {
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
                 ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Wifi,
+                                contentDescription = null,
+                                tint = BrandAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Allowed Wi-Fi Networks",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { if (!isUpdatingWifi) showChangeWifiDialog = false },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     Text(
-                        text = "Select all authorized Wi-Fi networks in this area. Students connected to ANY selected network will be automatically verified and marked Present.",
+                        text = "Authorize campus access points for this room. Students must be connected to an authorized network to satisfy Wi-Fi presence verification.",
                         fontSize = 12.sp,
                         color = TextSecondary,
                         lineHeight = 16.sp
                     )
 
-                    // Custom Wi-Fi SSID entry
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Custom SSID Input + Add Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedTextField(
                             value = customSsidInput,
                             onValueChange = { customSsidInput = it },
-                            placeholder = { Text("Add custom Wi-Fi SSID...", fontSize = 11.sp, color = TextSecondary) },
+                            placeholder = { Text("Enter Wi-Fi SSID...", fontSize = 12.sp, color = TextMuted) },
                             singleLine = true,
-                            shape = BadgeShape,
-                            modifier = Modifier.weight(1f),
+                            shape = InputShape,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BrandAccent,
-                                unfocusedBorderColor = BorderHairline
+                                unfocusedBorderColor = BorderSubtle
                             )
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
+
+                        Button(
                             onClick = {
                                 val clean = customSsidInput.replace("\"", "").trim()
                                 if (clean.isNotBlank() && !dialogSelectedSsids.any { it.equals(clean, ignoreCase = true) }) {
@@ -1014,119 +1135,167 @@ fun ActiveLectureScreen(
                                     customSsidInput = ""
                                 }
                             },
-                            enabled = customSsidInput.isNotBlank()
+                            enabled = customSsidInput.isNotBlank(),
+                            shape = ButtonShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier.height(44.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add SSID", tint = if (customSsidInput.isNotBlank()) BrandAccent else TextSecondary)
+                            Text(
+                                text = "Add",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
 
-                    HorizontalDivider(color = BorderHairline, thickness = 0.5.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Campus Networks (${dialogSelectedSsids.size} selected):",
+                        text = "Available Networks (${dialogSelectedSsids.size} selected)",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        letterSpacing = 0.5.sp
                     )
 
-                    combinedList.forEach { ssid ->
-                        val isSelected = dialogSelectedSsids.any { it.equals(ssid, ignoreCase = true) }
-                        Surface(
-                            shape = BadgeShape,
-                            color = if (isSelected) BrandAccent.copy(alpha = 0.12f) else SurfaceNeutral,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isSelected) BrandAccent else BorderHairline
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (isSelected) {
-                                        if (dialogSelectedSsids.size > 1) {
-                                            dialogSelectedSsids.removeAll { it.equals(ssid, ignoreCase = true) }
-                                        }
-                                    } else {
-                                        dialogSelectedSsids.add(ssid)
-                                    }
-                                }
-                        ) {
-                            Row(
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Scrollable Network List
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        combinedList.forEach { ssid ->
+                            val isSelected = dialogSelectedSsids.any { it.equals(ssid, ignoreCase = true) }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) BrandAccent.copy(alpha = 0.08f) else SurfaceNeutral,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) BrandAccent else BorderSubtle
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .clickable {
+                                        if (isSelected) {
+                                            if (dialogSelectedSsids.size > 1) {
+                                                dialogSelectedSsids.removeAll { it.equals(ssid, ignoreCase = true) }
+                                            }
+                                        } else {
+                                            dialogSelectedSsids.add(ssid)
+                                        }
+                                    }
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(
-                                        Icons.Default.Wifi,
-                                        contentDescription = null,
-                                        tint = if (isSelected) BrandAccent else TextSecondary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        ssid,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = TextPrimary
-                                    )
-                                }
-                                if (isSelected) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = BrandAccent.copy(alpha = 0.2f)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Text(
-                                            "✓ Allowed",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandAccent,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        Icon(
+                                            imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Wifi,
+                                            contentDescription = null,
+                                            tint = if (isSelected) BrandAccent else TextMuted,
+                                            modifier = Modifier.size(16.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = ssid,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = TextPrimary
+                                        )
+                                    }
+
+                                    if (isSelected) {
+                                        Surface(
+                                            shape = PillShape,
+                                            color = BrandAccent.copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = "Allowed",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BrandAccent,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val newString: String = dialogSelectedSsids.toList().distinct().joinToString(", ")
-                        activeWifiSsid = newString
-                        prefs.edit().putString("faculty_chosen_wifi_ssid", newString).apply()
-                        isUpdatingWifi = true
-                        coroutineScope.launch {
-                            val sId = activeSessionId
-                            if (!sId.isNullOrBlank()) {
-                                SupabaseAttendanceService.updateClassroomWifiForSession(sId, newString)
-                            }
-                            isUpdatingWifi = false
-                            showChangeWifiDialog = false
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Action Buttons Footer
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showChangeWifiDialog = false },
+                            enabled = !isUpdatingWifi,
+                            shape = ButtonShape,
+                            border = BorderStroke(1.dp, BorderSubtle),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp)
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                fontSize = 13.sp,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
-                    },
-                    shape = ButtonShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
-                    enabled = !isUpdatingWifi && dialogSelectedSsids.isNotEmpty()
-                ) {
-                    if (isUpdatingWifi) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Button(
+                            onClick = {
+                                val newString: String = dialogSelectedSsids.toList().distinct().joinToString(", ")
+                                activeWifiSsid = newString
+                                prefs.edit().putString("faculty_chosen_wifi_ssid", newString).apply()
+                                isUpdatingWifi = true
+                                coroutineScope.launch {
+                                    val sId = activeSessionId
+                                    if (!sId.isNullOrBlank()) {
+                                        SupabaseAttendanceService.updateClassroomWifiForSession(sId, newString)
+                                    }
+                                    isUpdatingWifi = false
+                                    showChangeWifiDialog = false
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            },
+                            shape = ButtonShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                            enabled = !isUpdatingWifi && dialogSelectedSsids.isNotEmpty(),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .height(42.dp)
+                        ) {
+                            if (isUpdatingWifi) {
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = "Save Allowed Wi-Fis (${dialogSelectedSsids.size})",
+                                fontSize = 13.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
-                    Text("Save Allowed Wi-Fis (${dialogSelectedSsids.size})", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showChangeWifiDialog = false },
-                    enabled = !isUpdatingWifi
-                ) {
-                    Text("Cancel", color = TextSecondary)
                 }
             }
-        )
+        }
     }
 }
