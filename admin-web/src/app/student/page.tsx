@@ -1304,43 +1304,7 @@ export default function StudentPortal() {
           </Link>
         </header>
 
-        {/* TAB SELECTOR PILL (Exact 1:1 match with user screenshot) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 mb-6 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 shadow-2xs overflow-x-auto no-scrollbar">
-          {[
-            { id: "radar", label: "Live Radar", icon: Radio, count: null },
-            { id: "subjects", label: "My Subjects", icon: BookOpen, count: myClasses.length },
-            { id: "history", label: "History", icon: Clock, count: null },
-            { id: "device", label: "Device Security", icon: ShieldCheck },
-            { id: "profile", label: "Student Profile", icon: User },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  isActive
-                    ? "bg-white text-blue-600 shadow-xs border border-slate-200"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/40"
-                }`}
-              >
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-blue-600" : "text-slate-500"}`} />
-                <span>{tab.label}</span>
-                {tab.count !== null && tab.count !== undefined && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    isActive ? "bg-blue-50 text-blue-700" : "bg-slate-200 text-slate-600"
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="max-w-md mx-auto w-full my-auto py-6">
+                <div className="max-w-md mx-auto w-full my-auto py-6">
           {showProfileSetup ? (
             <div key="profile-setup-screen" className="bg-white border border-slate-200 shadow-xl rounded-3xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95">
               <div className="flex items-center justify-between">
@@ -1746,7 +1710,7 @@ export default function StudentPortal() {
       )}
 
       {/* Main Container - Responsive Max Width (Matches Faculty Console Layout) */}
-      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 pb-12 sm:pb-16">
+      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 pb-28 sm:pb-32">
         {/* ==================================================================== */}
         {/* TOP BAR: INSTITUTIONAL BRANDING & USER STATUS (MATCHES TEACHER) */}
         {/* ==================================================================== */}
@@ -2235,6 +2199,148 @@ export default function StudentPortal() {
             </div>
           )}
 
+                    {/* TAB 3: ATTENDANCE HISTORY & SUBJECT-WISE STATS */}
+          {activeTab === "history" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Overall Percentage Card */}
+              {(() => {
+                const totalSessions = attendanceHistory.length;
+                const attendedSessions = attendanceHistory.filter(r => r.status === "PRESENT").length;
+                const overallPct = totalSessions > 0 ? ((attendedSessions / totalSessions) * 100).toFixed(1) : "100.0";
+                const isEligible = parseFloat(overallPct) >= 75.0;
+
+                return (
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 inline-block mb-1">
+                          ACADEMIC RECORD
+                        </span>
+                        <h3 className="text-base font-bold text-slate-900 tracking-tight">Attendance History</h3>
+                        <p className="text-xs text-slate-500">Official semester ledger & subject stats</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                        isEligible ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}>
+                        {isEligible ? "✓ Exam Eligible" : "⚠️ Shortage (<75%)"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-2xl font-black text-slate-900 tracking-tight">{overallPct}%</div>
+                        <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Overall Attendance</div>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="text-2xl font-black text-blue-600 tracking-tight">{attendedSessions} / {totalSessions}</div>
+                        <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Lectures Attended</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Subject-Wise Breakdown Cards */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider px-1">
+                  Subject-Wise Attendance Breakdown
+                </h4>
+                {myClasses.length === 0 && attendanceHistory.length === 0 ? (
+                  <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl">
+                    <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-700">No Attendance Records Yet</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Sessions will appear here automatically when classes begin.</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const subsMap = new Map();
+                    myClasses.forEach(c => {
+                      subsMap.set(c.subjectCode.toUpperCase(), {
+                        code: c.subjectCode,
+                        name: c.subjectName,
+                        room: c.roomNo,
+                        attended: 0,
+                        total: 0
+                      });
+                    });
+                    attendanceHistory.forEach(rec => {
+                      const code = (rec.attendance_sessions?.classes?.subjects?.code || "SUB").toUpperCase();
+                      const name = rec.attendance_sessions?.classes?.subjects?.name || "Subject";
+                      const room = rec.attendance_sessions?.classes?.room || "Room";
+                      const existing = subsMap.get(code) || { code, name, room, attended: 0, total: 0 };
+                      existing.total += 1;
+                      if (rec.status === "PRESENT") existing.attended += 1;
+                      subsMap.set(code, existing);
+                    });
+
+                    return Array.from(subsMap.values()).map(sub => {
+                      const pct = sub.total > 0 ? Math.round((sub.attended / sub.total) * 100) : 100;
+                      const isOk = pct >= 75;
+                      return (
+                        <div key={sub.code} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h5 className="font-bold text-sm text-slate-900">{sub.name}</h5>
+                              <p className="text-[11px] font-mono text-slate-500">{sub.code} · {sub.room || "Classroom"}</p>
+                            </div>
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                              isOk ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                            }`}>
+                              {pct}% ({sub.attended}/{sub.total})
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${isOk ? "bg-emerald-500" : "bg-amber-500"}`} 
+                              style={{ width: `${Math.min(100, pct)}%` }} 
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+
+              {/* Detailed Session Ledger */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider px-1">
+                  Attendance Session Ledger
+                </h4>
+                {attendanceHistory.length === 0 ? (
+                  <div className="p-6 text-center bg-white border border-slate-200 rounded-2xl">
+                    <p className="text-xs text-slate-400">No session logs recorded.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {attendanceHistory.slice(0, 25).map(record => {
+                      const isPresent = record.status === "PRESENT";
+                      const subName = record.attendance_sessions?.classes?.subjects?.name || "Subject Lecture";
+                      const subCode = record.attendance_sessions?.classes?.subjects?.code || "CLASS";
+                      const dateStr = record.marked_at ? new Date(record.marked_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Today";
+                      const timeStr = record.marked_at ? new Date(record.marked_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "--:--";
+
+                      return (
+                        <div key={record.id} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="min-w-0 flex-1">
+                            <h5 className="font-bold text-xs text-slate-900 truncate">{subName}</h5>
+                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">{dateStr} · {timeStr} · {subCode}</p>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${
+                            isPresent ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}>
+                            {isPresent ? "✓ PRESENT" : "✕ ABSENT"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+
           {/* TAB 3: DEVICE SECURITY */}
           {activeTab === "device" && (
             <div className="space-y-4 animate-in fade-in duration-200">
@@ -2376,6 +2482,47 @@ export default function StudentPortal() {
       
 
       {/* ==================================================================== */}
+            {/* ==================================================================== */}
+      {/* FLOATING FOOTER NAVIGATION BAR (Fixed at bottom on Web) */}
+      {/* ==================================================================== */}
+      <nav 
+        aria-label="Student Navigation" 
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-fit w-[96%] sm:w-auto bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-2xl rounded-full p-1.5 flex items-center justify-between sm:justify-center gap-1 sm:gap-1.5 transition-all"
+      >
+        {[
+          { id: "radar", label: "Live Radar", icon: Radio, count: null },
+          { id: "subjects", label: "My Subjects", icon: BookOpen, count: myClasses.length },
+          { id: "history", label: "History", icon: Clock, count: null },
+          { id: "device", label: "Device Security", icon: ShieldCheck, count: null },
+          { id: "profile", label: "Student Profile", icon: User, count: null },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 sm:px-3.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                isActive
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-white" : "text-slate-500"}`} />
+              <span className="text-[11px] sm:text-xs">{tab.label}</span>
+              {tab.count !== null && tab.count !== undefined && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
       {/* MODALS: EDIT PROFILE & DEVICE UNBIND (MATCHES FACULTY MODAL STYLE) */}
       {/* ==================================================================== */}
       {showEditProfileModal && (
