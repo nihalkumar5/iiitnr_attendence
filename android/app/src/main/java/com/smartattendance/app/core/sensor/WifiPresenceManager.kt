@@ -17,7 +17,9 @@ data class ConnectedWifiSnapshot(
     val ssid: String? = null,
     val bssid: String? = null,
     val rssi: Int? = null,
-    val frequencyMhz: Int? = null
+    val frequencyMhz: Int? = null,
+    val gatewayIp: String? = null,
+    val isRogueHotspot: Boolean = false
 )
 
 data class ScannedWifiNetwork(
@@ -82,6 +84,46 @@ class WifiPresenceManager(private val context: Context) {
         }
     }
 
+    fun getGatewayIp(): String? {
+        try {
+            val activeNetwork = connectivityManager?.activeNetwork ?: return null
+            val linkProps = connectivityManager?.getLinkProperties(activeNetwork) ?: return null
+            for (route in linkProps.routes) {
+                val gateway = route.gateway?.hostAddress
+                if (!gateway.isNullOrBlank() && gateway != "0.0.0.0") {
+                    return gateway
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    /**
+     * Anti-Evil Twin / Anti-Rogue Hotspot Guard:
+     * Detects if device is connected to a mobile phone hotspot (Android/iOS) masquerading as campus Wi-Fi.
+     */
+    fun isRogueMobileHotspot(gateway: String?, bssid: String?): Boolean {
+        // 1. Universal phone hotspot DHCP gateways:
+        // Android Hotspot: 192.168.43.1
+        // iOS Hotspot: 172.20.10.1
+        // Windows Hotspot: 192.168.137.1
+        if (gateway == "192.168.43.1" || gateway == "172.20.10.1" || gateway == "192.168.137.1") {
+            return true
+        }
+
+        // 2. Randomized Locally Administered Address (LAA) bit check on BSSID:
+        // Mobile chipsets creating hotspots randomize MAC with second hex char in [2, 6, A, E].
+        if (bssid != null && bssid.length >= 2) {
+            val secondChar = bssid[1].lowercaseChar()
+            if (secondChar == '2' || secondChar == '6' || secondChar == 'a' || secondChar == 'e') {
+                if (gateway != null && (gateway.startsWith("192.168.") || gateway.startsWith("172."))) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     @SuppressLint("MissingPermission")
     fun getCurrentWifiSnapshot(): ConnectedWifiSnapshot {
         if (connectivityManager == null || wifiManager == null) {
@@ -125,12 +167,21 @@ class WifiPresenceManager(private val context: Context) {
             "Unknown Wi-Fi"
         }
 
+        val gateway = getGatewayIp()
+        val isRogue = isRogueMobileHotspot(gateway, rawBssid)
+
+        if (isRogue) {
+            Log.w(tag, "ANTI-PROXY ALERT: Rogue mobile hotspot detected! Gateway=$gateway, BSSID=$rawBssid")
+        }
+
         return ConnectedWifiSnapshot(
             isConnected = true,
             ssid = cleanSsid,
             bssid = if (isSanitizedBssid) rawBssid else null,
             rssi = if (wifiInfo.rssi != -127) wifiInfo.rssi else -50,
-            frequencyMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else null
+            frequencyMhz = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else null,
+            gatewayIp = gateway,
+            isRogueHotspot = isRogue
         )
     }
 

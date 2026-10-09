@@ -183,6 +183,31 @@ fun StudentHomeScreen(
                     return@launch
                 }
 
+                // ANTI-ROGUE HOTSPOT GUARD: Reject personal phone hotspots masquerading as campus Wi-Fi
+                if (snap.isRogueHotspot) {
+                    isVerifiedPresent = false
+                    isGeofenceVerified = false
+                    geofenceErrorMessage = "ROGUE HOTSPOT BLOCKED: Mobile phone hotspot detected. Connect to official classroom router."
+                    android.util.Log.w("StudentHome", "Anti-proxy alert: Rogue mobile hotspot blocked (${snap.ssid}, gateway=${snap.gatewayIp}, bssid=${snap.bssid})")
+                    return@launch
+                }
+
+                // Anti-Evil Twin BSSID Check if required by session
+                val reqBssid = session.requiredWifiBssid
+                val currentBssid = snap.bssid
+                if (!reqBssid.isNullOrBlank() && !currentBssid.isNullOrBlank() && 
+                    currentBssid != "02:00:00:00:00:00" && !reqBssid.equals("classroom-ap", ignoreCase = true)) {
+                    val allowedBssids = reqBssid.split(",").map { it.trim().lowercase() }
+                    val isBssidMatched = allowedBssids.any { it == currentBssid.lowercase() }
+                    if (!isBssidMatched) {
+                        isVerifiedPresent = false
+                        isGeofenceVerified = false
+                        geofenceErrorMessage = "ROGUE AP BLOCKED: Fake hotspot with copied name detected ($currentBssid). Connect to genuine classroom router."
+                        android.util.Log.w("StudentHome", "BSSID mismatch: current=$currentBssid, allowed=$reqBssid")
+                        return@launch
+                    }
+                }
+
                 // STRICT GATEKEEPER 2: Real GPS Geofencing Verification (30m Radius)
                 val studentLoc = gpsManager.getCurrentLocation() ?: gpsManager.getLastKnownLocation()
                 val targetLat = session.latitude
@@ -272,9 +297,10 @@ fun StudentHomeScreen(
                         android.util.Log.e("StudentHome", "Anti-proxy security rejection: $msg")
                         deviceLockSecurityError = msg
                         showDeviceLockDialog = true
-                    } else if (msg.contains("WIFI") || msg.contains("WIFI_MISMATCH")) {
+                    } else if (msg.contains("ROGUE_HOTSPOT") || msg.contains("WIFI") || msg.contains("WIFI_MISMATCH")) {
                         android.util.Log.w("StudentHome", "Wi-Fi gatekeeper rejection: $msg")
                         isVerifiedPresent = false
+                        geofenceErrorMessage = msg
                     } else {
                         offlineStore.enqueueRecord(
                             sessionId = session.sessionId,

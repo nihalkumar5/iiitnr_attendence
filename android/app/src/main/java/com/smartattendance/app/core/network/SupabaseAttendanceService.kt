@@ -515,6 +515,24 @@ object SupabaseAttendanceService {
                             )
                         }
                     }
+
+                    // Anti-Rogue Hotspot / Evil Twin BSSID Check
+                    val expectedBssid = if (secret.contains("bssid:")) {
+                        secret.substringAfter("bssid:").substringBefore("|").trim()
+                    } else ""
+
+                    val cleanStudentBssid = wifiBssid.replace("\"", "").trim()
+                    if (expectedBssid.isNotBlank() && cleanStudentBssid.isNotBlank() && 
+                        cleanStudentBssid != "classroom-ap" && cleanStudentBssid != "02:00:00:00:00:00") {
+                        val bssidAllowedList = expectedBssid.split(",").map { it.trim().lowercase() }
+                        val isBssidMatched = bssidAllowedList.any { it == cleanStudentBssid.lowercase() }
+                        if (!isBssidMatched) {
+                            Log.w(TAG, "ANTI-ROGUE-HOTSPOT: BSSID mismatch! Student connected to '$cleanStudentBssid', expected '$expectedBssid'")
+                            return@withContext Result.failure(
+                                SecurityException("ROGUE_HOTSPOT_DETECTED: Hardware AP MAC mismatch ($cleanStudentBssid). Hotspots with copied names are prohibited. Connect to the official classroom router.")
+                            )
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 if (e is SecurityException) return@withContext Result.failure(e)
@@ -656,6 +674,9 @@ object SupabaseAttendanceService {
                 val sessionSecret = obj.optString("session_secret", "")
                 if (sessionSecret.startsWith("wifi:")) {
                     requiredWifi = sessionSecret.substringAfter("wifi:").substringBefore("|").trim()
+                }
+                if (sessionSecret.contains("bssid:")) {
+                    requiredBssid = sessionSecret.substringAfter("bssid:").substringBefore("|").trim()
                 }
                 if (sessionSecret.contains("geo:")) {
                     try {
