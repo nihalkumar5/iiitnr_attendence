@@ -62,6 +62,8 @@ export interface DBSession {
   subjectName: string;
   roomNo: string;
   wifiSsid: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 /**
@@ -184,10 +186,21 @@ export async function getActiveSessionFromDB(): Promise<DBSession | null> {
     const cleanJoinCode = code.includes("-") ? code : `${code}-${cls.id ? cls.id.slice(0, 4).toUpperCase() : "9421"}`;
 
     let dynamicWifi = "Pranjal";
+    let lat: number | undefined;
+    let lon: number | undefined;
     const secret = (data as any)?.session_secret;
-    if (secret && typeof secret === "string" && secret.includes("wifi:")) {
-      const match = secret.match(/wifi:([^|]+)/);
-      if (match && match[1]) dynamicWifi = match[1].trim();
+    if (secret && typeof secret === "string") {
+      if (secret.includes("wifi:")) {
+        const match = secret.match(/wifi:([^|]+)/);
+        if (match && match[1]) dynamicWifi = match[1].trim();
+      }
+      if (secret.includes("geo:")) {
+        const match = secret.match(/geo:([0-9.-]+),([0-9.-]+)/);
+        if (match && match[1] && match[2]) {
+          lat = parseFloat(match[1]);
+          lon = parseFloat(match[2]);
+        }
+      }
     }
 
     return {
@@ -201,7 +214,9 @@ export async function getActiveSessionFromDB(): Promise<DBSession | null> {
       subjectCode: code,
       subjectName: sub.name || "Data Mining & Warehousing",
       roomNo: cls.room || "Room A-204",
-      wifiSsid: dynamicWifi
+      wifiSsid: dynamicWifi,
+      latitude: lat,
+      longitude: lon
     };
   } catch (err) {
     console.error("getActiveSessionFromDB exception:", err);
@@ -215,7 +230,9 @@ export async function getActiveSessionFromDB(): Promise<DBSession | null> {
 export async function startAttendanceSessionInDB(
   classId: string,
   teacherId: string,
-  wifiSsid?: string
+  wifiSsid?: string,
+  teacherLat?: number,
+  teacherLon?: number
 ): Promise<DBSession | null> {
   try {
     const cleanWifi = wifiSsid?.trim() || "Pranjal";
@@ -225,7 +242,11 @@ export async function startAttendanceSessionInDB(
       .update({ status: "COMPLETED", end_time: new Date().toISOString() })
       .eq("status", "ACTIVE");
 
-    // Insert new active session with dynamic WiFi embedded in session_secret
+    const geoCoord = (teacherLat !== undefined && teacherLon !== undefined)
+      ? `${teacherLat},${teacherLon}`
+      : `21.128456,81.766184`;
+
+    // Insert new active session with dynamic WiFi and teacher GPS embedded in session_secret
     const { data, error } = await supabase
       .from("attendance_sessions")
       .insert({
@@ -233,7 +254,7 @@ export async function startAttendanceSessionInDB(
         teacher_id: teacherId,
         status: "ACTIVE",
         start_time: new Date().toISOString(),
-        session_secret: `wifi:${cleanWifi}|bssid:A4:2B:B0:8C:12:EF|ip:117.250.161.222|sec_${Math.random().toString(36).substring(2)}${Date.now().toString(36)}`
+        session_secret: `wifi:${cleanWifi}|bssid:A4:2B:B0:8C:12:EF|geo:${geoCoord}|radius:30|ip:117.250.161.222|sec_${Math.random().toString(36).substring(2)}${Date.now().toString(36)}`
       })
       .select(`
         id, class_id, teacher_id, status, start_time, session_secret,
@@ -264,7 +285,9 @@ export async function startAttendanceSessionInDB(
       subjectCode: code,
       subjectName: sub.name || "Academic Subject",
       roomNo: cls.room || "Room A-204",
-      wifiSsid: cleanWifi
+      wifiSsid: cleanWifi,
+      latitude: teacherLat,
+      longitude: teacherLon
     };
   } catch (err) {
     console.error("startAttendanceSessionInDB exception:", err);
@@ -1004,14 +1027,19 @@ export async function approveDeviceUnbindInDB(deviceId: string): Promise<boolean
  */
 export async function updateLiveSessionWifiInDB(
   sessionId: string,
-  newWifiSsid: string
+  newWifiSsid: string,
+  teacherLat?: number,
+  teacherLon?: number
 ): Promise<boolean> {
   try {
     const clean = newWifiSsid.trim() || "Pranjal";
+    const geoCoord = (teacherLat !== undefined && teacherLon !== undefined)
+      ? `${teacherLat},${teacherLon}`
+      : `21.128456,81.766184`;
     const { error } = await supabase
       .from("attendance_sessions")
       .update({
-        session_secret: `wifi:${clean}|bssid:A4:2B:B0:8C:12:EF|ip:117.250.161.222|sec_${Date.now().toString(36)}`
+        session_secret: `wifi:${clean}|bssid:A4:2B:B0:8C:12:EF|geo:${geoCoord}|radius:30|ip:117.250.161.222|sec_${Date.now().toString(36)}`
       })
       .eq("id", sessionId);
 

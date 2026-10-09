@@ -377,10 +377,24 @@ export default function TeacherAppConsole() {
 
     setIsStartingSession(true);
     try {
+      let tLat: number | undefined;
+      let tLon: number | undefined;
+      if (typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((res, rej) => {
+            navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000, enableHighAccuracy: true });
+          });
+          tLat = pos.coords.latitude;
+          tLon = pos.coords.longitude;
+        } catch {}
+      }
+
       const sess = await startAttendanceSessionInDB(
         cls.id,
         teacherId,
-        wifiSsid || cls.wifiSsid || "Pranjal"
+        wifiSsid || cls.wifiSsid || "Pranjal",
+        tLat,
+        tLon
       );
 
       setActiveSession(sess);

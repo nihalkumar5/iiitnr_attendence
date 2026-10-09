@@ -946,7 +946,7 @@ export default function StudentPortal() {
     if (!activeStudentName || !activeRollNo) return;
     setIsVerifyingPresence(true);
     try {
-      const geoResult = await getBrowserGeofence();
+      const geoResult = await getBrowserGeofence(sess.latitude, sess.longitude, 30.0);
       setVerificationResult(geoResult);
 
       const allowedWifiList = (sess.wifiSsid || "Pranjal")

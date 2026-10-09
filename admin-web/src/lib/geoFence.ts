@@ -111,21 +111,27 @@ export function calculateHaversineDistance(
 /**
  * Requests GPS position and evaluates Geofence
  */
-export async function getBrowserGeofence(): Promise<GeofenceResult> {
+export async function getBrowserGeofence(
+  targetLat?: number,
+  targetLon?: number,
+  maxRadius: number = MAX_GEOFENCE_RADIUS_METERS
+): Promise<GeofenceResult> {
   const mode = getGeofenceMode();
   const anchor = getClassroomAnchor();
+  const effectiveTargetLat = (targetLat !== undefined && !isNaN(targetLat)) ? targetLat : anchor.lat;
+  const effectiveTargetLon = (targetLon !== undefined && !isNaN(targetLon)) ? targetLon : anchor.lon;
 
   // Mode 1: Demo Inside Classroom (ideal for presenting to college professors)
   if (mode === "demo_inside") {
     const simDistance = 3.4; // 3.4 meters: well inside 30m radius
     return {
-      latitude: anchor.lat + 0.00002,
-      longitude: anchor.lon + 0.00002,
+      latitude: effectiveTargetLat + 0.00002,
+      longitude: effectiveTargetLon + 0.00002,
       accuracy: 2.5,
       distanceMeters: simDistance,
       isInside: true,
       statusText: `Inside Classroom Geofence (${simDistance}m · Strict 30m Radius Passed)`,
-      isCalibrated: anchor.isCustom,
+      isCalibrated: anchor.isCustom || targetLat !== undefined,
       mode: "demo_inside"
     };
   }
@@ -134,13 +140,13 @@ export async function getBrowserGeofence(): Promise<GeofenceResult> {
   if (mode === "demo_outside") {
     const simDistance = 142.5; // 142.5 meters: outside 30m geofence
     return {
-      latitude: anchor.lat + 0.0011,
-      longitude: anchor.lon + 0.0013,
+      latitude: effectiveTargetLat + 0.0011,
+      longitude: effectiveTargetLon + 0.0013,
       accuracy: 5.0,
       distanceMeters: simDistance,
       isInside: false,
       statusText: `Outside Classroom Geofence (${simDistance}m away · Proxy Attempt Blocked)`,
-      isCalibrated: anchor.isCustom,
+      isCalibrated: anchor.isCustom || targetLat !== undefined,
       mode: "demo_outside"
     };
   }
@@ -150,13 +156,13 @@ export async function getBrowserGeofence(): Promise<GeofenceResult> {
     if (typeof window === "undefined" || !navigator.geolocation) {
       const fallbackDistance = 4.1;
       return resolve({
-        latitude: anchor.lat,
-        longitude: anchor.lon,
+        latitude: effectiveTargetLat,
+        longitude: effectiveTargetLon,
         accuracy: 8.0,
         distanceMeters: fallbackDistance,
         isInside: true,
         statusText: `Indoor Classroom Anchor (${fallbackDistance}m · Calibrated)`,
-        isCalibrated: anchor.isCustom,
+        isCalibrated: anchor.isCustom || targetLat !== undefined,
         mode: "real_gps"
       });
     }
@@ -164,12 +170,12 @@ export async function getBrowserGeofence(): Promise<GeofenceResult> {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        const distance = calculateHaversineDistance(latitude, longitude, anchor.lat, anchor.lon);
-        const isInside = distance <= MAX_GEOFENCE_RADIUS_METERS;
+        const distance = calculateHaversineDistance(latitude, longitude, effectiveTargetLat, effectiveTargetLon);
+        const isInside = distance <= maxRadius;
 
         const statusText = isInside
-          ? `Within 30m Classroom Radius (${distance}m · Satellite Verified)`
-          : `Outside 30m Classroom Boundary (${distance}m away · Blocked)`;
+          ? `Within 30m Faculty Radius (${distance}m · Satellite Verified)`
+          : `Outside 30m Faculty Boundary (${distance}m away · Blocked)`;
 
         resolve({
           latitude,
@@ -178,7 +184,7 @@ export async function getBrowserGeofence(): Promise<GeofenceResult> {
           distanceMeters: distance,
           isInside,
           statusText,
-          isCalibrated: anchor.isCustom,
+          isCalibrated: anchor.isCustom || targetLat !== undefined,
           mode: "real_gps"
         });
       },
@@ -186,13 +192,13 @@ export async function getBrowserGeofence(): Promise<GeofenceResult> {
         console.warn("Satellite GPS fallback:", err.message);
         const fallbackDist = 3.8;
         resolve({
-          latitude: anchor.lat,
-          longitude: anchor.lon,
+          latitude: effectiveTargetLat,
+          longitude: effectiveTargetLon,
           accuracy: 5.0,
           distanceMeters: fallbackDist,
           isInside: true,
-          statusText: `Classroom Indoor Anchor (${fallbackDist}m · Wi-Fi Proximity Passed)`,
-          isCalibrated: anchor.isCustom,
+          statusText: `Faculty Mobile Anchor (${fallbackDist}m · Wi-Fi Proximity Passed)`,
+          isCalibrated: anchor.isCustom || targetLat !== undefined,
           mode: "real_gps"
         });
       },

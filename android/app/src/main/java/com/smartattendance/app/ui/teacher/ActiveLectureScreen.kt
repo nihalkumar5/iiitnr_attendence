@@ -81,10 +81,20 @@ fun ActiveLectureScreen(
 
     LaunchedEffect(Unit) {
         try {
-            val loc = gpsManager.getCurrentLocation()
+            val loc = gpsManager.getCurrentLocation() ?: gpsManager.getLastKnownLocation()
             teacherLocation = loc
             if (loc != null) {
-                proximityResult = gpsManager.verifyClassroomProximity(loc.latitude, loc.longitude)
+                // Faculty mobile device IS the dynamic geofence center point (distance = 0m)
+                proximityResult = com.smartattendance.app.core.sensor.GpsProximityResult(
+                    isWithinRange = true,
+                    distanceMeters = 0f,
+                    allowedRadiusMeters = 30f,
+                    studentLat = loc.latitude,
+                    studentLon = loc.longitude,
+                    targetLat = loc.latitude,
+                    targetLon = loc.longitude,
+                    message = "Faculty mobile center point active (0m distance, 30m geofence broadcast)"
+                )
             }
         } catch (_: Exception) {}
     }
@@ -139,13 +149,29 @@ fun ActiveLectureScreen(
     LaunchedEffect(classId) {
         loadRoster()
         coroutineScope.launch {
+            val loc = teacherLocation ?: gpsManager.getCurrentLocation() ?: gpsManager.getLastKnownLocation()
+            if (teacherLocation == null && loc != null) {
+                teacherLocation = loc
+                proximityResult = com.smartattendance.app.core.sensor.GpsProximityResult(
+                    isWithinRange = true,
+                    distanceMeters = 0f,
+                    allowedRadiusMeters = 30f,
+                    studentLat = loc.latitude,
+                    studentLon = loc.longitude,
+                    targetLat = loc.latitude,
+                    targetLon = loc.longitude,
+                    message = "Faculty mobile center point active (0m distance, 30m geofence broadcast)"
+                )
+            }
             val res = SupabaseAttendanceService.startClassAttendanceSession(
                 classId = classId,
                 joinCode = joinCode,
                 subjectName = subjectName,
                 subjectCode = subjectCode,
                 room = room,
-                chosenWifiSsid = activeWifiSsid
+                chosenWifiSsid = activeWifiSsid,
+                teacherLat = loc?.latitude,
+                teacherLon = loc?.longitude
             )
             res.onSuccess { newId ->
                 activeSessionId = newId
@@ -823,10 +849,9 @@ fun ActiveLectureScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (proximityResult != null) {
-                            if (proximityResult!!.isWithinRange) "Classroom location verified (${proximityResult!!.distanceMeters.toInt()}m from center)"
-                            else "Location outside classroom (${proximityResult!!.distanceMeters.toInt()}m away)"
-                        } else "Classroom location active (Academic Block 1)",
+                        text = if (teacherLocation != null) {
+                            "Classroom location verified (Faculty device anchor · 30m radius)"
+                        } else "Classroom location active (30m geofence)",
                         fontSize = 12.sp,
                         color = TextPrimary,
                         fontWeight = FontWeight.Medium
@@ -848,13 +873,19 @@ fun ActiveLectureScreen(
 
                     Text("Active Access Point: $activeWifiSsid", fontSize = 11.sp, color = TextSecondary)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Geofence: Academic Block 1 (30m Classroom Radius · Active)", fontSize = 11.sp, color = TextSecondary)
+                    Text("Geofence: Faculty Mobile Center (30m Classroom Radius · Active)", fontSize = 11.sp, color = TextSecondary)
                     if (teacherLocation != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Coordinates: ${String.format(java.util.Locale.US, "%.5f, %.5f (±%.0fm)", teacherLocation!!.latitude, teacherLocation!!.longitude, teacherLocation!!.accuracyMeters)}",
+                            text = "Anchor Coordinates: ${String.format(java.util.Locale.US, "%.5f, %.5f (±%.0fm)", teacherLocation!!.latitude, teacherLocation!!.longitude, teacherLocation!!.accuracyMeters)}",
                             fontSize = 11.sp,
                             color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Origin: Faculty Mobile Device (Teacher = 0m offset)",
+                            fontSize = 11.sp,
+                            color = StatusPresent
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1303,7 +1334,12 @@ fun ActiveLectureScreen(
                                 coroutineScope.launch {
                                     val sId = activeSessionId
                                     if (!sId.isNullOrBlank()) {
-                                        SupabaseAttendanceService.updateClassroomWifiForSession(sId, newString)
+                                        SupabaseAttendanceService.updateClassroomWifiForSession(
+                                            sId, 
+                                            newString,
+                                            teacherLat = teacherLocation?.latitude,
+                                            teacherLon = teacherLocation?.longitude
+                                        )
                                     }
                                     isUpdatingWifi = false
                                     showChangeWifiDialog = false

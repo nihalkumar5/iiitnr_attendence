@@ -779,7 +779,9 @@ object SupabaseAttendanceService {
         subjectCode: String = "",
         room: String = "Room A-302",
         chosenWifiSsid: String = "Pranjal",
-        teacherId: String = "977d23e7-4b43-4a7a-af74-b3fb2855beae"
+        teacherId: String = "977d23e7-4b43-4a7a-af74-b3fb2855beae",
+        teacherLat: Double? = null,
+        teacherLon: Double? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             endAllActiveSessions()
@@ -883,12 +885,17 @@ object SupabaseAttendanceService {
             val nowIso = sdf.format(Date())
 
             val cleanWifi = chosenWifiSsid.trim().ifBlank { "Pranjal" }
+            val geoCoord = if (teacherLat != null && teacherLon != null) {
+                "${teacherLat},${teacherLon}"
+            } else {
+                "21.128456,81.766184"
+            }
             val payload = JSONObject().apply {
                 put("class_id", effectiveClassId)
                 put("teacher_id", teacherId)
                 put("status", "ACTIVE")
                 put("start_time", nowIso)
-                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|geo:21.128456,81.766184|radius:30|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|geo:$geoCoord|radius:30|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             }
 
             val insertReq = Request.Builder()
@@ -1031,15 +1038,22 @@ object SupabaseAttendanceService {
      */
     suspend fun updateClassroomWifiForSession(
         sessionId: String,
-        newWifiSsid: String
+        newWifiSsid: String,
+        teacherLat: Double? = null,
+        teacherLon: Double? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val cleanWifi = newWifiSsid.trim().ifBlank { "Pranjal" }
             Log.d(TAG, "Updating classroom Wi-Fi for session $sessionId to '$cleanWifi'")
 
+            val geoCoord = if (teacherLat != null && teacherLon != null) {
+                "${teacherLat},${teacherLon}"
+            } else {
+                "21.128456,81.766184"
+            }
             // 1. Direct update on attendance_sessions.session_secret
             val patchSessionPayload = JSONObject().apply {
-                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|geo:21.128456,81.766184|radius:30|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|geo:$geoCoord|radius:30|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             }
             val patchSessionReq = Request.Builder()
                 .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId")
