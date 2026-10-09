@@ -20,7 +20,6 @@ object StudentScheduleManager {
     private const val ALARM_REQUEST_CODE = 4401
 
     fun saveCachedCourses(context: Context, courses: List<EnrolledCourseInfo>) {
-        if (courses.isEmpty()) return
         try {
             val arr = JSONArray()
             courses.forEach { c ->
@@ -159,6 +158,17 @@ object StudentScheduleManager {
      * If next class is later today -> Schedules alarm for class start and stops service.
      * If next class is live now -> Leaves service running.
      */
+    fun clearCachedCourses(context: Context) {
+        try {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(KEY_CACHED_COURSES)
+                .apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error clearing cached courses: ${e.message}")
+        }
+    }
+
     fun evaluateAndSchedulePowerSave(context: Context): Boolean {
         val cached = getCachedCourses(context)
         val currentIsoDay = TimetableEngine.getIsoDayOfWeek()

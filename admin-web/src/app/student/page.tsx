@@ -149,7 +149,8 @@ export default function StudentPortal() {
   const [profileSaveSuccess, setProfileSaveSuccess] = useState<string | null>(null);
 
   // Mobile App Shell & Declutter Navigation States
-  const [activeTab, setActiveTab] = useState<"radar" | "subjects" | "device" | "profile">("radar");
+  const [activeTab, setActiveTab] = useState<"radar" | "subjects" | "history" | "device" | "profile">("radar");
+  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
   const [showJoinInline, setShowJoinInline] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
@@ -785,6 +786,24 @@ export default function StudentPortal() {
     return () => clearInterval(interval);
   }, [deviceMismatchError, rollNo, studentName, studentEmail]);
 
+  // Load Attendance History
+  useEffect(() => {
+    if (!rollNo) return;
+    const fetchHistory = async () => {
+      try {
+        const { data } = await supabase
+          .from("attendance_records")
+          .select("id, status, marked_at, verification_method, notes, attendance_sessions(id, start_time, classes(room, subjects(name, code), teachers(users(name))))")
+          .eq("sensor_details->>roll_number", rollNo)
+          .order("marked_at", { ascending: false });
+        if (data) setAttendanceHistory(data);
+      } catch (e) {
+        console.warn("Could not fetch attendance history:", e);
+      }
+    };
+    fetchHistory();
+  }, [rollNo]);
+
   // 1. Fetch hardware network
   const fetchRealNetworkStatus = async () => {
     setIsDetectingNetwork(true);
@@ -1269,6 +1288,42 @@ export default function StudentPortal() {
           </Link>
         </header>
 
+        {/* TAB SELECTOR PILL (Exact 1:1 match with user screenshot) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-6 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 shadow-2xs overflow-x-auto no-scrollbar">
+          {[
+            { id: "radar", label: "Live Radar", icon: Radio, count: null },
+            { id: "subjects", label: "My Subjects", icon: BookOpen, count: myClasses.length },
+            { id: "history", label: "History", icon: Clock, count: null },
+            { id: "device", label: "Device Security", icon: ShieldCheck },
+            { id: "profile", label: "Student Profile", icon: User },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? "bg-white text-blue-600 shadow-xs border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/40"
+                }`}
+              >
+                <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-blue-600" : "text-slate-500"}`} />
+                <span>{tab.label}</span>
+                {tab.count !== null && tab.count !== undefined && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive ? "bg-blue-50 text-blue-700" : "bg-slate-200 text-slate-600"
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="max-w-md mx-auto w-full my-auto py-6">
           {showProfileSetup ? (
             <div key="profile-setup-screen" className="bg-white border border-slate-200 shadow-xl rounded-3xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95">
@@ -1647,7 +1702,7 @@ export default function StudentPortal() {
 
   // IF LOGGED IN: SHOW REGULAR STUDENT CONSOLE (FACULTY MATCHED THEME)
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 justify-between">
+    <div className="min-h-screen bg-[#F8FAFC] bg-[radial-gradient(#CBD5E1_1px,transparent_1px)] [background-size:20px_20px] text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 justify-between">
       {/* Dynamic Island / Top Notification Banner (Apple-grade, matching Faculty UI) */}
       {autoCheckInToast && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] sm:w-auto bg-slate-900/95 text-white backdrop-blur-md px-4 py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
@@ -1675,7 +1730,7 @@ export default function StudentPortal() {
       )}
 
       {/* Main Container - Responsive Max Width (Matches Faculty Console Layout) */}
-      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 pb-24 md:pb-12">
+      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 pb-12 sm:pb-16">
         {/* ==================================================================== */}
         {/* TOP BAR: INSTITUTIONAL BRANDING & USER STATUS (MATCHES TEACHER) */}
         {/* ==================================================================== */}
@@ -1695,11 +1750,23 @@ export default function StudentPortal() {
                   STUDENT
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium pt-0.5">
-                <span className="truncate max-w-[130px] sm:max-w-none text-slate-700 font-semibold">{studentName || "Student"}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditName(studentName);
+                  setEditRollNo(rollNo);
+                  setEditEmail(studentEmail);
+                  setProfileSaveSuccess(null);
+                  setShowEditProfileModal(true);
+                }}
+                className="flex items-center gap-1.5 text-xs text-slate-500 font-medium pt-0.5 hover:text-blue-600 cursor-pointer text-left group"
+                title="Click to edit profile"
+              >
+                <span className="truncate max-w-[130px] sm:max-w-none text-slate-700 font-semibold group-hover:text-blue-600 transition-colors">{studentName || "Student"}</span>
                 <span className="text-slate-300">•</span>
-                <span className="font-mono text-[11px] text-slate-600 bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200/70 font-semibold">{rollNo || "ID"}</span>
-              </div>
+                <span className="font-mono text-[11px] text-slate-600 bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200/70 font-semibold group-hover:border-blue-300 transition-colors">{rollNo || "ID"}</span>
+                <Pencil className="w-3 h-3 text-slate-400 group-hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100" />
+              </button>
             </div>
           </div>
 
@@ -1710,6 +1777,22 @@ export default function StudentPortal() {
                 Live
               </span>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                setEditName(studentName);
+                setEditRollNo(rollNo);
+                setEditEmail(studentEmail);
+                setProfileSaveSuccess(null);
+                setShowEditProfileModal(true);
+              }}
+              className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Edit Student Profile"
+            >
+              <Pencil className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline text-[11px]">Edit</span>
+            </button>
+
             <Link
               href="/teacher"
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all border border-slate-200/80 shadow-2xs"
@@ -1735,39 +1818,6 @@ export default function StudentPortal() {
             </button>
           </div>
         </header>
-
-        {/* DESKTOP TAB SELECTOR (Hidden on small mobile screens) */}
-        <div className="hidden md:flex items-center gap-2 mb-5 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/80">
-          {[
-            { id: "radar", label: "Live Radar", icon: Radio, count: activeSession ? 1 : null },
-            { id: "subjects", label: "My Subjects", icon: BookOpen, count: myClasses.length },
-            { id: "device", label: "Device Security", icon: ShieldCheck },
-            { id: "profile", label: "Student Profile", icon: User },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-white text-blue-600 shadow-sm border border-slate-200"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-blue-600" : "text-slate-500"}`} />
-                <span>{tab.label}</span>
-                {tab.count !== null && tab.count !== undefined && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? "bg-blue-50 text-blue-700 font-mono" : "bg-slate-200 text-slate-700 font-mono"}`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
 
         {/* ==================================================================== */}
         {/* MAIN BODY CONTENT */}
@@ -2291,42 +2341,8 @@ export default function StudentPortal() {
       </div>
 
       {/* ==================================================================== */}
-      {/* MOBILE BOTTOM NAVIGATION BAR (Matches Faculty Console 1:1) */}
       {/* ==================================================================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-        <div className="max-w-md mx-auto flex items-center justify-around">
-          {[
-            { id: "radar", label: "Live Radar", icon: Radio, badge: activeSession ? "LIVE" : null },
-            { id: "subjects", label: "Subjects", icon: BookOpen, count: myClasses.length },
-            { id: "device", label: "Security", icon: ShieldCheck },
-            { id: "profile", label: "Profile", icon: User },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`relative flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-                  isActive ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900 font-medium"
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px]">{tab.label}</span>
-                {tab.badge && (
-                  <span className="absolute top-1 right-2 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                )}
-                {tab.count !== undefined && tab.count > 0 && !tab.badge && (
-                  <span className="absolute top-1 right-2 px-1.5 py-0.2 bg-blue-50 border border-blue-200 text-blue-700 text-[9px] font-bold rounded-full">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      
 
       {/* ==================================================================== */}
       {/* MODALS: EDIT PROFILE & DEVICE UNBIND (MATCHES FACULTY MODAL STYLE) */}

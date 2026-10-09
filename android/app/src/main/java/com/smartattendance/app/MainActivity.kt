@@ -1,5 +1,12 @@
 package com.smartattendance.app
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import com.smartattendance.app.ui.student.StudentTab
+
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,11 +36,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Lock
@@ -74,10 +84,7 @@ enum class UserRole {
     TEACHER
 }
 
-enum class StudentTab {
-    ATTENDANCE,
-    HISTORY
-}
+// Using com.smartattendance.app.ui.student.StudentTab
 
 enum class TeacherTab {
     HOME,
@@ -148,7 +155,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // Student Tab Navigation State
-                var currentStudentTab by remember { mutableStateOf(StudentTab.ATTENDANCE) }
+    var currentStudentTab by remember { mutableStateOf(StudentTab.RADAR) }
+    var studentEnrolledCount by remember { mutableIntStateOf(0) }
 
                 // Teacher Tab Navigation State
                 var currentTeacherTab by remember { mutableStateOf(TeacherTab.HOME) }
@@ -221,7 +229,7 @@ class MainActivity : ComponentActivity() {
                                             .apply()
                                         studentName = name
                                         studentRoll = roll
-                                        currentStudentTab = StudentTab.ATTENDANCE
+    currentStudentTab = StudentTab.RADAR
                                         currentRole = UserRole.STUDENT
                                     },
                                     onLoginFaculty = { name, id, dept ->
@@ -245,46 +253,89 @@ class MainActivity : ComponentActivity() {
                                 // 2. STUDENT DEDICATED DASHBOARD (NO TEACHER TABS/CONTROLS)
                                 Scaffold(
                                     bottomBar = {
-                                        Surface(
-                                            color = Color.White.copy(alpha = 0.98f),
-                                            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                                            shadowElevation = 14.dp,
-                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0).copy(alpha = 0.8f)),
-                                            modifier = Modifier.fillMaxWidth()
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .navigationBarsPadding()
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .navigationBarsPadding()
-                                                    .padding(vertical = 8.dp, horizontal = 36.dp),
-                                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                                verticalAlignment = Alignment.CenterVertically
+                                            Surface(
+                                                color = Color(0xFFF1F5F9).copy(alpha = 0.96f),
+                                                shape = RoundedCornerShape(22.dp),
+                                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                                shadowElevation = 3.dp,
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                AppllamaTabItem(
-                                                    selected = currentStudentTab == StudentTab.ATTENDANCE,
-                                                    label = "Attendance",
-                                                    selectedIcon = Icons.Filled.Person,
-                                                    unselectedIcon = Icons.Outlined.Person,
-                                                    onClick = {
-                                                        if (currentStudentTab != StudentTab.ATTENDANCE) {
-                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                            currentStudentTab = StudentTab.ATTENDANCE
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(4.dp)
+                                                        .horizontalScroll(rememberScrollState()),
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                                                                        StudentPillTabItem(
+                                                        selected = currentStudentTab == StudentTab.RADAR,
+                                                        label = "Live Radar",
+                                                        icon = Icons.Filled.Radio,
+                                                        onClick = {
+                                                            if (currentStudentTab != StudentTab.RADAR) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                currentStudentTab = StudentTab.RADAR
+                                                            }
                                                         }
-                                                    }
-                                                )
+                                                    )
 
-                                                AppllamaTabItem(
-                                                    selected = currentStudentTab == StudentTab.HISTORY,
-                                                    label = "History",
-                                                    selectedIcon = Icons.Filled.Assessment,
-                                                    unselectedIcon = Icons.Outlined.Assessment,
-                                                    onClick = {
-                                                        if (currentStudentTab != StudentTab.HISTORY) {
-                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                            currentStudentTab = StudentTab.HISTORY
+                                                    StudentPillTabItem(
+                                                        selected = currentStudentTab == StudentTab.SUBJECTS,
+                                                        label = "My Subjects",
+                                                        icon = Icons.AutoMirrored.Filled.MenuBook,
+                                                        badgeText = "$studentEnrolledCount",
+                                                        onClick = {
+                                                            if (currentStudentTab != StudentTab.SUBJECTS) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                currentStudentTab = StudentTab.SUBJECTS
+                                                            }
                                                         }
-                                                    }
-                                                )
+                                                    )
+
+                                                    StudentPillTabItem(
+                                                        selected = currentStudentTab == StudentTab.HISTORY,
+                                                        label = "History",
+                                                        icon = Icons.Filled.History,
+                                                        onClick = {
+                                                            if (currentStudentTab != StudentTab.HISTORY) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                currentStudentTab = StudentTab.HISTORY
+                                                            }
+                                                        }
+                                                    )
+
+                                                    StudentPillTabItem(
+                                                        selected = currentStudentTab == StudentTab.SECURITY,
+                                                        label = "Device Security",
+                                                        icon = Icons.Default.Security,
+                                                        onClick = {
+                                                            if (currentStudentTab != StudentTab.SECURITY) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                currentStudentTab = StudentTab.SECURITY
+                                                            }
+                                                        }
+                                                    )
+
+                                                    StudentPillTabItem(
+                                                        selected = currentStudentTab == StudentTab.PROFILE,
+                                                        label = "Student Profile",
+                                                        icon = Icons.Filled.Person,
+                                                        onClick = {
+                                                            if (currentStudentTab != StudentTab.PROFILE) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                currentStudentTab = StudentTab.PROFILE
+                                                            }
+                                                        }
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -295,24 +346,14 @@ class MainActivity : ComponentActivity() {
                                             .background(CanvasBackground)
                                             .padding(innerPadding)
                                     ) {
-                                        Crossfade(
-                                            targetState = currentStudentTab,
-                                            animationSpec = tween(durationMillis = 180),
-                                            label = "studentTabCrossfade"
-                                        ) { tab ->
-                                            when (tab) {
-                                                StudentTab.ATTENDANCE -> {
-                                                    StudentHomeScreen(
-                                                        studentName = studentName,
-                                                        studentRoll = studentRoll,
-                                                        onLogout = { logout() }
-                                                    )
-                                                }
-                                                StudentTab.HISTORY -> {
-                                                    AttendanceHistoryScreen(studentRoll = studentRoll)
-                                                }
-                                            }
-                                        }
+                                        StudentHomeScreen(
+                                            studentName = studentName,
+                                            studentRoll = studentRoll,
+                                            selectedTab = currentStudentTab,
+                                            onSelectTab = { currentStudentTab = it },
+                                            onEnrolledCountChanged = { count -> studentEnrolledCount = count },
+                                            onLogout = { logout() }
+                                        )
                                     }
                                 }
                             }
@@ -668,5 +709,104 @@ private fun AppllamaTabItem(
                 .clip(CircleShape)
                 .background(if (selected) BrandAccent else Color.Transparent)
         )
+    }
+}
+
+@Composable
+private fun StudentPillTabItem(
+    selected: Boolean,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    badgeText: String? = null,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    if (selected) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            shadowElevation = 1.5.dp,
+            modifier = modifier
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { onClick() }
+        ) {
+            Row(
+                modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = BrandAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandAccent
+                )
+                if (!badgeText.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color(0xFFEFF6FF)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1D4ED8),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { onClick() }
+                .padding(vertical = 8.dp, horizontal = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF475569)
+                )
+                if (!badgeText.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color(0xFFE2E8F0)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF475569),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }

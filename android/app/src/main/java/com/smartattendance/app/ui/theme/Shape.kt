@@ -10,8 +10,8 @@ import androidx.compose.ui.unit.dp
 // Never ad-hoc mixed radii."
 // =========================================================================
 
-val CardShape = RoundedCornerShape(16.dp)
-val ElevatedCardShape = RoundedCornerShape(16.dp)
+val CardShape = RoundedCornerShape(22.dp)
+val ElevatedCardShape = RoundedCornerShape(22.dp)
 val ButtonShape = RoundedCornerShape(12.dp)
 val InputShape = RoundedCornerShape(12.dp)
 val BadgeShape = RoundedCornerShape(8.dp)
