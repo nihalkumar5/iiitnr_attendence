@@ -16,6 +16,13 @@ val InterFont = FontFamily(
     Font(R.font.inter, FontWeight.Bold)
 )
 
+// Bundled Caveat Typeface - Handwritten Accent
+val CaveatFont = FontFamily(
+    Font(R.font.caveat, FontWeight.Normal),
+    Font(R.font.caveat, FontWeight.Medium),
+    Font(R.font.caveat, FontWeight.SemiBold)
+)
+
 val Typography = Typography(
     // Display Hero: Single display size per screen
     displaySmall = TextStyle(

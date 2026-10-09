@@ -579,11 +579,11 @@ fun TeacherHomeScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "TODAY · ${liveDateStr.uppercase()}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF64748B),
-                    letterSpacing = 1.5.sp
+                    text = liveDateStr,
+                    fontFamily = CaveatFont,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF475569)
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
