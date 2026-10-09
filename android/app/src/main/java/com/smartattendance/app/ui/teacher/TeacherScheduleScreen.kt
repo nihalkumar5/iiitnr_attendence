@@ -193,7 +193,7 @@ fun TeacherScheduleScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasBackground)
+            .intersemesterBackground()
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
@@ -296,7 +296,7 @@ fun TeacherScheduleScreen(
                                 shareJoinCode(currentClass.subjectName, currentClass.subjectCode, currentClass.joinCode, currentClass.program)
                             },
                             shape = ButtonShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
@@ -470,7 +470,7 @@ fun TeacherScheduleScreen(
                                                 copyToClipboard(currentClass.joinCode, "Join Code")
                                             },
                                             shape = ButtonShape,
-                                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White)
                                         ) {
                                             Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -568,7 +568,7 @@ fun TeacherScheduleScreen(
                                     onStartLecture(currentClass)
                                 },
                                 shape = ButtonShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -677,7 +677,7 @@ fun TeacherScheduleScreen(
                         .weight(1f)
                         .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
@@ -821,7 +821,7 @@ fun TeacherScheduleScreen(
                                     showAddClassDialog = true
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
                                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -835,7 +835,7 @@ fun TeacherScheduleScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     filteredSubjectClasses.forEach { item ->
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = CardBackground,
                             border = BorderStroke(1.dp, BorderSubtle),
                             modifier = Modifier
@@ -1190,7 +1190,7 @@ fun TeacherScheduleScreen(
                         },
                         enabled = !isCreatingSubject,
                         shape = ButtonShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White)
                     ) {
                         if (isCreatingSubject) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
@@ -1312,7 +1312,7 @@ fun TeacherScheduleScreen(
                                 shareJoinCode(successItem.subjectName, successItem.subjectCode, successItem.joinCode, successItem.program)
                             },
                             shape = ButtonShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A), contentColor = Color.White),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color.White)

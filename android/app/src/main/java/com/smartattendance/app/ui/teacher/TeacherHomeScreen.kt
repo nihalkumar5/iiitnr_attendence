@@ -30,6 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartattendance.app.core.engine.TimetableEngine
@@ -539,7 +542,7 @@ fun TeacherHomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasBackground)
+            .intersemesterBackground()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 20.dp)
             .navigationBarsPadding()
@@ -550,7 +553,7 @@ fun TeacherHomeScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -560,23 +563,25 @@ fun TeacherHomeScreen(
                     color = Color(0xFF64748B),
                     letterSpacing = 1.5.sp
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "$greetingPrefix, Prof. $facultyDisplayName",
-                    fontSize = 23.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    letterSpacing = (-0.5).sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Light, color = TextPrimary)) {
+                            append("$greetingPrefix,\n")
+                        }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextPrimary)) {
+                            append("Prof. $facultyDisplayName")
+                        }
+                    },
+                    fontSize = 26.sp,
+                    lineHeight = 32.sp,
+                    letterSpacing = (-0.5).sp
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "$department · $facultyId",
                     fontSize = 13.sp,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = TextSecondary
                 )
             }
 

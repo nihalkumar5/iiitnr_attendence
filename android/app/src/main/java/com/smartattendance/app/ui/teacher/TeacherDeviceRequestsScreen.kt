@@ -74,7 +74,7 @@ fun TeacherDeviceRequestsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasBackground)
+            .intersemesterBackground()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         // 1. HEADER (Editorial hierarchy, quiet refresh, no logout)

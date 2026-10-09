@@ -243,7 +243,7 @@ fun ActiveLectureScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasBackground)
+            .intersemesterBackground()
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {

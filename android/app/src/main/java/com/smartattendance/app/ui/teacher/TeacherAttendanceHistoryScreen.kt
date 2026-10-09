@@ -85,7 +85,7 @@ fun TeacherAttendanceHistoryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(CanvasBackground)
+            .intersemesterBackground()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         // 1. TOP HEADER (Compact, minimal, matching design system)

@@ -319,15 +319,7 @@ fun TeacherSignatureTicketCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
 
-            // Subtle restrained lavender underline decorative detail
-            Box(
-                modifier = Modifier
-                    .width(34.dp)
-                    .height(2.5.dp)
-                    .background(LavenderAccent.copy(alpha = 0.85f), RoundedCornerShape(2.dp))
-            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
