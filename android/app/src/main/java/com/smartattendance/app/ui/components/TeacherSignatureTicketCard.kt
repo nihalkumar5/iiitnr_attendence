@@ -17,112 +17,23 @@ import android.content.Context
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import com.smartattendance.app.core.engine.TimetableEngine
 import com.smartattendance.app.ui.theme.TabularCodeStyle
-import kotlinx.coroutines.delay
-import java.util.Calendar
-
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.smartattendance.app.ui.teacher.ClassScheduleStatus
 import com.smartattendance.app.ui.teacher.TeacherClassItem
 
-/**
- * Custom Ticket Shape with semicircular inward cut-outs (notches) on left and right edges.
- */
-class TicketShape(
-    val cornerRadius: Dp = 18.dp,
-    val notchRadius: Dp = 12.dp,
-    val notchOffsetFromBottom: Dp = 72.dp
-) : Shape {
-    override fun createOutline(
-        size: Size,
-        layoutDirection: LayoutDirection,
-        density: Density
-    ): Outline {
-        val cornerPx = with(density) { cornerRadius.toPx() }
-        val notchPx = with(density) { notchRadius.toPx() }
-        val notchOffsetPx = with(density) { notchOffsetFromBottom.toPx() }
-        val notchCenterY = size.height - notchOffsetPx
-
-        val path = Path().apply {
-            moveTo(cornerPx, 0f)
-            lineTo(size.width - cornerPx, 0f)
-            arcTo(
-                rect = Rect(size.width - 2 * cornerPx, 0f, size.width, 2 * cornerPx),
-                startAngleDegrees = 270f,
-                sweepAngleDegrees = 90f,
-                forceMoveTo = false
-            )
-            lineTo(size.width, notchCenterY - notchPx)
-            arcTo(
-                rect = Rect(size.width - notchPx, notchCenterY - notchPx, size.width + notchPx, notchCenterY + notchPx),
-                startAngleDegrees = 270f,
-                sweepAngleDegrees = -180f,
-                forceMoveTo = false
-            )
-            lineTo(size.width, size.height - cornerPx)
-            arcTo(
-                rect = Rect(size.width - 2 * cornerPx, size.height - 2 * cornerPx, size.width, size.height),
-                startAngleDegrees = 0f,
-                sweepAngleDegrees = 90f,
-                forceMoveTo = false
-            )
-            lineTo(cornerPx, size.height)
-            arcTo(
-                rect = Rect(0f, size.height - 2 * cornerPx, 2 * cornerPx, size.height),
-                startAngleDegrees = 90f,
-                sweepAngleDegrees = 90f,
-                forceMoveTo = false
-            )
-            lineTo(0f, notchCenterY + notchPx)
-            arcTo(
-                rect = Rect(-notchPx, notchCenterY - notchPx, notchPx, notchCenterY + notchPx),
-                startAngleDegrees = 90f,
-                sweepAngleDegrees = -180f,
-                forceMoveTo = false
-            )
-            lineTo(0f, cornerPx)
-            arcTo(
-                rect = Rect(0f, 0f, 2 * cornerPx, 2 * cornerPx),
-                startAngleDegrees = 180f,
-                sweepAngleDegrees = 90f,
-                forceMoveTo = false
-            )
-            close()
-        }
-
-        return Outline.Generic(path)
-    }
-}
-
-private val TicketBackground = Color(0xFF0A0E17)
-private val TicketBorderColor = Color(0xFF1E293B)
-private val LavenderAccent = Color(0xFFC4B5FD)
-private val LavenderSoft = Color(0x33C4B5FD)
-private val TicketTextWhite = Color(0xFFF8FAFC)
-private val TicketTextMuted = Color(0xFF94A3B8)
-private val TicketTextSubtle = Color(0xFF64748B)
+private val CardDarkBackground = Color(0xFF0B0F19)
+private val CardBorderColor = Color(0xFF1E293B)
+private val IndigoAccent = Color(0xFF818CF8)
+private val IndigoSoft = Color(0xFF1E1B4B)
+private val TextSubtle = Color(0xFF64748B)
+private val TextMuted = Color(0xFF94A3B8)
 
 @Composable
 fun TeacherSignatureTicketCard(
@@ -134,17 +45,13 @@ fun TeacherSignatureTicketCard(
     onCopyJoinCode: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val ticketShape = TicketShape(
-        cornerRadius = 20.dp,
-        notchRadius = 13.dp,
-        notchOffsetFromBottom = 72.dp
-    )
+    val cardShape = RoundedCornerShape(24.dp)
 
     val eyebrowText = when {
         isSessionLive -> "LIVE SESSION"
         isPrimaryInProgress -> "IN PROGRESS"
-        isPendingLateHero -> "PENDING ATTENDANCE"
-        else -> "NEXT CLASS"
+        isPendingLateHero -> "READY TO START"
+        else -> "READY TO START"
     }
 
     val actionButtonText = if (isSessionLive) "Continue Live Attendance" else "Start Attendance"
@@ -174,7 +81,6 @@ fun TeacherSignatureTicketCard(
             var startEpoch = prefs.getLong(sessionKey, 0L)
             val nowMs = System.currentTimeMillis()
 
-            // Timer starts strictly when attendance is initiated, never backdated to timetable start
             if (startEpoch <= 0L || (nowMs - startEpoch) > 4 * 3600 * 1000L) {
                 startEpoch = nowMs
                 prefs.edit().putLong(sessionKey, startEpoch).apply()
@@ -183,10 +89,8 @@ fun TeacherSignatureTicketCard(
             while (true) {
                 val current = System.currentTimeMillis()
                 elapsedSeconds = ((current - startEpoch) / 1000L).coerceAtLeast(0L)
-                delay(1000L)
+                kotlinx.coroutines.delay(1000L)
             }
-        } else {
-            elapsedSeconds = 0L
         }
     }
 
@@ -202,214 +106,156 @@ fun TeacherSignatureTicketCard(
         }
     }
 
-    // Selective typographic contrast: lightweight body with selective bold keyword
-    val annotatedTitle = remember(classItem.subjectName) {
-        val trimmed = classItem.subjectName.trim()
-        val words = trimmed.split(Regex("""\s+""")).filter { it.isNotBlank() }
-        buildAnnotatedString {
-            if (words.size > 1) {
-                val prefix = words.dropLast(1).joinToString(" ") + " "
-                val keyWord = words.last()
-                withStyle(SpanStyle(fontWeight = FontWeight.Light, color = Color(0xFFF1F5F9))) {
-                    append(prefix)
-                }
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) {
-                    append(keyWord)
-                }
-            } else {
-                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.White)) {
-                    append(trimmed)
-                }
-            }
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(ticketShape)
-            .background(TicketBackground)
-            .border(1.dp, TicketBorderColor, ticketShape)
-            .drawBehind {
-                val notchOffsetPx = 72.dp.toPx()
-                val notchPx = 13.dp.toPx()
-                val notchCenterY = size.height - notchOffsetPx
-                val strokeWidth = 1.dp.toPx()
-
-                val pathEffect = PathEffect.dashPathEffect(
-                    floatArrayOf(12f, 10f),
-                    0f
-                )
-
-                drawLine(
-                    color = Color(0xFF1E293B),
-                    start = Offset(notchPx + 8.dp.toPx(), notchCenterY),
-                    end = Offset(size.width - notchPx - 8.dp.toPx(), notchCenterY),
-                    strokeWidth = strokeWidth,
-                    pathEffect = pathEffect
-                )
-            }
+            .clip(cardShape)
+            .background(CardDarkBackground)
+            .border(1.dp, CardBorderColor, cardShape)
+            .clickable { onStartAttendance() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 22.dp, bottom = 14.dp, start = 20.dp, end = 20.dp)
+                .padding(20.dp)
         ) {
             // ====================================================================
-            // 1. EYEBROW + STATUS PILL
+            // 1. TOP HEADER: STATUS BADGE (LEFT) + TIME PILL (RIGHT)
             // ====================================================================
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Restrained Lavender Vertical Rule
-                    Box(
-                        modifier = Modifier
-                            .width(3.dp)
-                            .height(13.dp)
-                            .background(LavenderAccent, RoundedCornerShape(2.dp))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = eyebrowText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = LavenderAccent,
-                        letterSpacing = 1.5.sp
-                    )
-                }
-
                 if (isSessionLive) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = Color(0x2610B981),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF064E3B).copy(alpha = 0.6f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF10B981).copy(alpha = dotAlpha))
+                                    .size(7.dp)
+                                    .background(Color(0xFF10B981).copy(alpha = dotAlpha), CircleShape)
                             )
-                            Spacer(modifier = Modifier.width(5.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "LIVE NOW · $timerFormatted",
-                                fontSize = 10.sp,
+                                text = "LIVE · $timerFormatted",
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 style = TabularCodeStyle,
-                                color = Color(0xFF10B981)
+                                color = Color(0xFF34D399)
                             )
                         }
                     }
                 } else {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = LavenderSoft,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, LavenderAccent.copy(alpha = 0.25f))
+                        shape = RoundedCornerShape(20.dp),
+                        color = IndigoSoft.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, IndigoAccent.copy(alpha = 0.25f))
                     ) {
-                        Text(
-                            text = classItem.timeSlot.takeIf { it.isNotBlank() } ?: "Scheduled",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = LavenderAccent,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(IndigoAccent, CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = eyebrowText,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC7D2FE),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
                     }
+                }
+
+                // Time slot chip on right (Unique single appearance, no repetition!)
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White.copy(alpha = 0.06f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                ) {
+                    Text(
+                        text = classItem.timeSlot.takeIf { it.isNotBlank() } ?: "Scheduled",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFCBD5E1),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // ====================================================================
-            // 2. LARGE EXPRESSIVE SUBJECT TITLE (Deliberate Editorial Composition)
+            // 2. SUBJECT TITLE
             // ====================================================================
-            val titleWords = remember(classItem.subjectName) {
-                classItem.subjectName.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }
-            }
+            Text(
+                text = classItem.subjectName.ifBlank { "Upcoming Class" },
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                letterSpacing = (-0.3).sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-                modifier = Modifier.fillMaxWidth()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ====================================================================
+            // 3. SUBJECT CODE & ROOM
+            // ====================================================================
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (titleWords.size >= 2) {
-                    val mid = if (titleWords.size == 2) 1 else (titleWords.size + 1) / 2
-                    val line1 = titleWords.take(mid).joinToString(" ")
-                    val line2 = titleWords.drop(mid).joinToString(" ")
-
-                    val fs1 = if (line1.length > 16) 23.sp else 26.sp
-                    val fs2 = if (line2.length > 16) 22.sp else 25.sp
-
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFF1E1B4B),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4338CA).copy(alpha = 0.5f))
+                ) {
                     Text(
-                        text = line1,
-                        fontSize = fs1,
-                        lineHeight = (fs1.value * 1.15f).sp,
-                        fontWeight = FontWeight.ExtraLight,
-                        color = Color(0xFFE2E8F0),
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = line2,
-                        fontSize = fs2,
-                        lineHeight = (fs2.value * 1.15f).sp,
+                        text = classItem.subjectCode,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                } else {
-                    val singleText = classItem.subjectName.ifBlank { "Upcoming Class" }
-                    val fs = if (singleText.length > 16) 23.sp else 26.sp
-                    Text(
-                        text = singleText,
-                        fontSize = fs,
-                        lineHeight = (fs.value * 1.15f).sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = Color(0xFFA5B4FC),
+                        style = TabularCodeStyle,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
+
+                val roomName = classItem.room.takeIf { it.isNotBlank() } ?: "Room 319"
+                Text(
+                    text = roomName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextMuted
+                )
             }
 
-
-
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ====================================================================
-            // 3. SECONDARY METADATA: [Day & Time] + [Subject Code] · [Room]
+            // 4. DIVIDER & SUPPORTING INFO (Enrolled count + Join Code)
             // ====================================================================
-            val roomName = classItem.room.takeIf { it.isNotBlank() } ?: "Room A-204"
-            Text(
-                text = "${classItem.subjectCode} · $roomName",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = LavenderAccent.copy(alpha = 0.9f)
+            HorizontalDivider(
+                color = Color(0xFF1E293B),
+                thickness = 1.dp
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = classItem.timeSlot,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = TicketTextMuted
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // ====================================================================
-            // 4. SUPPORTING INFO: Enrolled Count + Join Code (Understated)
-            // ====================================================================
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -418,47 +264,49 @@ fun TeacherSignatureTicketCard(
                 Text(
                     text = "${classItem.enrolledStudents} students enrolled",
                     fontSize = 12.sp,
-                    color = TicketTextMuted,
+                    color = TextMuted,
                     fontWeight = FontWeight.Normal
                 )
 
                 if (classItem.joinCode.isNotBlank()) {
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.06f))
+                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
                             .clickable { onCopyJoinCode(classItem.joinCode) }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Code: ${classItem.joinCode}",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TicketTextSubtle
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFCBD5E1),
+                            style = TabularCodeStyle
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = "Copy code",
-                            tint = TicketTextSubtle,
-                            modifier = Modifier.size(11.dp)
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(12.dp)
                         )
                     }
                 }
             }
 
-            // Generous whitespace to clear the perforated line and notches
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ====================================================================
-            // 5. SINGLE PRIMARY ACTION AREA (No duplicate button)
+            // 5. PRIMARY ACTION BUTTON
             // ====================================================================
             Button(
                 onClick = onStartAttendance,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = actionButtonColor),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
@@ -471,7 +319,7 @@ fun TeacherSignatureTicketCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = actionButtonText,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = Color.White
                 )
