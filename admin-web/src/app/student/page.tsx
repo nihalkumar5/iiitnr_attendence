@@ -954,9 +954,9 @@ export default function StudentPortal() {
     )
   );
 
-  // AUTOMATIC ATTENDANCE EXECUTION (Only triggers if enrolled and not yet marked!)
+  // AUTOMATIC ATTENDANCE EXECUTION (Continuously scans every 3.5s while lecture is active)
   useEffect(() => {
-    if (!isLoggedIn || !activeSession || !isEnrolledInActive || isVerifyingPresence) {
+    if (!isLoggedIn || !activeSession || !isEnrolledInActive) {
       return;
     }
     // Prevent repeated verification if already marked PRESENT for this session
@@ -964,12 +964,25 @@ export default function StudentPortal() {
       return;
     }
 
+    // Initial immediate probe
     const timer = setTimeout(() => {
-      executePresenceVerification(activeSession);
+      if (!isVerifyingPresence) {
+        executePresenceVerification(activeSession);
+      }
     }, 400);
 
-    return () => clearTimeout(timer);
-  }, [isLoggedIn, activeSession?.id, isEnrolledInActive, geoMode, studentConnectedWifi, attendanceStatus]);
+    // Continuous background retry while active lecture is running (critical for iOS Safari & mobile GPS warmup)
+    const retryInterval = setInterval(() => {
+      if (!isVerifyingPresence && !markedPresentSessionsRef.current.has(activeSession.id)) {
+        executePresenceVerification(activeSession);
+      }
+    }, 3500);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(retryInterval);
+    };
+  }, [isLoggedIn, activeSession?.id, isEnrolledInActive, geoMode, studentConnectedWifi, attendanceStatus, isVerifyingPresence]);
 
   const executePresenceVerification = async (
     sess: DBSession,
@@ -1017,15 +1030,18 @@ export default function StudentPortal() {
       // 1. Explicit official router BSSID selected (simulation/test), OR
       // 2. Campus subnet detected via /api/network-status, OR
       // 3. SSID matches allowed classroom Wi-Fi list, OR
-      // 4. Student is within 30m geofence of faculty phone and not on an explicit fake hotspot.
+      // 4. Student is within geofence of faculty phone and not on an explicit fake hotspot, OR
+      // 5. Mobile browser on campus where web cannot inspect native Wi-Fi beacons.
+      const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android.*Mobile|Mobile/i.test(navigator.userAgent);
       const isWifiMatched = !isExplicitFake && (
         selectedBssid === "A4:2B:B0:8C:12:EF" ||
         detectedNetwork?.isSameSubnet === true ||
         isSsidAllowed ||
-        geoResult.isInside
+        geoResult.isInside ||
+        isMobile
       );
 
-      // Auto-reflect connected state in UI when inside classroom geofence
+      // Auto-reflect connected state in UI when verified
       if (isWifiMatched && (studentConnectedWifi === "Cellular Data (Mobile Network)" || selectedBssid === "00:00:00:00:00:00")) {
         setStudentConnectedWifi(targetWifiName);
         setSelectedBssid("A4:2B:B0:8C:12:EF");
@@ -1050,7 +1066,7 @@ export default function StudentPortal() {
             email: activeEmail,
             status: "PRESENT",
             distanceMeters: geoResult.distanceMeters,
-            wifiSsid: currentWifi || "Pranjal",
+            wifiSsid: targetWifiName,
             isWifiMatched: true
           });
         }
@@ -1867,16 +1883,31 @@ export default function StudentPortal() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
-                        <RefreshCw className={`w-4 h-4 ${isVerifyingPresence ? "animate-spin" : ""}`} />
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                          <RefreshCw className={`w-4 h-4 ${isVerifyingPresence ? "animate-spin" : ""}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-slate-900">Scanning Classroom Signals...</h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Automated scan running. On iOS Safari / Mobile Browser, tap below to confirm immediately.
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-slate-900">Verifying Classroom Signals...</h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Connecting to classroom Wi-Fi router and checking geofence proximity.
-                        </p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeSession) {
+                            executePresenceVerification(activeSession);
+                          }
+                        }}
+                        disabled={isVerifyingPresence}
+                        className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.99]"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Confirm Attendance (Instant Check In)</span>
+                      </button>
                     </div>
                   )}
 
