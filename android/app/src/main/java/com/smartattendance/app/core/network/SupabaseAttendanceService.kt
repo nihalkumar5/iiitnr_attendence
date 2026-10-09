@@ -3867,6 +3867,41 @@ object SupabaseAttendanceService {
                 }
             }
 
+            // Fallback: If student has no explicit course_enrollments, auto-load all institutional timetable classes
+            if (list.isEmpty()) {
+                try {
+                    val allReq = Request.Builder()
+                        .url("$SUPABASE_URL/rest/v1/classes?is_active=eq.true&select=id,room,day_of_week,start_time,end_time,subjects(name,code),teachers(users(name))&order=start_time.asc")
+                        .addHeader("apikey", ANON_KEY)
+                        .addHeader("Authorization", "Bearer $ANON_KEY")
+                        .get()
+                        .build()
+                    val allRes = client.newCall(allReq).execute()
+                    if (allRes.isSuccessful) {
+                        val arr = JSONArray(allRes.body?.string() ?: "[]")
+                        for (i in 0 until arr.length()) {
+                            val cObj = arr.getJSONObject(i)
+                            val subObj = cObj.optJSONObject("subjects")
+                            val tObj = cObj.optJSONObject("teachers")?.optJSONObject("users")
+                            list.add(
+                                EnrolledCourseInfo(
+                                    classId = cObj.getString("id"),
+                                    subjectCode = subObj?.optString("code") ?: "CS$i",
+                                    subjectName = subObj?.optString("name") ?: "Course $i",
+                                    teacherName = tObj?.optString("name") ?: "Faculty",
+                                    room = cObj.optString("room", "Room 135"),
+                                    joinCode = subObj?.optString("code") ?: "",
+                                    attendancePercentage = 100.0f,
+                                    dayOfWeek = cObj.optInt("day_of_week", 1),
+                                    startTime = cObj.optString("start_time", "10:00:00"),
+                                    endTime = cObj.optString("end_time", "11:00:00")
+                                )
+                            )
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
             Result.success(list.distinctBy { it.classId })
         } catch (e: Exception) {
             Result.success(emptyList())

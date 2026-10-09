@@ -184,6 +184,7 @@ export default function StudentPortal() {
         setDeviceMismatchError(res.message);
       } else {
         setDeviceMismatchError(null);
+        setUnbindMessage(null);
         const dev = await getStudentBoundDeviceFromDB(r);
         if (dev) setBoundDevice(dev);
       }
@@ -763,6 +764,9 @@ export default function StudentPortal() {
       await supabase.auth.signOut();
     } catch (e) {}
     localStorage.removeItem("smart_attendance_student_profile");
+    localStorage.removeItem("smart_attendance_installation_id");
+    setDeviceMismatchError(null);
+    setUnbindMessage(null);
     setIsLoggedIn(false);
     setShowProfileSetup(false);
     setStudentName("");
@@ -771,6 +775,15 @@ export default function StudentPortal() {
     setInputName("");
     setInputRollNo("");
   };
+
+  // Real-time approval listener: automatically clears lock when admin approves unbind
+  useEffect(() => {
+    if (!deviceMismatchError || !rollNo) return;
+    const interval = setInterval(() => {
+      syncDeviceBinding(rollNo, studentName, studentEmail);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [deviceMismatchError, rollNo, studentName, studentEmail]);
 
   // 1. Fetch hardware network
   const fetchRealNetworkStatus = async () => {
@@ -849,6 +862,28 @@ export default function StudentPortal() {
         const merged = Array.from(map.values());
         setMyClasses(merged);
         localStorage.setItem(`smart_attendance_enrolled_${currentRoll}`, JSON.stringify(merged));
+      } else if (localList.length === 0) {
+        const liveClasses = await fetchLiveClassesFromDB();
+        if (liveClasses.length > 0) {
+          const autoEnrolled: EnrolledClass[] = liveClasses.map(c => ({
+            id: c.id,
+            subjectCode: c.subjectCode,
+            subjectName: c.subjectName,
+            section: "Section A",
+            joinCode: c.subjectCode,
+            roomNo: c.roomNo || "Room 135",
+            wifiSsid: "Pranjal",
+            latitude: 21.128456,
+            longitude: 81.766184,
+            joinedAt: "Active",
+            attendancePct: 100,
+            dayOfWeek: c.dayOfWeek,
+            startTime: c.startTime,
+            endTime: c.endTime
+          }));
+          setMyClasses(autoEnrolled);
+          localStorage.setItem(`smart_attendance_enrolled_${currentRoll}`, JSON.stringify(autoEnrolled));
+        }
       }
     } catch (e) {
       console.warn("Enrollment load sync note:", e);
@@ -1533,12 +1568,36 @@ export default function StudentPortal() {
             </div>
 
             {unbindMessage ? (
-              <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-center space-y-2">
+              <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-center space-y-3">
                 <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
                 <p className="text-xs font-bold text-emerald-300">{unbindMessage}</p>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Your request has been forwarded to Central IT Administration. You will be able to register this device as soon as the administrator approves it in the Central Admin Console.
+                  Request sent to Central IT Admin. This page automatically unlocks as soon as approval is granted.
                 </p>
+                <div className="flex items-center justify-center gap-2 py-1">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="text-[11px] text-emerald-300 font-semibold">Live listener active: Polling approval...</span>
+                </div>
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => syncDeviceBinding(rollNo, studentName, studentEmail)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Check Status Now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem("smart_attendance_installation_id");
+                      syncDeviceBinding(rollNo, studentName, studentEmail);
+                    }}
+                    className="w-full py-2 px-3 text-[10px] text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    Reset Hardware Token & Re-verify
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3 pt-2">
@@ -1554,7 +1613,8 @@ export default function StudentPortal() {
                   onClick={async () => {
                     setUnbindSubmitting(true);
                     try {
-                      const ok = await requestStudentDeviceUnbindInDB(rollNo, unbindReason || "Device Change / Reset");
+                      const currInstId = typeof window !== "undefined" ? localStorage.getItem("smart_attendance_installation_id") || undefined : undefined;
+                      const ok = await requestStudentDeviceUnbindInDB(rollNo, unbindReason || "Device Change / Reset", currInstId);
                       if (ok) {
                         setUnbindMessage("✓ Device Unbind Request Submitted");
                         /* request sent */
@@ -1572,6 +1632,26 @@ export default function StudentPortal() {
                   <Key className="w-4 h-4 text-white" />
                   <span>{unbindSubmitting ? "Submitting Request..." : "Request Device Unbind From Central Admin"}</span>
                 </button>
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => syncDeviceBinding(rollNo, studentName, studentEmail)}
+                    className="w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Check Approval Status</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem("smart_attendance_installation_id");
+                      syncDeviceBinding(rollNo, studentName, studentEmail);
+                    }}
+                    className="text-[10px] text-slate-500 hover:text-slate-300 text-center transition cursor-pointer py-1"
+                  >
+                    Reset Hardware Token
+                  </button>
+                </div>
                 <p className="text-[10px] text-slate-400 text-center">
                   Only Central IT Administration can authorize device re-registration for anti-proxy compliance.
                 </p>

@@ -942,7 +942,11 @@ export async function getStudentBoundDeviceFromDB(rollNo: string): Promise<Bound
 /**
  * Submit an Unbind Request for a student device
  */
-export async function requestStudentDeviceUnbindInDB(rollNo: string, reason?: string): Promise<boolean> {
+export async function requestStudentDeviceUnbindInDB(
+  rollNo: string, 
+  reason?: string,
+  currentInstallationId?: string
+): Promise<boolean> {
   try {
     const cleanRoll = rollNo.trim().toUpperCase();
     const { data: st } = await supabase
@@ -953,7 +957,30 @@ export async function requestStudentDeviceUnbindInDB(rollNo: string, reason?: st
 
     if (!st?.id) return false;
 
-    // Mark active device with UNBIND REQUEST flag
+    // Check if this physical hardware is currently bound to another student
+    if (currentInstallationId) {
+      const { data: conflictingDev } = await supabase
+        .from("devices")
+        .select("id, student_id, device_model, students(roll_number, users(name))")
+        .eq("installation_id", currentInstallationId)
+        .eq("status", "ACTIVE")
+        .maybeSingle();
+
+      if (conflictingDev?.id) {
+        const otherRoll = (conflictingDev as any).students?.roll_number || "Other User";
+        const otherName = (conflictingDev as any).students?.users?.name || "";
+        await supabase
+          .from("devices")
+          .update({
+            device_model: `[UNBIND REQUEST] Hardware locked to ${otherName} (${otherRoll}). Requested by ${(Array.isArray((st as any).users) ? (st as any).users[0]?.name : (st as any).users?.name) || cleanRoll} (${cleanRoll}) - Reason: ${reason || "Device Shared/Transfer"}`,
+            status: "PENDING_APPROVAL"
+          })
+          .eq("id", conflictingDev.id);
+        return true;
+      }
+    }
+
+    // Otherwise check active device of this student
     const { data: dev } = await supabase
       .from("devices")
       .select("id, device_model")
@@ -970,13 +997,13 @@ export async function requestStudentDeviceUnbindInDB(rollNo: string, reason?: st
         })
         .eq("id", dev.id);
     } else {
-      // Create pending unbind record so teacher can see it
+      // Create pending unbind record so administrator can see it
       await supabase
         .from("devices")
         .insert({
           student_id: st.id,
-          installation_id: `unbind_req_${Date.now()}`,
-          device_model: `[UNBIND REQUEST] Student requested phone unbind (Reason: ${reason || "Device Lost/Upgraded"})`,
+          installation_id: currentInstallationId || `unbind_req_${Date.now()}`,
+          device_model: `[UNBIND REQUEST] ${(Array.isArray((st as any).users) ? (st as any).users[0]?.name : (st as any).users?.name) || "Student"} requested device authorization (Reason: ${reason || "Device Lost/Upgraded"})`,
           platform: "WEB",
           status: "PENDING_APPROVAL"
         });
@@ -1037,6 +1064,27 @@ export async function fetchPendingUnbindRequestsFromDB(): Promise<BoundDevice[]>
  */
 export async function approveDeviceUnbindInDB(deviceId: string): Promise<boolean> {
   try {
+    const { data: targetDev } = await supabase
+      .from("devices")
+      .select("id, student_id, installation_id")
+      .eq("id", deviceId)
+      .maybeSingle();
+
+    if (targetDev) {
+      if (targetDev.installation_id && !targetDev.installation_id.startsWith("unbind_req_")) {
+        await supabase
+          .from("devices")
+          .delete()
+          .eq("installation_id", targetDev.installation_id);
+      }
+      if (targetDev.student_id) {
+        await supabase
+          .from("devices")
+          .delete()
+          .eq("student_id", targetDev.student_id);
+      }
+    }
+
     const { error } = await supabase
       .from("devices")
       .delete()
