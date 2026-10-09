@@ -2244,7 +2244,12 @@ fun StudentHomeScreen(
                             joinErrorMessage = "Please check the code and try again."
                             return@Button
                         }
-                        if (enrolledCourses.any { it.joinCode.equals(clean, ignoreCase = true) }) {
+                        if (enrolledCourses.any {
+                            it.joinCode.equals(clean, ignoreCase = true) ||
+                            it.subjectCode.equals(clean, ignoreCase = true) ||
+                            it.subjectCode.startsWith("$clean-", ignoreCase = true) ||
+                            it.classId.equals(clean, ignoreCase = true)
+                        }) {
                             joinErrorMessage = "You are already enrolled in this subject."
                             return@Button
                         }

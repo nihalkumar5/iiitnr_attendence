@@ -1304,54 +1304,110 @@ export async function fetchStudentEnrolledClassesFromDB(rollNo: string): Promise
       .eq("roll_number", cleanRoll)
       .maybeSingle();
 
-    if (!student?.id) return [];
+    const classesMap = new Map<string, any>();
 
-    const { data: enrollments } = await supabase
-      .from("course_enrollments")
+    // 1. Check course_enrollments if student ID is resolved
+    if (student?.id) {
+      const { data: enrollments } = await supabase
+        .from("course_enrollments")
+        .select(`
+          class_id,
+          is_active,
+          classes (
+            id, room, is_active,
+            subjects ( id, name, code ),
+            teachers ( id, users ( name ) )
+          )
+        `)
+        .eq("student_id", student.id)
+        .eq("is_active", true);
+
+      if (enrollments && enrollments.length > 0) {
+        enrollments.forEach((e: any) => {
+          const c = e.classes || {};
+          if (!c.id) return;
+          const subject = (Array.isArray(c.subjects) ? c.subjects[0] : c.subjects) || {};
+          const teacher = c.teachers || {};
+          const teacherUser = (Array.isArray(teacher) ? teacher[0]?.users : teacher?.users) || {};
+          const code = subject.code || "CS301";
+          const joinCode = getAndroidJoinCode(code, c.id || "0000");
+
+          classesMap.set(c.id, {
+            id: c.id,
+            subjectCode: code,
+            subjectName: subject.name || "Subject",
+            section: "Section A",
+            joinCode: joinCode,
+            roomNo: c.room || "Room A-204",
+            wifiSsid: "Pranjal",
+            latitude: 21.128456,
+            longitude: 81.766184,
+            teacherId: teacher.id || "",
+            teacherName: teacherUser.name || "Faculty",
+            joinedAt: "Active",
+            attendancePct: 100
+          });
+        });
+      }
+    }
+
+    // 2. Query attendance_records (cross-platform sync with Android and instant enrollment parity)
+    const orCondition = student?.id 
+      ? `student_id.eq.${student.id},sensor_details->>roll_number.eq.${cleanRoll}`
+      : `sensor_details->>roll_number.eq.${cleanRoll}`;
+
+    const { data: attRecords } = await supabase
+      .from("attendance_records")
       .select(`
-        class_id,
-        is_active,
-        classes (
-          id, room, is_active,
-          subjects ( id, name, code ),
-          teachers ( id, users ( name ) )
+        id,
+        attendance_sessions (
+          id, class_id,
+          classes (
+            id, room, is_active,
+            subjects ( id, name, code ),
+            teachers ( id, users ( name ) )
+          )
         )
       `)
-      .eq("student_id", student.id)
-      .eq("is_active", true);
+      .or(orCondition);
 
-    if (!enrollments || enrollments.length === 0) return [];
+    if (attRecords && attRecords.length > 0) {
+      attRecords.forEach((r: any) => {
+        const sess = r.attendance_sessions || {};
+        const c = sess.classes || {};
+        if (!c.id) return;
+        if (!classesMap.has(c.id)) {
+          const subject = (Array.isArray(c.subjects) ? c.subjects[0] : c.subjects) || {};
+          const teacher = c.teachers || {};
+          const teacherUser = (Array.isArray(teacher) ? teacher[0]?.users : teacher?.users) || {};
+          const code = subject.code || "CS301";
+          const joinCode = getAndroidJoinCode(code, c.id || "0000");
 
-    return enrollments.map((e: any) => {
-      const c = e.classes || {};
-      const subject = (Array.isArray(c.subjects) ? c.subjects[0] : c.subjects) || {};
-      const teacher = c.teachers || {};
-      const teacherUser = teacher.users || {};
-      const code = subject.code || "CS301";
-      const joinCode = getAndroidJoinCode(code, c.id || "0000");
+          classesMap.set(c.id, {
+            id: c.id,
+            subjectCode: code,
+            subjectName: subject.name || "Subject",
+            section: "Section A",
+            joinCode: joinCode,
+            roomNo: c.room || "Room A-204",
+            wifiSsid: "Pranjal",
+            latitude: 21.128456,
+            longitude: 81.766184,
+            teacherId: teacher.id || "",
+            teacherName: teacherUser.name || "Faculty",
+            joinedAt: "Active",
+            attendancePct: 100
+          });
+        }
+      });
+    }
 
-      return {
-        id: c.id,
-        subjectCode: code,
-        subjectName: subject.name || "Subject",
-        section: "Section A",
-        joinCode: joinCode,
-        roomNo: c.room || "Room A-204",
-        wifiSsid: "Pranjal",
-        latitude: 21.128456,
-        longitude: 81.766184,
-        teacherId: teacher.id || "",
-        teacherName: teacherUser.name || "Faculty",
-        joinedAt: "Active",
-        attendancePct: 100
-      };
-    });
+    return Array.from(classesMap.values());
   } catch (err) {
     console.warn("fetchStudentEnrolledClassesFromDB error:", err);
     return [];
   }
 }
-
 
 /**
  * Permanently delete a subject/class, including its sessions and attendance records
