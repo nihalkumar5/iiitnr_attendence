@@ -1038,6 +1038,23 @@ export async function approveDeviceUnbindInDB(deviceId: string): Promise<boolean
 }
 
 /**
+ * Reject unbind request
+ */
+export async function rejectDeviceUnbindInDB(deviceId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("devices")
+      .update({ status: "ACTIVE" })
+      .eq("id", deviceId);
+
+    return !error;
+  } catch (err) {
+    console.error("rejectDeviceUnbindInDB exception:", err);
+    return false;
+  }
+}
+
+/**
  * Update the active classroom WiFi SSID in real time for all connected devices
  */
 export async function updateLiveSessionWifiInDB(

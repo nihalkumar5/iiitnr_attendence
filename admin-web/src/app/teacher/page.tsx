@@ -22,6 +22,7 @@ import {
   Sparkles, 
   Search, 
   ShieldCheck, 
+  Smartphone, 
   Calendar, 
   X, 
   ChevronRight, 
@@ -48,7 +49,11 @@ import {
   DBSession, 
   DBStudent,
   getAndroidJoinCode,
-  deleteClassFromDB
+  deleteClassFromDB,
+  fetchPendingUnbindRequestsFromDB,
+  approveDeviceUnbindInDB,
+  rejectDeviceUnbindInDB,
+  BoundDevice
 } from "@/lib/attendanceService";
 import { LiveWifiSearchSelector } from "@/components/LiveWifiSearchSelector";
 import { AiTimetableModal } from "@/components/AiTimetableModal";
@@ -72,6 +77,11 @@ export default function TeacherAppConsole() {
   // Navigation: "schedule" (default) | "home" | "live"
   const [mainNav, setMainNav] = useState<"home" | "schedule" | "live" | "records" | "devices">("home");
   const [completedSessions, setCompletedSessions] = useState<DBCompletedSession[]>([]);
+
+  // Device Requests Management
+  const [deviceRequests, setDeviceRequests] = useState<BoundDevice[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [isActingDeviceId, setIsActingDeviceId] = useState<string | null>(null);
 
   // Schedule View: List vs Subject Detail
   const [selectedSubject, setSelectedSubject] = useState<DBClass | null>(null);
@@ -169,6 +179,14 @@ export default function TeacherAppConsole() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (mainNav === "records") {
+      loadCompletedSessions();
+    } else if (mainNav === "devices") {
+      loadDeviceRequests();
+    }
+  }, [mainNav]);
+
   const loadCompletedSessions = async () => {
     try {
       const list = await fetchCompletedSessionsFromDB();
@@ -176,6 +194,78 @@ export default function TeacherAppConsole() {
     } catch (e) {
       console.warn("Failed to load completed sessions:", e);
     }
+  };
+
+  const loadDeviceRequests = async () => {
+    setIsLoadingDevices(true);
+    try {
+      const reqs = await fetchPendingUnbindRequestsFromDB();
+      setDeviceRequests(reqs.filter(r => r.status === "PENDING_UNBIND"));
+    } catch (e) {
+      console.warn("Failed to load device requests:", e);
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  const handleApproveDevice = async (req: BoundDevice) => {
+    setIsActingDeviceId(req.id);
+    try {
+      const ok = await approveDeviceUnbindInDB(req.id);
+      if (ok) {
+        showToast(`✓ Unbind approved for ${req.studentName} (${req.rollNo})`);
+        await loadDeviceRequests();
+      } else {
+        showToast("Failed to approve unbind request");
+      }
+    } catch (e: any) {
+      showToast("Error: " + e.message);
+    } finally {
+      setIsActingDeviceId(null);
+    }
+  };
+
+  const handleRejectDevice = async (req: BoundDevice) => {
+    setIsActingDeviceId(req.id);
+    try {
+      const ok = await rejectDeviceUnbindInDB(req.id);
+      if (ok) {
+        showToast(`Request rejected for ${req.rollNo}`);
+        await loadDeviceRequests();
+      } else {
+        showToast("Failed to reject request");
+      }
+    } catch (e: any) {
+      showToast("Error: " + e.message);
+    } finally {
+      setIsActingDeviceId(null);
+    }
+  };
+
+  const handleExportCsv = (session: DBCompletedSession) => {
+    const nl = "\n";
+    const header = "Roll Number,Student Name,Status,Verified At" + nl;
+    const rows = (session.records && session.records.length > 0)
+      ? session.records.map(r => `"${r.rollNo}","${r.name}","${r.status}","${r.verifiedAt || "Live"}"`).join(nl)
+      : `"-","No attendee records found","PRESENT","-"`;
+    
+    const content = "IIIT NAYA RAIPUR - OFFICIAL ATTENDANCE RECORD" + nl +
+      `Course: ${session.subjectName} (${session.subjectCode})` + nl +
+      `Room: ${session.roomNo || "Room 319"}` + nl +
+      `Session Date: ${session.startTime ? new Date(session.startTime).toLocaleString() : "Today"}` + nl +
+      `Total Present: ${session.presentCount || 0} | Absent: ${session.absentCount || 0}` + nl + nl +
+      header + rows;
+
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `RollCall_${session.subjectCode}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast(`✓ CSV downloaded for ${session.subjectCode}`);
   };
 
   // 2. Fetch classes from DB
@@ -1193,76 +1283,197 @@ export default function TeacherAppConsole() {
                 </div>
               );
             })()}
-          </div>
-        )}
-      </div>
 
-      
             {/* ==================================================================== */}
-            {/* VIEW 4: RECORDS (Session Attendance History) */}
+            {/* VIEW 4: RECORDS (Session Attendance History - Matches Android 1:1) */}
             {/* ==================================================================== */}
             {mainNav === "records" && (
               <div className="space-y-4 animate-in fade-in pb-16">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                {/* 1. Header: Title + Subtitle + Sync button */}
+                <div className="flex items-center justify-between pb-1">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">Session Records</h2>
-                    <p className="text-xs text-slate-500 font-medium">Recorded attendance history</p>
+                    <h2 className="text-[22px] font-bold text-slate-900 leading-tight">Session Records</h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">Attendance history</p>
                   </div>
                   <button 
+                    type="button"
                     onClick={loadCompletedSessions}
-                    className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/90 bg-white text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 cursor-pointer transition-all"
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Sync</span>
                   </button>
                 </div>
 
+                {/* 2. Summary Statistics (Two equal-width summary panels) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1">
+                    <div className="text-2xl font-bold text-slate-900">
+                      {completedSessions.length}
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">Total Lectures</div>
+                  </div>
+
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1">
+                    <div className="text-2xl font-bold text-slate-900">
+                      {completedSessions.reduce((acc, s) => acc + (s.presentCount || 0), 0)}
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">Total Present</div>
+                  </div>
+                </div>
+
+                {/* 3. Session Records List */}
                 {completedSessions.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-1">
                     {completedSessions.map(sess => (
-                      <div key={sess.id} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="text-sm font-bold text-slate-900">{sess.subjectName}</h4>
-                            <p className="text-xs text-slate-500 font-mono">{sess.subjectCode} · {sess.roomNo || "Room 319"}</p>
+                      <div key={sess.id} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                              {sess.subjectName}
+                            </h3>
+                            <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">
+                              {sess.subjectCode} · {sess.roomNo || "Room 319"}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {sess.startTime 
+                                ? new Date(sess.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) + " · " + new Date(sess.startTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+                                : "Fri, Oct 9, 2026 · 06:37 PM"}
+                            </p>
                           </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Submitted
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 tracking-wider shrink-0">
+                            AUDITED
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1.5 border-t border-slate-100">
-                          <span>{sess.startTime ? new Date(sess.startTime).toLocaleDateString() : "Today"}</span>
-                          <span className="font-bold text-slate-700">{sess.presentCount} Present · {sess.absentCount || 0} Absent</span>
+
+                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-100">
+                          <span className="text-xs font-bold text-emerald-600">
+                            {sess.presentCount || 0} Present
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleExportCsv(sess)}
+                            className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Export CSV</span>
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs">
-                    No completed attendance sessions recorded yet.
+                  <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs shadow-2xs space-y-2">
+                    <FileText className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="font-semibold text-slate-700">No session records found</p>
+                    <p className="text-slate-400 text-[11px]">Completed class attendance sessions will be audited and listed here.</p>
                   </div>
                 )}
               </div>
             )}
 
             {/* ==================================================================== */}
-            {/* VIEW 5: DEVICES (Hardware Reset & Unbind Management) */}
+            {/* VIEW 5: DEVICES (Matches Android TeacherDeviceRequestsScreen 1:1) */}
             {/* ==================================================================== */}
             {mainNav === "devices" && (
               <div className="space-y-4 animate-in fade-in pb-16">
-                <div className="pb-2 border-b border-slate-200">
-                  <h2 className="text-lg font-bold text-slate-900">Device Requests</h2>
-                  <p className="text-xs text-slate-500 font-medium">Hardware reset & unbind authorization</p>
+                {/* Header: Title + Subtitle + Refresh */}
+                <div className="flex items-center justify-between pb-1">
+                  <div>
+                    <h2 className="text-[22px] font-bold text-slate-900 leading-tight">Device Management</h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">Device authorization and security</p>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={loadDeviceRequests}
+                    className="p-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isLoadingDevices ? "animate-spin" : ""}`} />
+                  </button>
                 </div>
 
-                <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs shadow-2xs space-y-2">
-                  <ShieldCheck className="w-8 h-8 text-slate-400 mx-auto" />
-                  <p className="font-bold text-slate-700 text-sm">All student devices active</p>
-                  <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                    Student smartphone binding requests and device resets will appear here for one-tap approval.
-                  </p>
+                {/* Summary Card */}
+                <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">
+                        {deviceRequests.length} device change request{deviceRequests.length !== 1 ? "s" : ""}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Pending student hardware binding resets
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Device Requests List */}
+                {isLoadingDevices ? (
+                  <div className="py-8 text-center text-xs text-slate-400">Checking device requests...</div>
+                ) : deviceRequests.length > 0 ? (
+                  <div className="space-y-3">
+                    {deviceRequests.map((req) => (
+                      <div key={req.id} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900">{req.studentName}</h4>
+                            <p className="text-xs text-slate-500 font-mono mt-0.5">{req.rollNo}</p>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            Pending Review
+                          </span>
+                        </div>
+
+                        {/* Details Box */}
+                        <div className="p-3 bg-slate-50 rounded-xl space-y-1 text-xs">
+                          <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                            <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Device: <strong className="text-slate-900 font-semibold">{req.deviceModel.replace("[UNBIND REQUEST]", "").trim()}</strong></span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] pl-5">
+                            Platform: {req.platform} · Registered: {req.registeredAt ? new Date(req.registeredAt).toLocaleDateString() : "Recent"}
+                          </p>
+                        </div>
+
+                        {/* Action buttons: Reject & Approve Unbind */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleRejectDevice(req)}
+                            disabled={isActingDeviceId === req.id}
+                            className="flex-1 py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer text-center"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveDevice(req)}
+                            disabled={isActingDeviceId === req.id}
+                            className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{isActingDeviceId === req.id ? "Approving..." : "Approve Unbind"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-xs shadow-2xs space-y-2">
+                    <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto" />
+                    <p className="font-bold text-slate-800 text-sm">All student devices active</p>
+                    <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                      No pending hardware unbind requests. Students with phone change requests will appear here for one-tap verification.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
+          </div>
+        )}
+      </div>
 
       {/* ==================================================================== */}
       {/* PWA MOBILE BOTTOM NAVIGATION BAR */}
