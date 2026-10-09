@@ -459,7 +459,7 @@ export default function TeacherAppConsole() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] bg-[radial-gradient(#CBD5E1_1px,transparent_1px)] [background-size:16px_16px] text-slate-900 flex flex-col justify-between font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-[#F8FAFC] line-grid text-slate-900 flex flex-col justify-between font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Toast Alert */}
       {toastMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
