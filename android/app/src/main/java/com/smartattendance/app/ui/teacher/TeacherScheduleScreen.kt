@@ -710,7 +710,7 @@ fun TeacherScheduleScreen(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("+ Add Subject", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Add Subject", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
 
@@ -793,7 +793,7 @@ fun TeacherScheduleScreen(
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("+ Create Subject", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("Create Subject", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }

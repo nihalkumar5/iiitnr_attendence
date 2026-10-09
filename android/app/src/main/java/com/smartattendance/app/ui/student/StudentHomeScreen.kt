@@ -950,7 +950,7 @@ fun StudentHomeScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ Join Subject", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandAccent)
+                        Text("Join Subject", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandAccent)
                     }
                 }
 
@@ -982,7 +982,9 @@ fun StudentHomeScreen(
                                 shape = ButtonShape,
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
                             ) {
-                                Text("+ Join Subject", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Join Subject", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

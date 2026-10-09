@@ -191,7 +191,7 @@ fun CourseRosterDialog(
                     ) {
                         Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text("+ Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedButton(
