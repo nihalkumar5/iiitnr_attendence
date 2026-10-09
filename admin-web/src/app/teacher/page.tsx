@@ -103,6 +103,7 @@ export default function TeacherAppConsole() {
 
   // Live session setup form
   const [selectedClassId, setSelectedClassId] = useState("");
+  const [showClassPicker, setShowClassPicker] = useState(false);
   const [wifiSsid, setWifiSsid] = useState("Pranjal");
   const [roomNo, setRoomNo] = useState("Room A-204 (AC Block)");
 
@@ -980,126 +981,236 @@ export default function TeacherAppConsole() {
               );
             })()}
 
-            {/* 2. LIVE LECTURE CONSOLE TAB */}
+            {/* 2. LIVE LECTURE CONSOLE TAB (Intersemester Editorial Design System) */}
             {mainNav === "live" && (
-              <div className="space-y-4 animate-in fade-in">
+              <div className="space-y-6 sm:space-y-8 animate-in fade-in pb-20">
+                {/* 1. Page Heading */}
+                <div className="space-y-1 pb-1">
+                  <h1 className="text-[28px] sm:text-[32px] font-light text-slate-900 leading-[1.15]">
+                    Live Attendance
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Your classroom, in sync.
+                  </p>
+                </div>
+
                 {activeSession ? (
                   /* Active Live Session in Progress */
-                  <div className="bg-white border border-emerald-500/30 rounded-2xl p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block mb-1">
-                          ● BROADCASTING ACTIVE
-                        </span>
-                        <h2 className="text-base font-bold text-slate-900">{activeSession.subjectName}</h2>
-                        <p className="text-xs text-slate-500 font-medium">{activeSession.subjectCode} · {activeSession.roomNo}</p>
-                      </div>
+                  <div className="space-y-6">
+                    {/* Live Ticket Card */}
+                    <SignatureTicketCard
+                      subjectName={activeSession.subjectName}
+                      subjectCode={activeSession.subjectCode}
+                      roomNo={activeSession.roomNo || "Room 319"}
+                      timeSlot="Active Broadcasting"
+                      enrolledStudentsCount={presentStudents.length}
+                      joinCode={activeSession.joinCode}
+                      wifiSsid={activeSession.wifiSsid}
+                      eyebrow="LIVE SESSION"
+                      buttonText={`Continue Attendance (${attendanceCount} Present)`}
+                      isLive={true}
+                      attendanceCount={attendanceCount}
+                      onStartAttendance={() => {}}
+                    />
 
-                      <div className="text-right">
-                        <div className="text-2xl font-black text-emerald-600">{attendanceCount}</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Present</div>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs">
-                      <div className="flex justify-between text-slate-600">
-                        <span>Required Wi-Fi SSID:</span>
-                        <span className="font-mono font-bold text-slate-900">{activeSession.wifiSsid}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span>Subject Join Code:</span>
-                        <span className="font-mono font-bold text-blue-600">{activeSession.joinCode}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                        <span>Live Verified Attendees ({presentStudents.length})</span>
-                        <button onClick={syncActiveSession} className="text-blue-600 hover:underline text-[11px]">
-                          Refresh
-                        </button>
-                      </div>
-
-                      {presentStudents.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-xl">
-                          Listening for student attendance scans on Wi-Fi "{activeSession.wifiSsid}"...
+                    {/* Broadcasting Console & Attendees */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+                      <div className="p-3.5 bg-slate-50/80 border border-slate-100 rounded-xl space-y-2 text-xs">
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-medium">Required Wi-Fi SSID:</span>
+                          <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">{activeSession.wifiSsid}</span>
                         </div>
-                      ) : (
-                        <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
-                          {presentStudents.map((st, i) => (
-                            <div key={st.id || i} className="py-2 flex items-center justify-between text-xs">
-                              <span className="font-semibold text-slate-900">{st.name}</span>
-                              <span className="font-mono text-slate-500">{st.rollNo}</span>
-                            </div>
-                          ))}
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-medium">Subject Join Code:</span>
+                          <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{activeSession.joinCode}</span>
                         </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleEndLiveLecture}
-                      disabled={isEndingSession}
-                      className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
-                    >
-                      {isEndingSession ? "Submitting Attendance..." : `End Lecture & Submit Attendance (${attendanceCount} Present)`}
-                    </button>
-                  </div>
-                ) : (
-                  /* Start New Lecture Form */
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900 tracking-tight">Start Live Class Attendance</h2>
-                      <p className="text-xs text-slate-500 font-medium">Broadcast attendance verification to student devices</p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Select Subject</label>
-                        <select
-                          value={selectedClassId}
-                          onChange={(e) => setSelectedClassId(e.target.value)}
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
-                        >
-                          {classes.map(c => (
-                            <option key={c.id} value={c.id}>{c.subjectName} ({c.subjectCode})</option>
-                          ))}
-                        </select>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Classroom Wi-Fi Network</label>
-                        <LiveWifiSearchSelector
-                          currentWifi={wifiSsid}
-                          onSelectWifi={setWifiSsid}
-                          wifiList={["Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS", "Classroom-AP-5G"]}
-                          variant="inline"
-                        />
-                      </div>
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                          <span>Live Verified Attendees ({presentStudents.length})</span>
+                          <button onClick={syncActiveSession} className="text-blue-600 hover:underline text-[11px] cursor-pointer">
+                            Refresh
+                          </button>
+                        </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Room / Venue</label>
-                        <input
-                          type="text"
-                          value={roomNo}
-                          onChange={(e) => setRoomNo(e.target.value)}
-                          placeholder="e.g. Room A-204"
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
-                        />
+                        {presentStudents.length === 0 ? (
+                          <div className="p-5 text-center text-xs text-slate-500 bg-slate-50/60 border border-slate-100 rounded-xl">
+                            Listening for student attendance scans on Wi-Fi "{activeSession.wifiSsid}"...
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto pr-1">
+                            {presentStudents.map((st, i) => (
+                              <div key={st.id || i} className="py-2.5 flex items-center justify-between text-xs">
+                                <span className="font-semibold text-slate-900">{st.name}</span>
+                                <span className="font-mono text-slate-500">{st.rollNo}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => handleStartLiveLecture()}
-                        disabled={isStartingSession || classes.length === 0}
-                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                        onClick={handleEndLiveLecture}
+                        disabled={isEndingSession}
+                        className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
                       >
-                        <Play className="w-4 h-4 fill-white" />
-                        <span>{isStartingSession ? "Launching Lecture..." : "Start Live Attendance Session"}</span>
+                        {isEndingSession ? "Submitting Attendance..." : `End Lecture & Submit Attendance (${attendanceCount} Present)`}
                       </button>
                     </div>
                   </div>
+                ) : (
+                  /* No Live Session (Intentional Editorial Empty State + UP NEXT Ticket) */
+                  <div className="space-y-6">
+                    {/* 2. Intentional Editorial Empty State */}
+                    <div className="space-y-3">
+                      <div className="space-y-1.5 max-w-lg">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                          No live session yet.
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-500 leading-relaxed font-normal">
+                          Your next class is waiting. Start attendance from a scheduled lecture to verify students in real time.
+                        </p>
+                      </div>
+
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowClassPicker(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold tracking-wide transition-colors cursor-pointer shadow-sm"
+                        >
+                          <span>Choose a Class ↗</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3. UP NEXT section */}
+                    {(() => {
+                      const nextClass = classes.find(c => c.id === selectedClassId) || classes[0] || {
+                        id: "mock-dt501",
+                        subjectName: "Digital Transformation-I",
+                        subjectCode: "DT501",
+                        roomNo: "Room 319",
+                        timeSlot: "Friday, 02:00 PM – 03:55 PM",
+                        joinCode: "DT50-363",
+                        students: []
+                      };
+
+                      return (
+                        <div className="space-y-3 pt-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#64748B]">
+                                UP NEXT
+                              </span>
+                              <span className="text-[11px] font-normal text-slate-400">·</span>
+                              <span className="text-[11px] font-medium text-slate-500">
+                                {classes.length > 0 ? `${classes.length} class${classes.length > 1 ? "es" : ""} available today` : "1 class available today"}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setMainNav("schedule")}
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>View Schedule</span>
+                              <span>→</span>
+                            </button>
+                          </div>
+
+                          <SignatureTicketCard
+                            subjectName={nextClass.subjectName}
+                            subjectCode={nextClass.subjectCode}
+                            roomNo={nextClass.roomNo || roomNo || "Room 319"}
+                            timeSlot={(nextClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
+                            enrolledStudentsCount={nextClass.students?.length || 0}
+                            joinCode={nextClass.joinCode || "DT50-363"}
+                            eyebrow="UPCOMING"
+                            eyebrowBadge={(nextClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
+                            buttonText="Start Attendance"
+                            isLive={false}
+                            attendanceCount={0}
+                            onStartAttendance={() => handleStartLiveLecture(nextClass)}
+                            isStarting={isStartingSession}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </div>
                 )}
+              </div>
+            )}
+
+            {/* Choose a Class Modal Picker */}
+            {showClassPicker && (
+              <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Choose a Class</h3>
+                      <p className="text-xs text-slate-500">Select lecture to broadcast attendance</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowClassPicker(false)}
+                      className="p-1 rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Select Subject</label>
+                      <select
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+                      >
+                        {classes.map(c => (
+                          <option key={c.id} value={c.id}>{c.subjectName} ({c.subjectCode})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Classroom Wi-Fi Network</label>
+                      <LiveWifiSearchSelector
+                        currentWifi={wifiSsid}
+                        onSelectWifi={setWifiSsid}
+                        wifiList={["Pranjal", "IIIT-NR-Campus", "IIITNR_STUDENTS", "Classroom-AP-5G"]}
+                        variant="inline"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Room / Venue</label>
+                      <input
+                        type="text"
+                        value={roomNo}
+                        onChange={(e) => setRoomNo(e.target.value)}
+                        placeholder="e.g. Room A-204"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowClassPicker(false);
+                        const targetCls = classes.find(c => c.id === selectedClassId) || classes[0];
+                        handleStartLiveLecture(targetCls);
+                      }}
+                      disabled={isStartingSession || classes.length === 0}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                    >
+                      <Play className="w-4 h-4 fill-white" />
+                      <span>{isStartingSession ? "Launching Lecture..." : "Start Live Attendance"}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

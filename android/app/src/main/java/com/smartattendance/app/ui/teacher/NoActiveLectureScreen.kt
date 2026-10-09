@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartattendance.app.core.engine.TimetableEngine
 import com.smartattendance.app.core.network.SupabaseAttendanceService
+import com.smartattendance.app.ui.components.TeacherSignatureTicketCard
 import com.smartattendance.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -118,138 +119,134 @@ fun NoActiveLectureScreen(
             contentPadding = PaddingValues(top = 24.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Screen Header
+            // 1. Editorial Page Heading
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "LIVE ATTENDANCE",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandAccent,
-                        letterSpacing = 0.8.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
                         text = "Live Attendance",
-                        fontSize = 24.sp,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Light,
+                        color = TextPrimary,
+                        letterSpacing = (-0.5).sp
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "Your classroom, in sync.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            // 2. Intentional Editorial Empty State
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "No live session yet.",
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
                         letterSpacing = (-0.3).sp
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     Text(
-                        text = "Real-time lecture attendance & verification",
+                        text = "Your next class is waiting. Start attendance from a scheduled lecture to verify students in real time.",
                         fontSize = 13.sp,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        lineHeight = 18.sp
                     )
-                }
-            }
 
-            // Compact Empty State Card
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CardShape,
-                    color = CardBackground,
-                    border = BorderStroke(1.dp, BorderSubtle)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showClassSelectionSheet = true
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TextPrimary),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
                     ) {
-                        // Status Eyebrow
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(TextMuted)
-                            )
-                            Text(
-                                text = "LIVE ATTENDANCE",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextSecondary,
-                                letterSpacing = 0.6.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
                         Text(
-                            text = "No active attendance",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            letterSpacing = (-0.2).sp
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "Start a session for an eligible class to monitor students in real time.",
+                            text = "Choose a Class ↗",
                             fontSize = 13.sp,
-                            color = TextSecondary,
-                            lineHeight = 18.sp
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
                         )
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        Button(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                showClassSelectionSheet = true
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp),
-                            shape = ButtonShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent)
-                        ) {
-                            Text(
-                                text = "Choose a Class",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
-                            )
-                        }
                     }
                 }
             }
 
-            // Quick Status Footer / Helper Info
+            // 3. UP NEXT (Eligible class ticket card)
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "$currentDayName • ${eligibleClasses.size} eligible today",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextSecondary
-                    )
+                val nextEligibleClass = eligibleClasses.firstOrNull()
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "UP NEXT",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B),
+                                letterSpacing = 1.5.sp
+                            )
+                            Text(
+                                text = "·",
+                                fontSize = 11.sp,
+                                color = TextMuted
+                            )
+                            Text(
+                                text = "${eligibleClasses.size} ${if (eligibleClasses.size == 1) "class" else "classes"} available today",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextSecondary
+                            )
+                        }
 
-                    Text(
-                        text = "View Schedule",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = BrandAccent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onGoToSchedule()
-                            }
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    )
+                        Text(
+                            text = "View Schedule →",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = BrandAccent,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onGoToSchedule()
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (nextEligibleClass != null) {
+                        TeacherSignatureTicketCard(
+                            classItem = nextEligibleClass,
+                            isSessionLive = false,
+                            isPrimaryInProgress = false,
+                            isPendingLateHero = false,
+                            onStartAttendance = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onStartClass(nextEligibleClass)
+                            },
+                            onCopyJoinCode = {}
+                        )
+                    }
                 }
             }
         }
