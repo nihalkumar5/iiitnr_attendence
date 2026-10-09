@@ -99,7 +99,7 @@ export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
         attendance_sessions ( class_id )
       `);
 
-    return (data || []).map((c: any) => {
+    const mapped = (data || []).map((c: any) => {
       const subject = (Array.isArray(c.subjects) ? c.subjects[0] : c.subjects) || {};
       const teacher = c.teachers || {};
       const teacherUser = teacher.users || {};
@@ -153,6 +153,13 @@ export async function fetchLiveClassesFromDB(): Promise<DBClass[]> {
                      (subject.name || "").toLowerCase().includes("practical") || 
                      (c as any).is_practical === true
       };
+    });
+
+    return mapped.sort((a, b) => {
+      const dayA = a.dayOfWeek ?? 1;
+      const dayB = b.dayOfWeek ?? 1;
+      if (dayA !== dayB) return dayA - dayB;
+      return (a.startTime || "00:00:00").localeCompare(b.startTime || "00:00:00");
     });
   } catch (err) {
     console.error("fetchLiveClassesFromDB exception:", err);

@@ -1061,7 +1061,9 @@ export default function TeacherAppConsole() {
               const activeDayNum = dayTabs.find(t => t.code === activeDay)?.num || 5;
 
               // Filter classes by day of week if mapped, else show active classes
-              const dayFilteredClasses = classes.filter(c => (c.dayOfWeek || 5) === activeDayNum);
+              const dayFilteredClasses = classes
+                .filter(c => (c.dayOfWeek || 5) === activeDayNum)
+                .sort((a, b) => (a.startTime || "00:00:00").localeCompare(b.startTime || "00:00:00"));
               const displayClasses = dayFilteredClasses;
 
               return (
