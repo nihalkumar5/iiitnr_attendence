@@ -430,7 +430,7 @@ fun TeacherHomeScreen(
     val isPrimaryInProgress: Boolean = inProgressClass != null
     val primaryHeaderTitle: String = when {
         isPrimaryInProgress -> "Current Class"
-        isPendingLateHero -> "Scheduled Session"
+        isPendingLateHero -> "Attendance Pending"
         currentClass != null -> "Next Class"
         completedTodayClasses.isNotEmpty() -> "Today's Schedule"
         else -> "Today's Schedule"

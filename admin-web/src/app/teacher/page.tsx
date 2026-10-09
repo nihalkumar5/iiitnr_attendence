@@ -1079,11 +1079,11 @@ export default function TeacherAppConsole() {
                     </div>
                   </div>
 
-                  {/* 2. SECTION HEADER & HERO CARD */}
+                  {/* 2. SECTION HEADER & TICKET CARD */}
                   <div className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#64748B]">
-                        {activeSession ? "ACTIVE SESSION" : "SCHEDULED SESSION"}
+                        ATTENDANCE PENDING
                       </span>
                     </div>
 
@@ -1091,11 +1091,11 @@ export default function TeacherAppConsole() {
                       subjectName={activeClass.subjectName}
                       subjectCode={activeClass.subjectCode}
                       roomNo={activeClass.roomNo || "Room 319"}
-                      timeSlot={(activeClass as any).timeSlot || "02:00 PM – 03:55 PM"}
+                      timeSlot={(activeClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
                       enrolledStudentsCount={activeClass.students?.length || 0}
                       joinCode={activeClass.joinCode || "DT50-363"}
-                      eyebrow="READY TO START"
-                      eyebrowBadge={(activeClass as any).timeSlot || "02:00 PM – 03:55 PM"}
+                      eyebrow="TODAY'S LECTURE"
+                      eyebrowBadge={(activeClass as any).timeSlot || "Friday, 02:00 PM – 03:55 PM"}
                       buttonText="Start Attendance"
                       isLive={Boolean(activeSession)}
                       attendanceCount={attendanceCount}
