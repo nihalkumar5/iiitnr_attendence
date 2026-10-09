@@ -57,6 +57,7 @@ export function AiTimetableModal({
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState("");
 
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -138,7 +139,7 @@ export function AiTimetableModal({
     }
   };
 
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
 
   const handleUpdateLecture = (idx: number, updatedFields: Partial<ParsedLecture>) => {
     if (!parsedLectures) return;
