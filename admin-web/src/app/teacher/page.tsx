@@ -1040,7 +1040,7 @@ export default function TeacherAppConsole() {
                 day: "numeric",
                 month: "long",
                 year: "numeric"
-              }).format(now).toUpperCase();
+              }).format(now);
 
               const filteredDefaulters = defaulters.filter(s => 
                 !defaulterSearch || 
@@ -1054,8 +1054,8 @@ export default function TeacherAppConsole() {
                   {/* 1. EDITORIAL HEADER (Minimal & Clean) */}
                   <div className="space-y-2 pt-1 pb-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#64748B]">
-                        TODAY · {todayFormatted}
+                      <span className="font-handwriting text-lg sm:text-xl font-semibold text-[#475569] tracking-wide">
+                        {todayFormatted}
                       </span>
                       <button
                         type="button"
