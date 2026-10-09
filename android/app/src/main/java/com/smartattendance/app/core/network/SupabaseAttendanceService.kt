@@ -47,7 +47,10 @@ data class ActiveSessionInfo(
     val facultyName: String = "Dr. S. Sharma",
     val room: String = "Room A-204",
     val requiredWifiSsid: String = "Pranjal",
-    val requiredWifiBssid: String? = null
+    val requiredWifiBssid: String? = null,
+    val latitude: Double = 21.128456,
+    val longitude: Double = 81.766184,
+    val geofenceRadiusMeters: Float = 30f
 )
 
 data class StudentHistoryRecord(
@@ -646,10 +649,29 @@ object SupabaseAttendanceService {
                 var room = "Room A-204"
                 var requiredWifi = ""
                 var requiredBssid: String? = null
+                var lat: Double = 21.128456
+                var lon: Double = 81.766184
+                var radius: Float = 30f
 
                 val sessionSecret = obj.optString("session_secret", "")
                 if (sessionSecret.startsWith("wifi:")) {
                     requiredWifi = sessionSecret.substringAfter("wifi:").substringBefore("|").trim()
+                }
+                if (sessionSecret.contains("geo:")) {
+                    try {
+                        val geoPart = sessionSecret.substringAfter("geo:").substringBefore("|").trim()
+                        val parts = geoPart.split(",")
+                        if (parts.size == 2) {
+                            lat = parts[0].toDouble()
+                            lon = parts[1].toDouble()
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (sessionSecret.contains("radius:")) {
+                    try {
+                        val radPart = sessionSecret.substringAfter("radius:").substringBefore("|").trim()
+                        radius = radPart.toFloat()
+                    } catch (_: Exception) {}
                 }
 
                 if (obj.has("classes") && !obj.isNull("classes")) {
@@ -680,7 +702,10 @@ object SupabaseAttendanceService {
                     facultyName = "Dr. S. Sharma",
                     room = room,
                     requiredWifiSsid = requiredWifi,
-                    requiredWifiBssid = requiredBssid
+                    requiredWifiBssid = requiredBssid,
+                    latitude = lat,
+                    longitude = lon,
+                    geofenceRadiusMeters = radius
                 )
             }
             null
@@ -842,7 +867,7 @@ object SupabaseAttendanceService {
                 put("teacher_id", teacherId)
                 put("status", "ACTIVE")
                 put("start_time", nowIso)
-                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|geo:21.128456,81.766184|radius:30|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             }
 
             val insertReq = Request.Builder()
@@ -993,7 +1018,7 @@ object SupabaseAttendanceService {
 
             // 1. Direct update on attendance_sessions.session_secret
             val patchSessionPayload = JSONObject().apply {
-                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                put("session_secret", "wifi:$cleanWifi|bssid:A4:2B:B0:8C:12:EF|geo:21.128456,81.766184|radius:30|ip:117.250.161.222|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             }
             val patchSessionReq = Request.Builder()
                 .url("$SUPABASE_URL/rest/v1/attendance_sessions?id=eq.$sessionId")
