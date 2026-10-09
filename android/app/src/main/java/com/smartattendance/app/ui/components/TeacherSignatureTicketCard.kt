@@ -232,24 +232,43 @@ fun TeacherSignatureTicketCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Left Column: Eyebrow + Format Tag (THEORY / PRACTICAL)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Box(
                         modifier = Modifier
                             .width(3.dp)
-                            .height(14.dp)
+                            .height(13.dp)
                             .background(Color(0xFF818CF8), RoundedCornerShape(2.dp))
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = eyebrowText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = LavenderAccent,
-                        letterSpacing = 2.sp
+                        letterSpacing = 1.2.sp,
+                        maxLines = 1
                     )
 
+                    // Format Pill (PRACTICAL / THEORY) cleanly placed on the left
+                    Surface(
+                        shape = RoundedCornerShape(5.dp),
+                        color = if (classItem.isPractical) Color(0xFF7E22CE).copy(alpha = 0.28f) else Color(0xFF1D4ED8).copy(alpha = 0.25f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, if (classItem.isPractical) Color(0xFFA855F7) else Color(0xFF60A5FA))
+                    ) {
+                        Text(
+                            text = if (classItem.isPractical) "PRACTICAL" else "THEORY",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (classItem.isPractical) Color(0xFFE9D5FF) else Color(0xFFBAE6FD),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
                     if (isSessionLive) {
-                        Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = Color(0xFF10B981).copy(alpha = 0.15f),
@@ -264,9 +283,9 @@ fun TeacherSignatureTicketCard(
                                         .size(6.dp)
                                         .background(Color(0xFF10B981).copy(alpha = dotAlpha), CircleShape)
                                 )
-                                Spacer(modifier = Modifier.width(5.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "LIVE NOW · $timerFormatted",
+                                    text = "LIVE · $timerFormatted",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     style = TabularCodeStyle,
@@ -277,39 +296,28 @@ fun TeacherSignatureTicketCard(
                     }
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    // Course Format Pill (PRACTICAL / THEORY)
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (classItem.isPractical) Color(0xFF7E22CE).copy(alpha = 0.25f) else Color(0xFF3B82F6).copy(alpha = 0.2f),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, if (classItem.isPractical) Color(0xFFA855F7) else Color(0xFF60A5FA))
-                    ) {
-                        Text(
-                            text = if (classItem.isPractical) "PRACTICAL" else "THEORY",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (classItem.isPractical) Color(0xFFD8B4FE) else Color(0xFF93C5FD),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                // Right Column: Dedicated Clean Time Badge (never wrapped, clean single line)
+                if (!isSessionLive) {
+                    val displayTime = remember(classItem.timeSlot) {
+                        val raw = classItem.timeSlot.trim()
+                        val afterDay = if (raw.contains(",")) raw.substringAfter(",").trim() else raw
+                        afterDay.ifBlank { "Scheduled" }
                     }
 
-                    if (!isSessionLive) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = LavenderSoft,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, LavenderAccent.copy(alpha = 0.25f))
-                        ) {
-                            Text(
-                                text = classItem.timeSlot.takeIf { it.isNotBlank() } ?: "Scheduled",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = LavenderAccent,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                            )
-                        }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = LavenderSoft,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, LavenderAccent.copy(alpha = 0.25f))
+                    ) {
+                        Text(
+                            text = displayTime,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = LavenderAccent,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
                     }
                 }
             }
