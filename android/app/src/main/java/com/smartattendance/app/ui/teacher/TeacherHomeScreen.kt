@@ -228,6 +228,11 @@ fun TeacherHomeScreen(
                 // Midnight 12:00 AM date rollover: clean expired locks and reload unlocked schedule
                 TimetableEngine.cleanExpiredLocks(context)
                 classList = loadPersistedSchedule(context)
+            } else {
+                val persisted = loadPersistedSchedule(context)
+                if (persisted.size != classList.size) {
+                    classList = persisted
+                }
             }
         }
     }

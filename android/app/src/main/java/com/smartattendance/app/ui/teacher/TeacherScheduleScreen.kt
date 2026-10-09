@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -69,6 +70,7 @@ fun TeacherScheduleScreen(
 
     // Dialog States for Create Subject
     var showAddClassDialog by remember { mutableStateOf(false) }
+    var showAiTimetableDialog by remember { mutableStateOf(false) }
     var subjectNameInput by remember { mutableStateOf("") }
     var subjectCodeInput by remember { mutableStateOf("") }
     var programInput by remember { mutableStateOf("B.Tech DSAI") }
@@ -673,6 +675,31 @@ fun TeacherScheduleScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    OutlinedButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showAiTimetableDialog = true
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandAccent),
+                        border = BorderStroke(1.dp, BrandAccent.copy(alpha = 0.5f)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = BrandAccent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "AI Timetable",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = BrandAccent
+                        )
+                    }
+
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1319,6 +1346,19 @@ fun TeacherScheduleScreen(
                             Text("Done", fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            )
+        }
+
+        if (showAiTimetableDialog) {
+            AiTimetableImportDialog(
+                teacherName = teacherName,
+                onDismiss = { showAiTimetableDialog = false },
+                onImportComplete = { newClasses ->
+                    val updated = classList + newClasses
+                    updateClassList(updated)
+                    showAiTimetableDialog = false
+                    Toast.makeText(context, "✨ " + newClasses.size + " lectures added to your timetable!", Toast.LENGTH_LONG).show()
                 }
             )
         }
