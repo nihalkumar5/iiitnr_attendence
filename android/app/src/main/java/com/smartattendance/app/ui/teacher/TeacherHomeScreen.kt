@@ -330,15 +330,24 @@ fun TeacherHomeScreen(
         }
     }
 
+    data class HomePartitionData(
+        val inProgress: TeacherClassItem?,
+        val pendingLate: List<TeacherClassItem>,
+        val upcoming: List<TeacherClassItem>,
+        val completed: List<TeacherClassItem>
+    )
+
     val partition = remember(todayClasses, nowMinutes, currentDateIso) {
         val inProgressList = mutableListOf<TeacherClassItem>()
+        val pendingLateList = mutableListOf<TeacherClassItem>()
         val upcomingList = mutableListOf<TeacherClassItem>()
         val completedList = mutableListOf<TeacherClassItem>()
 
         todayClasses.forEach { item ->
             val isLocked = (item.isLocked && (item.lockedDate == null || item.lockedDate == currentDateIso)) ||
                 TimetableEngine.isClassLockedToday(context, item.id, currentDateIso) ||
-                item.status == ClassScheduleStatus.LOCKED
+                item.status == ClassScheduleStatus.LOCKED ||
+                item.status == ClassScheduleStatus.COMPLETED
 
             val startM = TimetableEngine.parseTimeToMinutes(item.startTime)
             val endM = TimetableEngine.parseEndTimeToMinutes(item.endTime, startM)
@@ -348,15 +357,19 @@ fun TeacherHomeScreen(
                 item.status == ClassScheduleStatus.ACTIVE -> {
                     inProgressList.add(item)
                 }
-                // 2. Class has passed scheduled end time OR locked/submitted today
-                isLocked || item.status == ClassScheduleStatus.COMPLETED || nowMinutes >= endM -> {
+                // 2. Attendance was actually submitted/locked today
+                isLocked -> {
                     completedList.add(item)
                 }
-                // 3. Class time is currently in progress
+                // 3. Current time is within scheduled interval
                 nowMinutes in startM until endM -> {
                     inProgressList.add(item)
                 }
-                // 4. Future upcoming class
+                // 4. Scheduled end time passed, but attendance NOT taken yet (keep attendance option open!)
+                nowMinutes >= endM -> {
+                    pendingLateList.add(item)
+                }
+                // 5. Future upcoming class
                 else -> {
                     upcomingList.add(item)
                 }
@@ -369,27 +382,40 @@ fun TeacherHomeScreen(
             TimetableEngine.parseEndTimeToMinutes(it.endTime, sm)
         }
 
-        Triple(inProgressList.firstOrNull(), sortedUpcoming, sortedCompleted)
+        HomePartitionData(inProgressList.firstOrNull(), pendingLateList, sortedUpcoming, sortedCompleted)
     }
 
-    val inProgressClass = partition.first
-    val upcomingTodayList = partition.second
-    val completedTodayClasses = partition.third
+    val inProgressClass = partition.inProgress
+    val pendingLateClasses = partition.pendingLate
+    val upcomingTodayList = partition.upcoming
+    val completedTodayClasses = partition.completed
 
-    val currentClass: TeacherClassItem? = inProgressClass ?: upcomingTodayList.firstOrNull()
+    val isPendingLateHero = inProgressClass == null && pendingLateClasses.isNotEmpty()
+
+    // Primary Hero Selection:
+    // 1. Active live lecture
+    // 2. Class currently in progress
+    // 3. Class whose slot ended but attendance not taken yet (Late attendance open!)
+    // 4. Next upcoming class in the future
+    val currentClass: TeacherClassItem? = inProgressClass
+        ?: pendingLateClasses.lastOrNull()
+        ?: upcomingTodayList.firstOrNull()
+
     val isPrimaryInProgress: Boolean = inProgressClass != null
     val primaryHeaderTitle: String = when {
         isPrimaryInProgress -> "Current Class"
+        isPendingLateHero -> "Attendance Pending"
         currentClass != null -> "Next Class"
         completedTodayClasses.isNotEmpty() -> "Today's Schedule"
         else -> "Today's Schedule"
     }
 
     val upcomingClasses: List<TeacherClassItem> = remember(partition, currentClass) {
+        val remaining = pendingLateClasses + upcomingTodayList
         if (currentClass != null) {
-            upcomingTodayList.filter { it.id != currentClass.id }
+            remaining.filter { it.id != currentClass.id }
         } else {
-            upcomingTodayList
+            remaining
         }
     }
 
@@ -684,6 +710,20 @@ fun TeacherHomeScreen(
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 )
                             }
+                        } else if (isPendingLateHero) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = StatusReviewBg,
+                                border = BorderStroke(1.dp, StatusReviewBorder)
+                            ) {
+                                Text(
+                                    text = "PENDING ATTENDANCE",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StatusReview,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
                         } else {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
@@ -937,6 +977,7 @@ fun TeacherHomeScreen(
                                 }
                             }
 
+                            val isItemPendingLate = pendingLateClasses.any { it.id == classItem.id }
                             if (isRowLocked) {
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
@@ -947,6 +988,20 @@ fun TeacherHomeScreen(
                                         fontSize = 10.sp,
                                         color = TextMuted,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else if (isItemPendingLate) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = StatusReviewBg,
+                                    border = BorderStroke(1.dp, StatusReviewBorder)
+                                ) {
+                                    Text(
+                                        text = "Take Attendance",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = StatusReview,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                     )
                                 }
                             } else {
