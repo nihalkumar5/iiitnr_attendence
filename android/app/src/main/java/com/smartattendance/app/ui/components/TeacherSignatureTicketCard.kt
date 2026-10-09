@@ -13,6 +13,15 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import android.content.Context
+import androidx.compose.animation.core.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.smartattendance.app.core.engine.TimetableEngine
+import com.smartattendance.app.ui.theme.TabularCodeStyle
+import kotlinx.coroutines.delay
+import java.util.Calendar
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -141,6 +150,65 @@ fun TeacherSignatureTicketCard(
     val actionButtonText = if (isSessionLive) "Continue Live Attendance" else "Start Attendance"
     val actionButtonColor = if (isSessionLive) Color(0xFF10B981) else Color(0xFF2563EB)
 
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("smart_attendance_prefs", Context.MODE_PRIVATE) }
+
+    // Pulsing live indicator dot
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "livePulse"
+    )
+
+    // Minimal live timer calculation
+    var elapsedSeconds by remember(isSessionLive, classItem.id) { mutableLongStateOf(0L) }
+
+    LaunchedEffect(isSessionLive, isPrimaryInProgress, classItem.id, classItem.startTime) {
+        if (isSessionLive || isPrimaryInProgress) {
+            val sessionKey = "session_start_epoch_${classItem.id}"
+            var startEpoch = prefs.getLong(sessionKey, 0L)
+            val nowMs = System.currentTimeMillis()
+
+            if (startEpoch <= 0L || (nowMs - startEpoch) > 12 * 3600 * 1000L) {
+                val cal = Calendar.getInstance()
+                val nowH = cal.get(Calendar.HOUR_OF_DAY)
+                val nowM = cal.get(Calendar.MINUTE)
+                val nowS = cal.get(Calendar.SECOND)
+                val startM = TimetableEngine.parseTimeToMinutes(classItem.startTime)
+                val diffSec = ((nowH * 60 + nowM) - startM) * 60 + nowS
+                if (diffSec in 0..14400) {
+                    startEpoch = nowMs - (diffSec * 1000L)
+                } else {
+                    startEpoch = nowMs
+                }
+                prefs.edit().putLong(sessionKey, startEpoch).apply()
+            }
+
+            while (true) {
+                val current = System.currentTimeMillis()
+                elapsedSeconds = ((current - startEpoch) / 1000L).coerceAtLeast(0L)
+                delay(1000L)
+            }
+        }
+    }
+
+    val timerFormatted = remember(elapsedSeconds) {
+        val mins = elapsedSeconds / 60
+        val secs = elapsedSeconds % 60
+        if (mins >= 60) {
+            val hrs = mins / 60
+            val remMins = mins % 60
+            String.format("%02d:%02d:%02d", hrs, remMins, secs)
+        } else {
+            String.format("%02d:%02d", mins, secs)
+        }
+    }
+
     // Selective typographic contrast: lightweight body with selective bold keyword
     val annotatedTitle = remember(classItem.subjectName) {
         val trimmed = classItem.subjectName.trim()
@@ -220,7 +288,7 @@ fun TeacherSignatureTicketCard(
                     )
                 }
 
-                if (isSessionLive) {
+                if (isSessionLive || isPrimaryInProgress) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
                         color = Color(0x2610B981),
@@ -234,13 +302,14 @@ fun TeacherSignatureTicketCard(
                                 modifier = Modifier
                                     .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF10B981))
+                                    .background(Color(0xFF10B981).copy(alpha = dotAlpha))
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = "LIVE NOW",
+                                text = "LIVE NOW · $timerFormatted",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
+                                style = TabularCodeStyle,
                                 color = Color(0xFF10B981)
                             )
                         }

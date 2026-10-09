@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Play, QrCode, Radio, Users, Wifi } from "lucide-react";
 
 export interface SignatureTicketCardProps {
@@ -37,6 +37,20 @@ export function SignatureTicketCard({
   const prefix = words.length > 1 ? words.slice(0, -1).join(" ") + " " : "";
   const keyWord = words.length > 1 ? words[words.length - 1] : words[0];
 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isLive) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLive]);
+
+  const mins = Math.floor(elapsedSeconds / 60);
+  const secs = elapsedSeconds % 60;
+  const timerStr = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
   return (
     <div
       onClick={onStartAttendance}
@@ -69,9 +83,9 @@ export function SignatureTicketCard({
             </span>
 
             {isLive ? (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wider uppercase ml-1">
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold font-mono tracking-wider uppercase ml-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live ({attendanceCount})
+                LIVE NOW · {timerStr}
               </span>
             ) : null}
           </div>

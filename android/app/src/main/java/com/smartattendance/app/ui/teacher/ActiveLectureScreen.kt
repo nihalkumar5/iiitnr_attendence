@@ -120,7 +120,20 @@ fun ActiveLectureScreen(
         }
     }
 
-    var elapsedSeconds by remember { mutableStateOf(0) }
+    val sessionStartEpoch = remember(classId) {
+        val key = "session_start_epoch_${classId}"
+        val saved = prefs.getLong(key, 0L)
+        val now = System.currentTimeMillis()
+        if (saved > 0L && (now - saved) < 12 * 3600 * 1000L) {
+            saved
+        } else {
+            prefs.edit().putLong(key, now).apply()
+            now
+        }
+    }
+    var elapsedSeconds by remember(sessionStartEpoch) {
+        mutableStateOf(((System.currentTimeMillis() - sessionStartEpoch) / 1000L).toInt().coerceAtLeast(0))
+    }
 
     // Real Supabase Live Attendance Records Stream
     var liveAttendanceRecords by remember { mutableStateOf<List<LiveStudentAttendanceItem>>(emptyList()) }
@@ -191,11 +204,11 @@ fun ActiveLectureScreen(
         }
     }
 
-    // Timer ticker
-    LaunchedEffect(Unit) {
+    // Timer ticker synchronized with Home Card
+    LaunchedEffect(sessionStartEpoch) {
         while (true) {
             delay(1000L)
-            elapsedSeconds += 1
+            elapsedSeconds = ((System.currentTimeMillis() - sessionStartEpoch) / 1000L).toInt().coerceAtLeast(0)
         }
     }
 
