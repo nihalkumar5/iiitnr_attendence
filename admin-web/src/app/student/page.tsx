@@ -1283,7 +1283,7 @@ export default function StudentPortal() {
     }
 
     // Sync enrollment directly to Supabase DB so Teacher Console reflects it immediately
-    enrollStudentInClassInDB({
+    await enrollStudentInClassInDB({
       classId: matched.id,
       rollNo: rollNo,
       name: studentName,
@@ -1293,23 +1293,22 @@ export default function StudentPortal() {
     setJoinSuccessMsg(`Enrolled in ${matched.subjectName} (${matched.joinCode})!`);
     setJoinCodeInput("");
 
-    // If active session is for this subject, immediately mark attendance!
+    // If active session is for this subject, immediately mark attendance without delay!
     if (activeSession && (
       activeSession.classId === matched.id || 
       activeSession.joinCode.toUpperCase() === matched.joinCode.toUpperCase() || 
       activeSession.subjectCode.toUpperCase() === matched.subjectCode.toUpperCase()
     )) {
-      autoCheckedInRef.current = false;
-      setTimeout(() => {
-        executePresenceVerification(activeSession);
-      }, 250);
+      setAttendanceStatus("PRESENT");
+      autoCheckedInRef.current = true;
+      executePresenceVerification(activeSession);
     }
   };
 
   // IF NOT LOGGED IN: SHOW GOOGLE SIGN IN & PROFILE COMPLETION
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 selection:bg-blue-500 selection:text-white">
+      <div className="min-h-screen bg-[#F8FAFC] line-grid text-slate-900 flex flex-col justify-between p-4 selection:bg-blue-500 selection:text-white">
         <header className="max-w-md mx-auto w-full flex items-center justify-between py-4">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-600/20">
@@ -1704,7 +1703,7 @@ export default function StudentPortal() {
 
   // IF LOGGED IN: SHOW REGULAR STUDENT CONSOLE (FACULTY MATCHED THEME)
   return (
-    <div className="min-h-screen bg-[#F8FAFC] bg-[radial-gradient(#CBD5E1_1px,transparent_1px)] [background-size:20px_20px] text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 justify-between">
+    <div className="min-h-screen bg-[#F8FAFC] line-grid text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 justify-between">
       {/* Dynamic Island / Top Notification Banner (Apple-grade, matching Faculty UI) */}
       {autoCheckInToast && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] sm:w-auto bg-slate-900/95 text-white backdrop-blur-md px-4 py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3 animate-in fade-in slide-in-from-top-3">

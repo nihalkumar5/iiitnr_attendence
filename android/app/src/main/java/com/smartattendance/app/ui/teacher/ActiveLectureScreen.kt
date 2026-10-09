@@ -215,7 +215,7 @@ fun ActiveLectureScreen(
         }
     }
 
-    // Continuous Live Supabase Attendance Polling (Every 2.5 Seconds)
+    // Continuous Live Supabase Attendance & Roster Polling (Every 1.5 Seconds)
     LaunchedEffect(activeSessionId) {
         val sId = activeSessionId ?: return@LaunchedEffect
         while (true) {
@@ -227,18 +227,46 @@ fun ActiveLectureScreen(
             } catch (_: Exception) {
                 // Ignore transient network errors
             }
-            delay(2500L)
+            try {
+                val res = SupabaseAttendanceService.fetchCourseRoster(classId, joinCode, subjectCode, subjectName)
+                res.onSuccess { list ->
+                    enrolledRoster = list
+                    prefs.edit().putInt("synced_enrolled_student_count", list.size).apply()
+                    isLoadingRoster = false
+                }
+            } catch (_: Exception) {
+                // Ignore transient network errors
+            }
+            delay(1500L)
         }
     }
 
     val presentStudentIds = liveAttendanceRecords.filter { it.status == "PRESENT" }.map { it.studentId }.toSet()
     val presentRolls = liveAttendanceRecords.filter { it.status == "PRESENT" }.map { it.rollNumber }.toSet()
 
-    val realPresentCount = presentStudentIds.size.coerceAtLeast(liveAttendanceRecords.count { it.status == "PRESENT" })
-    val isZeroStudents = !isLoadingRoster && enrolledRoster.isEmpty() && liveAttendanceRecords.isEmpty()
-    val effectiveTotalStudents = if (isZeroStudents) 0 else if (enrolledRoster.isNotEmpty()) enrolledRoster.size else totalStudents
+    val realPresentCount = maxOf(
+        presentStudentIds.size,
+        liveAttendanceRecords.count { it.status == "PRESENT" }
+    )
+
+    // Distinct total count across both enrolled roster and real-time live attendees
+    val allUniqueRolls = (enrolledRoster.map { it.rollNumber } + liveAttendanceRecords.map { it.rollNumber }).filter { it.isNotBlank() }.toSet()
+    val allUniqueIds = (enrolledRoster.map { it.studentId } + liveAttendanceRecords.map { it.studentId }).filter { it.isNotBlank() }.toSet()
+    val totalDistinctStudents = maxOf(
+        allUniqueRolls.size,
+        allUniqueIds.size,
+        enrolledRoster.size,
+        liveAttendanceRecords.size
+    )
+
+    val effectiveTotalStudents = maxOf(
+        totalDistinctStudents,
+        realPresentCount,
+        if (totalStudents > 0) totalStudents else 0
+    )
+
     val waitingCount = (effectiveTotalStudents - realPresentCount).coerceAtLeast(0)
-    val livePercentage = if (effectiveTotalStudents > 0) (realPresentCount * 100) / effectiveTotalStudents else 0
+    val livePercentage = if (effectiveTotalStudents > 0) (realPresentCount * 100) / effectiveTotalStudents else if (realPresentCount > 0) 100 else 0
 
     // Live blinking recording dot
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -546,26 +574,32 @@ fun ActiveLectureScreen(
 
                 val unifiedList = mutableListOf<UnifiedRosterRow>()
 
-                if (enrolledRoster.isNotEmpty()) {
-                    enrolledRoster.forEach { student ->
-                        val isPresent = presentStudentIds.contains(student.studentId) || presentRolls.contains(student.rollNumber)
-                        val record = liveAttendanceRecords.find { it.studentId == student.studentId || it.rollNumber == student.rollNumber }
-                        val isManual = record?.verificationMethod == "MANUAL_TEACHER"
+                // 1. Add all enrolled course roster students
+                enrolledRoster.forEach { student ->
+                    val isPresent = presentStudentIds.contains(student.studentId) || presentRolls.contains(student.rollNumber)
+                    val record = liveAttendanceRecords.find { it.studentId == student.studentId || it.rollNumber == student.rollNumber }
+                    val isManual = record?.verificationMethod == "MANUAL_TEACHER"
 
-                        unifiedList.add(
-                            UnifiedRosterRow(
-                                id = student.studentId,
-                                name = student.name,
-                                roll = student.rollNumber,
-                                isPresent = isPresent,
-                                isManual = isManual,
-                                isDeviceBound = student.isDeviceBound
-                            )
+                    unifiedList.add(
+                        UnifiedRosterRow(
+                            id = student.studentId,
+                            name = student.name,
+                            roll = student.rollNumber,
+                            isPresent = isPresent,
+                            isManual = isManual,
+                            isDeviceBound = student.isDeviceBound
                         )
-                    }
-                } else {
-                    // Fallback to live stream records directly
-                    liveAttendanceRecords.forEach { rec ->
+                    )
+                }
+
+                // 2. Merge any live attending students not already in the enrolled roster
+                val knownIds = unifiedList.map { it.id }.toSet()
+                val knownRolls = unifiedList.map { it.roll.lowercase() }.toSet()
+
+                liveAttendanceRecords.forEach { rec ->
+                    val notInId = rec.studentId.isBlank() || !knownIds.contains(rec.studentId)
+                    val notInRoll = rec.rollNumber.isBlank() || !knownRolls.contains(rec.rollNumber.lowercase())
+                    if (notInId && notInRoll) {
                         unifiedList.add(
                             UnifiedRosterRow(
                                 id = rec.studentId,
@@ -923,7 +957,7 @@ fun ActiveLectureScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // PRIMARY ACTION: SUBMIT ATTENDANCE
-        val hasEnrolledStudents = effectiveTotalStudents > 0
+        val hasEnrolledStudents = effectiveTotalStudents > 0 || realPresentCount > 0
 
         Button(
             onClick = {

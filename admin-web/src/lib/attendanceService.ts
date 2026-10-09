@@ -700,19 +700,47 @@ export async function enrollStudentInClassInDB(params: {
     });
     if (!studentId) return false;
 
-    // Find latest session for this class or create one
+    // 1. Direct registration into course_enrollments immediately for real-time faculty sync
+    try {
+      await supabase.from("course_enrollments").upsert({
+        class_id: params.classId,
+        student_id: studentId,
+        enrollment_type: "REGULAR",
+        is_active: true
+      }, { onConflict: "class_id,student_id" });
+    } catch (e) {
+      console.warn("course_enrollments sync note:", e);
+    }
+
+    // 2. Find active or latest session for this class or running lecture
     let sessionId: string | null = null;
-    const { data: sess } = await supabase
+    let isActiveSession = false;
+
+    const { data: activeSess } = await supabase
       .from("attendance_sessions")
-      .select("id")
-      .eq("class_id", params.classId)
+      .select("id, class_id")
+      .eq("status", "ACTIVE")
       .order("start_time", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (sess?.id) {
-      sessionId = sess.id;
+    if (activeSess?.id) {
+      sessionId = activeSess.id;
+      isActiveSession = true;
     } else {
+      const { data: sess } = await supabase
+        .from("attendance_sessions")
+        .select("id")
+        .eq("class_id", params.classId)
+        .order("start_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (sess?.id) {
+        sessionId = sess.id;
+      }
+    }
+
+    if (!sessionId) {
       const { data: teachers } = await supabase.from("teachers").select("id").limit(1);
       const teacherId = teachers?.[0]?.id || "977d23e7-4b43-4a7a-af74-b3fb2855beae";
       const { data: newSess } = await supabase
@@ -729,34 +757,25 @@ export async function enrollStudentInClassInDB(params: {
       sessionId = newSess?.id || null;
     }
 
-    if (!sessionId) return false;
-
-    // Direct registration into course_enrollments for cross-device parity with Android
-    try {
-      await supabase.from("course_enrollments").upsert({
-        class_id: params.classId,
-        student_id: studentId,
-        enrollment_type: "REGULAR",
-        is_active: true
-      }, { onConflict: "class_id,student_id" });
-    } catch (e) {
-      console.warn("course_enrollments sync note:", e);
-    }
+    if (!sessionId) return true;
 
     // Check if record already exists for this student and session
     const { data: existing } = await supabase
       .from("attendance_records")
-      .select("id")
+      .select("id, status")
       .eq("session_id", sessionId)
       .eq("student_id", studentId)
       .maybeSingle();
+
+    const markStatus = isActiveSession ? "PRESENT" : "ABSENT";
+    const presencePct = isActiveSession ? 100.0 : 0.0;
 
     if (!existing?.id) {
       await supabase.from("attendance_records").insert({
         session_id: sessionId,
         student_id: studentId,
-        status: "ABSENT",
-        presence_percentage: 0,
+        status: markStatus,
+        presence_percentage: presencePct,
         verification_method: "BLE_AUTO",
         sensor_details: {
           student_name: params.name,
@@ -764,6 +783,12 @@ export async function enrollStudentInClassInDB(params: {
           enrolled: true
         }
       });
+    } else if (isActiveSession && existing.status !== "PRESENT") {
+      await supabase.from("attendance_records").update({
+        status: "PRESENT",
+        presence_percentage: 100.0,
+        verification_method: "BLE_AUTO"
+      }).eq("id", existing.id);
     }
 
     return true;

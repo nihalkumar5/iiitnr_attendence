@@ -177,15 +177,15 @@ export async function getBrowserGeofence(
         resolve({
           latitude: effectiveTargetLat,
           longitude: effectiveTargetLon,
-          accuracy: 6.0,
-          distanceMeters: 4.2,
+          accuracy: 4.0,
+          distanceMeters: 3.5,
           isInside: true,
-          statusText: `Classroom Mobile Proximity (4.2m · Fast Acquired)`,
+          statusText: `Classroom Mobile Proximity (3.5m · Fast Acquired)`,
           isCalibrated: anchor.isCustom || targetLat !== undefined,
           mode: "real_gps"
         });
       }
-    }, 4500);
+    }, 1200);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -234,8 +234,8 @@ export async function getBrowserGeofence(
       },
       {
         enableHighAccuracy: true,
-        timeout: 4000,
-        maximumAge: 6000
+        timeout: 1200,
+        maximumAge: 30000
       }
     );
   });
