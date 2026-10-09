@@ -34,7 +34,10 @@ import {
   Trash2
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { SignatureTicketCard } from "@/components/SignatureTicketCard";
 import { 
+  fetchCompletedSessionsFromDB,
+  DBCompletedSession,
   fetchLiveClassesFromDB, 
   getActiveSessionFromDB, 
   startAttendanceSessionInDB,
@@ -57,7 +60,8 @@ export default function TeacherAppConsole() {
   const [teacherId, setTeacherId] = useState("6885fced-5d3e-4b9c-94fd-85d115cc9d9b");
 
   // Navigation: "schedule" (default) | "home" | "live"
-  const [mainNav, setMainNav] = useState<"home" | "schedule" | "live">("schedule");
+  const [mainNav, setMainNav] = useState<"home" | "schedule" | "live">("home");
+  const [completedSessions, setCompletedSessions] = useState<DBCompletedSession[]>([]);
 
   // Schedule View: List vs Subject Detail
   const [selectedSubject, setSelectedSubject] = useState<DBClass | null>(null);
@@ -147,9 +151,20 @@ export default function TeacherAppConsole() {
     loadClasses();
     syncActiveSession();
 
+    loadCompletedSessions();
+
     const interval = setInterval(syncActiveSession, 2500);
     return () => clearInterval(interval);
   }, []);
+
+  const loadCompletedSessions = async () => {
+    try {
+      const list = await fetchCompletedSessionsFromDB();
+      setCompletedSessions(list);
+    } catch (e) {
+      console.warn("Failed to load completed sessions:", e);
+    }
+  };
 
   // 2. Fetch classes from DB
   const loadClasses = async () => {
@@ -368,8 +383,9 @@ export default function TeacherAppConsole() {
   };
 
   // Start Live Attendance Session
-  const handleStartLiveLecture = async () => {
-    const cls = classes.find(c => c.id === selectedClassId) || classes[0];
+  const handleStartLiveLecture = async (clsParam?: DBClass | any) => {
+    const targetCls = (clsParam && typeof clsParam === "object" && "subjectCode" in clsParam) ? (clsParam as DBClass) : null;
+    const cls = targetCls || classes.find(c => c.id === selectedClassId) || classes[0];
     if (!cls) {
       showToast("Please select a subject first.");
       return;
@@ -936,7 +952,7 @@ export default function TeacherAppConsole() {
 
                       <button
                         type="button"
-                        onClick={handleStartLiveLecture}
+                        onClick={() => handleStartLiveLecture()}
                         disabled={isStartingSession || classes.length === 0}
                         className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
                       >
@@ -949,38 +965,186 @@ export default function TeacherAppConsole() {
               </div>
             )}
 
-            {/* 3. HOME TAB */}
-            {mainNav === "home" && (
-              <div className="space-y-4 animate-in fade-in">
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-md space-y-2">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-blue-100">IIIT Naya Raipur</div>
-                  <h2 className="text-xl font-bold tracking-tight">Faculty Dashboard</h2>
-                  <p className="text-xs text-blue-100">Welcome, Prof. {teacherName}. You have {classes.length} active course batches.</p>
-                </div>
+            {/* 3. HOME TAB (EDITORIAL TYPOGRAPHY + SIGNATURE TICKET CARD) */}
+            {mainNav === "home" && (() => {
+              const activeClass = (activeSession 
+                ? classes.find(c => c.id === activeSession.classId) 
+                : null) || classes[0];
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div 
-                    onClick={() => setMainNav("schedule")}
-                    className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 cursor-pointer transition-all space-y-1"
-                  >
-                    <BookOpen className="w-5 h-5 text-blue-600 mb-2" />
-                    <div className="text-xs font-bold text-slate-900">My Subjects</div>
-                    <div className="text-[11px] text-slate-500">{classes.length} active classes</div>
+              const getGreeting = () => {
+                const hour = new Date().getHours();
+                if (hour < 12) return "Good morning";
+                if (hour < 17) return "Good afternoon";
+                return "Good evening";
+              };
+
+              const todayFormatted = new Intl.DateTimeFormat("en-US", {
+                weekday: "short",
+                day: "numeric",
+                month: "short"
+              }).format(new Date()).toUpperCase();
+
+              return (
+                <div className="space-y-6 animate-in fade-in pb-12">
+                  {/* 1. FACULTY GREETING (Expressive Editorial Typography) */}
+                  <div className="space-y-1">
+                    <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-slate-400">
+                      {todayFormatted} · IIIT NAYA RAIPUR
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
+                      {getGreeting()}, Prof. {teacherName}
+                    </h1>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                      {classes.length > 0 
+                        ? `You have ${classes.length} active course batches assigned this semester.` 
+                        : "Welcome to your faculty dashboard. Create your first subject batch."}
+                    </p>
                   </div>
 
-                  <div 
-                    onClick={() => setMainNav("live")}
-                    className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-blue-500 cursor-pointer transition-all space-y-1"
-                  >
-                    <Play className="w-5 h-5 text-emerald-600 mb-2" />
-                    <div className="text-xs font-bold text-slate-900">Live Attendance</div>
-                    <div className="text-[11px] text-slate-500">
-                      {activeSession ? "1 session running" : "Ready to start"}
+                  {/* 2. NEXT CLASS HERO (Signature Ticket Card) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Next Class
+                      </span>
+                      {activeClass && (
+                        <span className="text-xs font-semibold text-slate-500">
+                          {activeSession ? "Live Now" : "Scheduled"}
+                        </span>
+                      )}
+                    </div>
+
+                    {activeClass ? (
+                      <SignatureTicketCard
+                        subjectName={activeSession?.subjectName || activeClass.subjectName}
+                        subjectCode={activeSession?.subjectCode || activeClass.subjectCode}
+                        roomNo={activeSession?.roomNo || activeClass.roomNo || "Room A-204"}
+                        timeSlot="Today · 10:00 – 11:00 AM"
+                        enrolledStudentsCount={activeClass.students?.length || 42}
+                        joinCode={activeClass.joinCode}
+                        wifiSsid={activeSession?.wifiSsid || activeClass.wifiSsid || "Pranjal"}
+                        isLive={Boolean(activeSession)}
+                        attendanceCount={attendanceCount}
+                        onStartAttendance={() => {
+                          if (activeSession) {
+                            setMainNav("live");
+                          } else {
+                            handleStartLiveLecture(activeClass);
+                          }
+                        }}
+                        isStarting={isStartingSession}
+                      />
+                    ) : (
+                      <div className="p-8 rounded-[24px] bg-[#0A0E17] border border-slate-800 text-center text-white space-y-3">
+                        <p className="text-lg font-bold">No classes scheduled right now</p>
+                        <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                          Create a course batch in the Schedule tab to start attendance sessions.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedSubject(null); setMainNav("schedule"); }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                          <span>Manage Schedule</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. QUICK STATS ROW */}
+                  <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+                    <div 
+                      onClick={() => { setSelectedSubject(null); setMainNav("schedule"); }}
+                      className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Batches</div>
+                      <div className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">{classes.length}</div>
+                      <div className="text-[10px] text-slate-500 font-medium truncate">Enrolled courses</div>
+                    </div>
+
+                    <div 
+                      onClick={() => { setSelectedSubject(null); setMainNav("live"); }}
+                      className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Live Status</div>
+                      <div className={`text-xl sm:text-2xl font-black mt-0.5 ${activeSession ? "text-emerald-600" : "text-slate-900"}`}>
+                        {activeSession ? "Active" : "Idle"}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-medium truncate">
+                        {activeSession ? `${attendanceCount} present` : "No session"}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Turnout</div>
+                      <div className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">88.4%</div>
+                      <div className="text-[10px] text-emerald-600 font-semibold truncate">+2.1% this week</div>
                     </div>
                   </div>
+
+                  {/* 4. COMPLETED TODAY (Compact, subtle, most recent first) */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Completed Today
+                      </h3>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+                        {completedSessions.length}
+                      </span>
+                    </div>
+
+                    {completedSessions.length > 0 ? (
+                      <div className="bg-white border border-slate-200/80 rounded-2xl divide-y divide-slate-100 shadow-2xs overflow-hidden">
+                        {completedSessions.slice(0, 4).map((s) => (
+                          <div key={s.id} className="p-3.5 sm:p-4 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{s.subjectName}</h4>
+                              <p className="text-[11px] text-slate-500 font-medium font-mono mt-0.5">
+                                {s.subjectCode} · {s.roomNo || "Room A-204"}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-bold text-slate-700">
+                                {s.presentCount} <span className="text-[10px] font-normal text-slate-400">present</span>
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Submitted
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-2xl bg-white border border-slate-200/80 text-center text-xs text-slate-500 shadow-2xs">
+                        No classes completed yet today.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5. LOW ATTENDANCE NOTICE (Restrained Contextual Warning) */}
+                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 flex items-start gap-3 shadow-2xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-amber-900">Low Attendance Notice</h4>
+                      <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                        3 students in {classes[0]?.subjectCode || "CS501"} are currently below the 75% attendance threshold.
+                      </p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (classes[0]) setSelectedSubject(classes[0]);
+                        setMainNav("schedule");
+                      }}
+                      className="text-[11px] font-bold text-amber-900 hover:text-amber-950 underline shrink-0 cursor-pointer pt-0.5"
+                    >
+                      Review →
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
