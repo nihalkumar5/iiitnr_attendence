@@ -83,6 +83,9 @@ export default function TeacherAppConsole() {
   const [mainNav, setMainNav] = useState<"home" | "schedule" | "live" | "records" | "devices" | "profile">("home");
   const [teacherDepartment, setTeacherDepartment] = useState("Computer Science & Engineering");
 
+  // Campus Wi-Fi Presets
+  const WIFI_PRESETS = ["Pranjal", "IIIT-NR-Campus", "IIITNR_FACULTY", "IIITNR_STUDENTS", "DSPM-Mesh", "Lab-AP-5G"];
+
   // Profile Edit States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editProfileName, setEditProfileName] = useState(teacherName);
@@ -90,6 +93,8 @@ export default function TeacherAppConsole() {
   const [editProfileDept, setEditProfileDept] = useState("Computer Science & Engineering");
   const [editProfileEmail, setEditProfileEmail] = useState(teacherEmail);
   const [editProfileWifi, setEditProfileWifi] = useState("Pranjal");
+  const [editProfileWifiList, setEditProfileWifiList] = useState<string[]>(["Pranjal"]);
+  const [customWifiInput, setCustomWifiInput] = useState("");
   const [editProfileRoom, setEditProfileRoom] = useState("Room A-204 (AC Block)");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -98,9 +103,38 @@ export default function TeacherAppConsole() {
     setEditProfileFacultyId(facultyId);
     setEditProfileDept(teacherDepartment);
     setEditProfileEmail(teacherEmail);
+    const currentList = wifiSsid ? wifiSsid.split(",").map((s) => s.trim()).filter(Boolean) : ["Pranjal"];
+    setEditProfileWifiList(currentList.length > 0 ? currentList : ["Pranjal"]);
     setEditProfileWifi(wifiSsid);
+    setCustomWifiInput("");
     setEditProfileRoom(roomNo);
     setIsEditingProfile(true);
+  };
+
+  const togglePresetWifi = (preset: string) => {
+    setEditProfileWifiList((prev) => {
+      if (prev.includes(preset)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((s) => s !== preset);
+      } else {
+        return [...prev, preset];
+      }
+    });
+  };
+
+  const addCustomWifi = () => {
+    const clean = customWifiInput.trim();
+    if (clean && !editProfileWifiList.includes(clean)) {
+      setEditProfileWifiList((prev) => [...prev, clean]);
+      setCustomWifiInput("");
+    }
+  };
+
+  const removeWifi = (target: string) => {
+    setEditProfileWifiList((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((s) => s !== target);
+    });
   };
 
   const handleSaveProfile = async () => {
@@ -110,12 +144,16 @@ export default function TeacherAppConsole() {
     }
     setIsSavingProfile(true);
     try {
+      const finalWifi = editProfileWifiList.length > 0 
+        ? editProfileWifiList.join(", ") 
+        : (editProfileWifi.trim() || wifiSsid);
+
       const updatedProfile = {
         name: editProfileName.trim(),
         facultyId: editProfileFacultyId.trim() || facultyId,
         department: editProfileDept.trim() || "Computer Science & Engineering",
         email: editProfileEmail.trim() || teacherEmail,
-        wifiSsid: editProfileWifi.trim() || wifiSsid,
+        wifiSsid: finalWifi,
         roomNo: editProfileRoom.trim() || roomNo,
       };
 
@@ -127,6 +165,7 @@ export default function TeacherAppConsole() {
       setRoomNo(updatedProfile.roomNo);
 
       localStorage.setItem("smart_attendance_teacher_profile", JSON.stringify(updatedProfile));
+      localStorage.setItem("faculty_chosen_wifi_ssid", updatedProfile.wifiSsid);
 
       try {
         await supabase.auth.updateUser({
@@ -1948,37 +1987,132 @@ export default function TeacherAppConsole() {
                       <Wifi className="w-4 h-4 text-emerald-600" />
                       Classroom & Presence Engine
                     </h4>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Multi-Network Whitelist Active
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                        Presence Wi-Fi SSID
-                      </label>
+                    <div className="sm:col-span-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-bold text-slate-600">
+                          Broadcast Wi-Fi Networks ({isEditingProfile ? editProfileWifiList.length : (wifiSsid ? wifiSsid.split(",").filter(Boolean).length : 1)} Configured)
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Students verify attendance on any of these networks
+                        </span>
+                      </div>
+
                       {isEditingProfile ? (
-                        <input
-                          type="text"
-                          value={editProfileWifi}
-                          onChange={(e) => setEditProfileWifi(e.target.value)}
-                          placeholder="e.g. Pranjal"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-blue-500"
-                        />
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                          {/* Active Selected Chips */}
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                              Active Selected Networks
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {editProfileWifiList.map((ssid) => (
+                                <span
+                                  key={ssid}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs"
+                                >
+                                  <Wifi className="w-3.5 h-3.5 text-blue-500" />
+                                  <span>{ssid}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeWifi(ssid)}
+                                    className="w-4 h-4 rounded-full hover:bg-blue-200 flex items-center justify-center text-blue-500 hover:text-blue-800 transition-colors ml-0.5 cursor-pointer"
+                                    title="Remove network"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Preset Buttons */}
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                              Campus Presets (Click to Select / Deselect)
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {WIFI_PRESETS.map((preset) => {
+                                const isSelected = editProfileWifiList.includes(preset);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={preset}
+                                    onClick={() => togglePresetWifi(preset)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                        : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5 text-slate-400" />}
+                                    <span>{preset}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Add Custom Wi-Fi */}
+                          <div className="pt-2 border-t border-slate-200">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                              Add Custom Hotspot or Classroom Wi-Fi
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={customWifiInput}
+                                onChange={(e) => setCustomWifiInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    addCustomWifi();
+                                  }
+                                }}
+                                placeholder="Enter custom Wi-Fi SSID (e.g. Lab-5G, Hotspot)..."
+                                className="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={addCustomWifi}
+                                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
+                              >
+                                + Add Network
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="px-3 py-2 rounded-xl bg-slate-50/70 border border-slate-100 text-xs font-semibold text-slate-800 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>{wifiSsid}</span>
+                        <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 space-y-2.5">
+                          <div className="flex flex-wrap gap-2">
+                            {(wifiSsid ? wifiSsid.split(",").map((s) => s.trim()).filter(Boolean) : ["Pranjal"]).map((ssid) => (
+                              <span
+                                key={ssid}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-800 border border-slate-200/90 shadow-2xs"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>{ssid}</span>
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-slate-400">
+                            Mobile app and sensor mesh broadcast these Wi-Fi networks for zero-touch physical verification.
+                          </p>
                         </div>
                       )}
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Mobile app and sensor mesh broadcast this Wi-Fi network for zero-touch physical verification.
-                      </p>
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 mb-1">
                         Active Courses Assigned
                       </label>
-                      <div className="px-3 py-2 rounded-xl bg-slate-50/70 border border-slate-100 text-xs font-semibold text-slate-800 flex items-center justify-between">
+                      <div className="px-3 py-2.5 rounded-xl bg-slate-50/70 border border-slate-100 text-xs font-semibold text-slate-800 flex items-center justify-between">
                         <span className="text-blue-600 font-bold">{classes.length} Academic Batches</span>
                         <button
                           type="button"

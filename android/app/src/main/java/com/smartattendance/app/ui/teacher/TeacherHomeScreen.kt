@@ -306,6 +306,9 @@ fun TeacherHomeScreen(
     var editNameInput by remember { mutableStateOf(currentTeacherName) }
     var editDeptInput by remember { mutableStateOf(currentDept) }
     var editWifiInput by remember { mutableStateOf(currentWifiSsid) }
+    val selectedEditSsids = remember { mutableStateListOf<String>() }
+    var customWifiInput by remember { mutableStateOf("") }
+    val campusWifiPresets = remember { listOf("Pranjal", "IIIT-NR-Campus", "IIITNR_FACULTY", "IIITNR_STUDENTS", "DSPM-Mesh") }
     val teacherEmail = remember {
         prefs.getString("logged_in_faculty_email", "")?.takeIf { it.isNotBlank() }
             ?: prefs.getString("faculty_email", "")?.takeIf { it.isNotBlank() }
@@ -1222,7 +1225,7 @@ fun TeacherHomeScreen(
                         ) {
                             Column(
                                 modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 OutlinedTextField(
                                     value = editNameInput,
@@ -1240,14 +1243,174 @@ fun TeacherHomeScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true
                                 )
-                                OutlinedTextField(
-                                    value = editWifiInput,
-                                    onValueChange = { editWifiInput = it },
-                                    label = { Text("Presence Wi-Fi SSID", fontSize = 10.sp) },
-                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+
+                                // Wi-Fi Multi-Select Controls
+                                Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Broadcast Wi-Fi (${selectedEditSsids.size} Active)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF334155)
+                                        )
+                                        Text(
+                                            text = "Multi-Select",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF059669)
+                                        )
+                                    }
+
+                                    // Selected Chips with remove button
+                                    if (selectedEditSsids.isNotEmpty()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            selectedEditSsids.forEach { ssid ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color(0xFFEFF6FF),
+                                                    border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Wifi,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF2563EB),
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Text(
+                                                            text = ssid,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF1E40AF)
+                                                        )
+                                                        if (selectedEditSsids.size > 1) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Close,
+                                                                contentDescription = "Remove",
+                                                                tint = Color(0xFF3B82F6),
+                                                                modifier = Modifier
+                                                                    .size(14.dp)
+                                                                    .clickable { selectedEditSsids.remove(ssid) }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Campus Presets Toggle Row
+                                    Text(
+                                        text = "Campus Presets (Tap to toggle):",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF64748B)
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        campusWifiPresets.forEach { preset ->
+                                            val isChecked = selectedEditSsids.contains(preset)
+                                            Surface(
+                                                onClick = {
+                                                    if (isChecked) {
+                                                        if (selectedEditSsids.size > 1) selectedEditSsids.remove(preset)
+                                                    } else {
+                                                        selectedEditSsids.add(preset)
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isChecked) Color(0xFF2563EB) else Color.White,
+                                                border = BorderStroke(1.dp, if (isChecked) Color(0xFF2563EB) else Color(0xFFCBD5E1))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    if (isChecked) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Check,
+                                                            contentDescription = null,
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Add,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF64748B),
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = preset,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = if (isChecked) Color.White else Color(0xFF334155)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Add Custom Wi-Fi
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = customWifiInput,
+                                            onValueChange = { customWifiInput = it },
+                                            placeholder = { Text("Add custom Wi-Fi...", fontSize = 11.sp, color = Color(0xFF94A3B8)) },
+                                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
+                                        Button(
+                                            onClick = {
+                                                val clean = customWifiInput.trim()
+                                                if (clean.isNotBlank() && !selectedEditSsids.contains(clean)) {
+                                                    selectedEditSsids.add(clean)
+                                                    customWifiInput = ""
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                            modifier = Modifier.height(48.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "Add",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -1288,13 +1451,46 @@ fun TeacherHomeScreen(
                                     Text("${classList.size} Assigned Batches", fontSize = 11.sp, color = Color(0xFF2563EB), fontWeight = FontWeight.SemiBold)
                                 }
                                 HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
-                                Row(
+                                Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text("Broadcast Wi-Fi", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                    Text(currentWifiSsid, fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Broadcast Wi-Fi", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "${currentWifiSsid.split(",").filter { it.isNotBlank() }.size} Networks",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF059669)
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        currentWifiSsid.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { ssid ->
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFFEFF6FF),
+                                                border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Box(modifier = Modifier.size(6.dp).background(Color(0xFF10B981), CircleShape))
+                                                    Text(ssid, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E40AF))
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1354,16 +1550,22 @@ fun TeacherHomeScreen(
                         Button(
                             onClick = {
                                 if (editNameInput.isNotBlank()) {
+                                    val effectiveSsid = selectedEditSsids.toList().distinct().joinToString(", ").ifBlank { "Pranjal" }
                                     prefs.edit()
                                         .putString("logged_in_faculty_name", editNameInput.trim())
                                         .putString("logged_in_faculty_dept", editDeptInput.trim())
-                                        .putString("faculty_chosen_wifi_ssid", editWifiInput.trim())
+                                        .putString("faculty_chosen_wifi_ssid", effectiveSsid)
                                         .apply()
                                     currentTeacherName = editNameInput.trim()
                                     currentDept = editDeptInput.trim()
-                                    currentWifiSsid = editWifiInput.trim()
+                                    currentWifiSsid = effectiveSsid
+                                    selectedSsids.clear()
+                                    selectedSsids.addAll(selectedEditSsids.distinct())
+                                    coroutineScope.launch {
+                                        SupabaseAttendanceService.updateClassroomWifiForSession(effectiveSsid)
+                                    }
                                     isEditingProfile = false
-                                    Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Profile & Wi-Fi saved successfully", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             shape = RoundedCornerShape(12.dp),
@@ -1378,6 +1580,14 @@ fun TeacherHomeScreen(
                                 editNameInput = currentTeacherName
                                 editDeptInput = currentDept
                                 editWifiInput = currentWifiSsid
+                                selectedEditSsids.clear()
+                                val existingList = currentWifiSsid.split(",").map { it.replace("\"", "").trim() }.filter { it.isNotBlank() }
+                                if (existingList.isNotEmpty()) {
+                                    selectedEditSsids.addAll(existingList)
+                                } else {
+                                    selectedEditSsids.add("Pranjal")
+                                }
+                                customWifiInput = ""
                                 isEditingProfile = true
                             },
                             shape = RoundedCornerShape(12.dp),
