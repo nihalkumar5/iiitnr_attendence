@@ -4,6 +4,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import com.smartattendance.app.ui.student.StudentTab
 
@@ -257,28 +259,28 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .navigationBarsPadding()
-                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                                .padding(horizontal = 14.dp, vertical = 8.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Surface(
-                                                color = Color(0xFFF1F5F9).copy(alpha = 0.96f),
-                                                shape = RoundedCornerShape(22.dp),
-                                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                                shadowElevation = 3.dp,
+                                                color = Color.White.copy(alpha = 0.98f),
+                                                shape = RoundedCornerShape(26.dp),
+                                                shadowElevation = 14.dp,
+                                                border = BorderStroke(1.dp, Color(0xFFE2E8F0).copy(alpha = 0.9f)),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .padding(4.dp)
-                                                        .horizontalScroll(rememberScrollState()),
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                                                    horizontalArrangement = Arrangement.SpaceAround,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                                                                        StudentPillTabItem(
+                                                    StudentModernTabItem(
                                                         selected = currentStudentTab == StudentTab.RADAR,
-                                                        label = "Live Radar",
-                                                        icon = Icons.Filled.Radio,
+                                                        label = "Radar",
+                                                        selectedIcon = Icons.Filled.Radio,
+                                                        unselectedIcon = Icons.Outlined.Radio,
                                                         onClick = {
                                                             if (currentStudentTab != StudentTab.RADAR) {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -287,11 +289,12 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     )
 
-                                                    StudentPillTabItem(
+                                                    StudentModernTabItem(
                                                         selected = currentStudentTab == StudentTab.SUBJECTS,
-                                                        label = "My Subjects",
-                                                        icon = Icons.AutoMirrored.Filled.MenuBook,
-                                                        badgeText = "$studentEnrolledCount",
+                                                        label = "Subjects",
+                                                        selectedIcon = Icons.AutoMirrored.Filled.MenuBook,
+                                                        unselectedIcon = Icons.AutoMirrored.Outlined.MenuBook,
+                                                        badgeText = if (studentEnrolledCount > 0) "$studentEnrolledCount" else null,
                                                         onClick = {
                                                             if (currentStudentTab != StudentTab.SUBJECTS) {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -300,10 +303,11 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     )
 
-                                                    StudentPillTabItem(
+                                                    StudentModernTabItem(
                                                         selected = currentStudentTab == StudentTab.HISTORY,
                                                         label = "History",
-                                                        icon = Icons.Filled.History,
+                                                        selectedIcon = Icons.Filled.History,
+                                                        unselectedIcon = Icons.Outlined.History,
                                                         onClick = {
                                                             if (currentStudentTab != StudentTab.HISTORY) {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -312,10 +316,11 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     )
 
-                                                    StudentPillTabItem(
+                                                    StudentModernTabItem(
                                                         selected = currentStudentTab == StudentTab.SECURITY,
-                                                        label = "Device Security",
-                                                        icon = Icons.Default.Security,
+                                                        label = "Security",
+                                                        selectedIcon = Icons.Filled.Security,
+                                                        unselectedIcon = Icons.Filled.Security,
                                                         onClick = {
                                                             if (currentStudentTab != StudentTab.SECURITY) {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -324,10 +329,11 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     )
 
-                                                    StudentPillTabItem(
+                                                    StudentModernTabItem(
                                                         selected = currentStudentTab == StudentTab.PROFILE,
-                                                        label = "Student Profile",
-                                                        icon = Icons.Filled.Person,
+                                                        label = "Profile",
+                                                        selectedIcon = Icons.Filled.Person,
+                                                        unselectedIcon = Icons.Outlined.Person,
                                                         onClick = {
                                                             if (currentStudentTab != StudentTab.PROFILE) {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -713,100 +719,110 @@ private fun AppllamaTabItem(
 }
 
 @Composable
-private fun StudentPillTabItem(
+private fun RowScope.StudentModernTabItem(
     selected: Boolean,
     label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    selectedIcon: ImageVector,
+    unselectedIcon: ImageVector,
     badgeText: String? = null,
-    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    if (selected) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-            shadowElevation = 1.5.dp,
-            modifier = modifier
-                .clip(RoundedCornerShape(14.dp))
-                .clickable { onClick() }
-        ) {
-            Row(
-                modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = BrandAccent,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandAccent
-                )
-                if (!badgeText.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = Color(0xFFEFF6FF)
-                    ) {
-                        Text(
-                            text = badgeText,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1D4ED8),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-            }
-        }
-    } else {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val animatedColor by animateColorAsState(
+        targetValue = if (selected) BrandAccent else Color(0xFF64748B),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tabColor"
+    )
+
+    val activePillBg by animateColorAsState(
+        targetValue = if (selected) BrandAccent.copy(alpha = 0.12f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 180),
+        label = "tabBg"
+    )
+
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.15f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "tabScale"
+    )
+
+    val indicatorWidth by animateDpAsState(
+        targetValue = if (selected) 16.dp else 0.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "indicatorWidth"
+    )
+
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
         Box(
-            modifier = modifier
+            modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
-                .clickable { onClick() }
-                .padding(vertical = 8.dp, horizontal = 12.dp),
+                .background(activePillBg)
+                .padding(horizontal = 10.dp, vertical = 5.dp),
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = Color(0xFF64748B),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF475569)
-                )
-                if (!badgeText.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = Color(0xFFE2E8F0)
-                    ) {
-                        Text(
-                            text = badgeText,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF475569),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                        )
-                    }
+            Icon(
+                imageVector = if (selected) selectedIcon else unselectedIcon,
+                contentDescription = label,
+                tint = animatedColor,
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer(scaleX = iconScale, scaleY = iconScale)
+            )
+
+            if (!badgeText.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (selected) BrandAccent else Color(0xFF64748B),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 6.dp, y = (-4).dp)
+                ) {
+                    Text(
+                        text = badgeText,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.5.dp)
+                    )
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        Text(
+            text = label,
+            fontSize = 10.5.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = animatedColor,
+            letterSpacing = (-0.2).sp,
+            maxLines = 1
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Box(
+            modifier = Modifier
+                .height(2.5.dp)
+                .width(indicatorWidth)
+                .clip(CircleShape)
+                .background(if (selected) BrandAccent else Color.Transparent)
+        )
     }
 }
