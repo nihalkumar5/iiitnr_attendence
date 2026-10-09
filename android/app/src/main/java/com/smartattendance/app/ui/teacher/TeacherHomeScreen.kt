@@ -1,5 +1,9 @@
 package com.smartattendance.app.ui.teacher
 
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -400,11 +404,11 @@ fun TeacherHomeScreen(
             .fillMaxSize()
             .background(CanvasBackground)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 20.dp)
             .navigationBarsPadding()
     ) {
         // ====================================================================
-        // 1. COMPACT HEADER (Faculty Identity & Subtle Logout)
+        // 1. EDITORIAL HEADER (Faculty Identity & Quiet Logout)
         // ====================================================================
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -414,24 +418,27 @@ fun TeacherHomeScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "$greetingPrefix, $facultyDisplayName",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
                     color = TextPrimary,
-                    fontSize = 18.sp
+                    letterSpacing = (-0.5).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "$department · $facultyId",
-                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 13.sp,
                     color = TextSecondary,
-                    fontSize = 12.sp
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             if (onLogout != null) {
                 IconButton(
                     onClick = {
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onLogout()
                     },
                     modifier = Modifier.size(36.dp)
@@ -439,20 +446,20 @@ fun TeacherHomeScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Logout,
                         contentDescription = "Log out",
-                        tint = TextSecondary,
+                        tint = TextSecondary.copy(alpha = 0.6f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
             }
         }
 
-        // PENDING DEVICE UNBIND REQUESTS ALERT (Subtle, only if pending)
+        // PENDING DEVICE UNBIND REQUESTS ALERT (Contextual, minimal)
         if (pendingUnbindCount > 0) {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = StatusReviewBg,
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, StatusReviewBorder),
+                shape = RoundedCornerShape(12.dp),
+                color = CardBackground,
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onOpenDeviceRequests() }
@@ -460,7 +467,7 @@ fun TeacherHomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -471,22 +478,22 @@ fun TeacherHomeScreen(
                         Icon(
                             imageVector = Icons.Default.PhoneAndroid,
                             contentDescription = null,
-                            tint = StatusReview,
-                            modifier = Modifier.size(16.dp)
+                            tint = BrandAccent,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = "$pendingUnbindCount device change request${if (pendingUnbindCount > 1) "s" else ""}",
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = TextPrimary
                         )
                     }
                     Text(
                         text = "Review →",
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = StatusReview
+                        color = BrandAccent
                     )
                 }
             }
@@ -495,27 +502,27 @@ fun TeacherHomeScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // ====================================================================
-        // 2. TODAY'S CLASSES (Clean, Restrained Single Card)
+        // 2. CURRENT / UP NEXT CLASS (Hero Element)
         // ====================================================================
         Text(
-            text = "Today's classes",
-            style = MaterialTheme.typography.titleSmall,
+            text = "Current Class",
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = TextSecondary,
-            fontSize = 13.sp
+            letterSpacing = 0.2.sp
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
         if (currentClass != null) {
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = CardBackground,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // Time & Status
+                Column(modifier = Modifier.padding(20.dp)) {
+                    // Row 1: Time Slot & Class Status
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -523,82 +530,122 @@ fun TeacherHomeScreen(
                     ) {
                         Text(
                             text = currentClass.timeSlot,
-                            style = MaterialTheme.typography.labelMedium,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
-                            color = TextSecondary,
-                            fontSize = 12.sp
+                            color = TextSecondary
                         )
 
                         if (isSessionLive) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(StatusPresent)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = StatusPresentBg,
+                                border = BorderStroke(1.dp, StatusPresentBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(StatusPresent)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "LIVE",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = StatusPresent
+                                    )
+                                }
+                            }
+                        } else if (isCurrentClassLocked) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = SurfaceNeutral,
+                                border = BorderStroke(1.dp, BorderHairline)
+                            ) {
                                 Text(
-                                    text = "In progress",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = StatusPresent
+                                    text = "COMPLETED",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = BrandAccent.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, BrandAccent.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    text = "UP NEXT",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandAccent,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Subject Name (Strongest visual element)
+                    // Row 2: Subject Name (Strongest content element)
                     Text(
                         text = currentClass.subjectName,
-                        style = MaterialTheme.typography.titleLarge,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
-                        fontSize = 20.sp
+                        lineHeight = 28.sp,
+                        letterSpacing = (-0.5).sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                    // Subject Code · Room
+                    // Row 3: Subject Code · Room
                     Text(
                         text = "${currentClass.subjectCode} · ${currentClass.room}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
                         color = TextSecondary,
-                        fontSize = 13.sp
+                        fontWeight = FontWeight.Medium
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Enrolled student count & Join code
+                    // Row 4: Enrolled Students & Secondary Join Code
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${currentClass.enrolledStudents} ${if (currentClass.enrolledStudents == 1) "student" else "students"}",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "${currentClass.enrolledStudents} students enrolled",
+                            fontSize = 13.sp,
                             color = TextSecondary,
-                            fontSize = 12.sp
+                            fontWeight = FontWeight.Normal
                         )
 
                         if (currentClass.joinCode.isNotBlank()) {
                             Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .clip(RoundedCornerShape(6.dp))
                                     .clickable {
                                         clipboardManager.setText(AnnotatedString(currentClass.joinCode))
-                                        android.widget.Toast.makeText(context, "Join code copied: ${currentClass.joinCode}", android.widget.Toast.LENGTH_SHORT).show()
-                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        Toast.makeText(context, "Join code copied: ${currentClass.joinCode}", Toast.LENGTH_SHORT).show()
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    .padding(horizontal = 6.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = "Code: ${currentClass.joinCode}",
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
                                     color = TextMuted
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -606,19 +653,19 @@ fun TeacherHomeScreen(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = "Copy join code",
                                     tint = TextMuted,
-                                    modifier = Modifier.size(11.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                    // Primary Action (Full-width CTA, consistent height 48-52px, flat)
+                    // Row 5: Primary Action (Dominant, intentional CTA)
                     val actionLabel = if (isSessionLive) "Continue Attendance" else "Start Attendance"
                     Button(
                         onClick = {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             val effectiveSsid = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
                             prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
                             coroutineScope.launch {
@@ -629,17 +676,23 @@ fun TeacherHomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isSessionLive) StatusPresent else BrandAccent
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
                     ) {
+                        Icon(
+                            imageVector = if (isSessionLive) Icons.Default.QrCodeScanner else Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = actionLabel,
-                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             color = Color.White
                         )
                     }
@@ -647,27 +700,27 @@ fun TeacherHomeScreen(
             }
         } else {
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = CardBackground,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "No classes scheduled today",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Enjoy your day or view your full timetable",
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         color = TextSecondary
                     )
                 }
@@ -675,10 +728,10 @@ fun TeacherHomeScreen(
         }
 
         // ====================================================================
-        // 3. UPCOMING CLASSES (Compact Rows with subtle dividers)
+        // 3. UPCOMING CLASSES (Refined schedule list, precise alignment)
         // ====================================================================
         if (upcomingClasses.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -686,16 +739,15 @@ fun TeacherHomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Upcoming",
-                    style = MaterialTheme.typography.titleSmall,
+                    text = "Upcoming Classes",
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
-                    fontSize = 13.sp
+                    color = TextPrimary
                 )
 
                 Text(
-                    text = "View schedule →",
-                    fontSize = 12.sp,
+                    text = "View Schedule →",
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = BrandAccent,
                     modifier = Modifier
@@ -707,9 +759,9 @@ fun TeacherHomeScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = CardBackground,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderHairline),
+                border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
@@ -719,7 +771,7 @@ fun TeacherHomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable(enabled = !isRowLocked) {
-                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val effectiveSsid = selectedSsids.joinToString(", ").ifBlank { teacherCleanSsid }
                                     prefs.edit().putString("faculty_chosen_wifi_ssid", effectiveSsid).apply()
                                     coroutineScope.launch {
@@ -727,38 +779,62 @@ fun TeacherHomeScreen(
                                     }
                                     onStartLecture(classItem)
                                 }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = classItem.timeSlot,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextMuted
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = classItem.subjectName,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isRowLocked) TextMuted else TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${classItem.subjectCode} · ${classItem.room}",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Time Column
+                                Column(modifier = Modifier.width(76.dp)) {
+                                    Text(
+                                        text = classItem.startTime.take(5),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isRowLocked) TextMuted else TextPrimary
+                                    )
+                                    Text(
+                                        text = classItem.endTime.take(5),
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Subject & Details Column
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = classItem.subjectName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isRowLocked) TextMuted else TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${classItem.subjectCode} · ${classItem.room}",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                }
                             }
 
                             if (isRowLocked) {
-                                Text(
-                                    text = "Locked",
-                                    fontSize = 11.sp,
-                                    color = TextMuted
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = SurfaceNeutral
+                                ) {
+                                    Text(
+                                        text = "Locked",
+                                        fontSize = 10.sp,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
@@ -773,7 +849,7 @@ fun TeacherHomeScreen(
                             HorizontalDivider(
                                 color = BorderHairline,
                                 thickness = 0.5.dp,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp)
                             )
                         }
                     }
@@ -782,7 +858,7 @@ fun TeacherHomeScreen(
         }
 
         // ====================================================================
-        // 4. LOW ATTENDANCE ALERT (Compact Warning Row)
+        // 4. LOW ATTENDANCE ALERT (Restrained Contextual Warning)
         // ====================================================================
         val lowAttendanceCount = remember {
             prefs.getInt("low_attendance_students_count", 3)
@@ -791,9 +867,9 @@ fun TeacherHomeScreen(
         if (lowAttendanceCount > 0) {
             Spacer(modifier = Modifier.height(20.dp))
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = StatusAbsentBg.copy(alpha = 0.6f),
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, StatusAbsent.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(12.dp),
+                color = StatusReviewBg.copy(alpha = 0.4f),
+                border = BorderStroke(1.dp, StatusReviewBorder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onOpenSchedule() }
@@ -801,7 +877,7 @@ fun TeacherHomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -812,19 +888,19 @@ fun TeacherHomeScreen(
                         Icon(
                             imageVector = Icons.Default.WarningAmber,
                             contentDescription = "Low attendance alert",
-                            tint = StatusAbsent,
-                            modifier = Modifier.size(16.dp)
+                            tint = StatusReview,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Low attendance",
+                                text = "Low Attendance Notice",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = StatusAbsent
+                                color = TextPrimary
                             )
                             Text(
-                                text = "$lowAttendanceCount students below 75%",
+                                text = "$lowAttendanceCount students below 75% threshold",
                                 fontSize = 11.sp,
                                 color = TextSecondary
                             )
@@ -832,15 +908,15 @@ fun TeacherHomeScreen(
                     }
 
                     Text(
-                        text = "View students →",
-                        fontSize = 11.sp,
+                        text = "View Students →",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = StatusAbsent
+                        color = StatusReview
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(84.dp))
     }
 }
