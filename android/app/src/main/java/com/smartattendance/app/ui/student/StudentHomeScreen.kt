@@ -329,12 +329,16 @@ fun StudentHomeScreen(
 
     // Lifecycle: Polling loop
     LaunchedEffect(Unit) {
-        permissionsLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
+        val perms = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        permissionsLauncher.launch(perms.toTypedArray())
+        com.smartattendance.app.core.service.BackgroundAttendanceService.start(context)
+
         refreshStatsAndHistory()
         checkPresenceAndSync()
 
@@ -555,9 +559,36 @@ fun StudentHomeScreen(
                     }
                 }
             }
+
+            // Screen-Off Pocket Mode Active Indicator
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = PillShape,
+                color = Color(0xFFF0FDF4),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(Color(0xFF22C55E), shape = androidx.compose.foundation.shape.CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "⚡ Pocket Mode Active • Attendance marks automatically when screen is OFF",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF15803D)
+                    )
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // DAY SELECTOR TABS
         Row(

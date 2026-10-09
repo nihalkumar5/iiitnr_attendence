@@ -140,6 +140,8 @@ class MainActivity : ComponentActivity() {
                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                             com.smartattendance.app.core.network.SupabaseAttendanceService.endAllActiveSessions()
                         }
+                    } else if (currentRole == UserRole.STUDENT) {
+                        com.smartattendance.app.core.service.BackgroundAttendanceService.stop(this@MainActivity)
                     }
                     activeLectureClass = null
                     activeLectureSessionId = ""
@@ -147,6 +149,12 @@ class MainActivity : ComponentActivity() {
                     teacherStep = TeacherSubStep.HOME
                     prefs.edit().putString("logged_in_role", "").apply()
                     currentRole = UserRole.NONE
+                }
+
+                LaunchedEffect(currentRole) {
+                    if (currentRole == UserRole.STUDENT) {
+                        com.smartattendance.app.core.service.BackgroundAttendanceService.start(this@MainActivity)
+                    }
                 }
 
                 Box(
