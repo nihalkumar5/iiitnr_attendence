@@ -95,15 +95,45 @@ export function AiTimetableModal({
           return;
         }
 
-        const base64 = await new Promise<string>((resolve, reject) => {
+        // Compress large camera photos to max 1600px 85% JPEG to prevent payload/timeout errors
+        const { base64, mimeType } = await new Promise<{ base64: string; mimeType: string }>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
+          reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => resolve({ base64: reader.result as string, mimeType: selectedFile.type || "image/jpeg" });
+            img.onload = () => {
+              const MAX_DIM = 1600;
+              let width = img.width;
+              let height = img.height;
+              if (width > MAX_DIM || height > MAX_DIM) {
+                if (width > height) {
+                  height = Math.round((height * MAX_DIM) / width);
+                  width = MAX_DIM;
+                } else {
+                  width = Math.round((width * MAX_DIM) / height);
+                  height = MAX_DIM;
+                }
+              }
+              const canvas = document.createElement("canvas");
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) {
+                resolve({ base64: reader.result as string, mimeType: selectedFile.type || "image/jpeg" });
+                return;
+              }
+              ctx.drawImage(img, 0, 0, width, height);
+              const compressed = canvas.toDataURL("image/jpeg", 0.85);
+              resolve({ base64: compressed, mimeType: "image/jpeg" });
+            };
+            img.src = reader.result as string;
+          };
           reader.readAsDataURL(selectedFile);
         });
 
         body.base64Image = base64;
-        body.mimeType = selectedFile.type || "image/jpeg";
+        body.mimeType = mimeType;
       } else {
         if (!pastedText.trim()) {
           setAnalysisError("Please paste your timetable text or syllabus schedule.");

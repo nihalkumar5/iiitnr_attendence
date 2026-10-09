@@ -32,7 +32,7 @@ object GeminiTimetableParser {
         }
     }
     private const val PREFS_KEY_NAME = "gemini_api_key_override"
-    private const val MODEL_NAME = "gemini-flash-latest"
+    private const val MODEL_NAME = "gemini-3.6-flash"
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(45, TimeUnit.SECONDS)

@@ -173,19 +173,22 @@ export async function POST(req: Request) {
     const { rawText, base64Image, mimeType = "image/jpeg", apiKey, teacherName } = body;
 
     const key = (apiKey && apiKey.trim()) || process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`;
 
     const parts: any[] = [];
-    const facultyContext = teacherName ? `\nFaculty Member: "${teacherName}". Extract all scheduled lecture/lab sessions for this professor.` : "";
+    const facultyContext = teacherName && teacherName.trim() && !teacherName.toLowerCase().includes("nihal")
+      ? `\nTarget Professor: "${teacherName}". Prioritize their scheduled slots if listed on the timetable. However, if the specific professor name is not visible or this is a general semester/department timetable, DO NOT return an empty list — extract ALL visible class/lab slots so the professor can review and select them.`
+      : "\nAnalyze the timetable grid and extract ALL visible lecture and lab classes.";
 
     if (base64Image) {
       const cleanData = base64Image.includes(",") ? base64Image.split(",")[1] : base64Image;
+      const cleanMime = mimeType && mimeType.includes("/") ? mimeType : "image/jpeg";
       parts.push({
         text: `${SYSTEM_PROMPT}${facultyContext}`,
       });
       parts.push({
-        inline_data: {
-          mime_type: mimeType,
+        inlineData: {
+          mimeType: cleanMime,
           data: cleanData,
         },
       });
@@ -204,23 +207,38 @@ export async function POST(req: Request) {
       contents: [{ parts }],
     };
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error("Gemini API Error:", response.status, errText);
-      return NextResponse.json(
-        { success: false, error: `Gemini AI Error (${response.status}): ${errText.slice(0, 200)}` },
-        { status: 500 }
-      );
+      // Automatic fallback to gemini-flash-latest
+      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`;
+      const fallbackResp = await fetch(fallbackUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (fallbackResp.ok) {
+        response = fallbackResp;
+      } else {
+        const errText = await response.text();
+        console.error("Gemini API Error:", response.status, errText);
+        return NextResponse.json(
+          { success: false, error: `Gemini AI Error (${response.status}): ${errText.slice(0, 200)}` },
+          { status: 500 }
+        );
+      }
     }
 
     const data = await response.json();
-    const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const partsList = data.candidates?.[0]?.content?.parts || [];
+    let textPart = "";
+    for (const p of partsList) {
+      if (p.text) textPart += p.text;
+    }
 
     let cleaned = textPart.trim();
     if (cleaned.startsWith("```json")) {
@@ -229,19 +247,27 @@ export async function POST(req: Request) {
       cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
     }
 
-    const startIdx = cleaned.indexOf("[");
-    const endIdx = cleaned.lastIndexOf("]");
-    if (startIdx !== -1 && endIdx !== -1) {
-      cleaned = cleaned.substring(startIdx, endIdx + 1);
-    }
-
-    let parsed: ParsedLecture[] = [];
+    let parsed: any[] = [];
     try {
-      parsed = JSON.parse(cleaned);
+      let rawJson = cleaned;
+      const startArr = rawJson.indexOf("[");
+      const endArr = rawJson.lastIndexOf("]");
+      if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
+        rawJson = rawJson.substring(startArr, endArr + 1);
+      }
+      const parsedObj = JSON.parse(rawJson);
+      if (Array.isArray(parsedObj)) {
+        parsed = parsedObj;
+      } else if (typeof parsedObj === "object" && parsedObj !== null) {
+        const potentialList = parsedObj.lectures || parsedObj.classes || parsedObj.timetable || parsedObj.slots || Object.values(parsedObj).find(Array.isArray);
+        if (Array.isArray(potentialList)) {
+          parsed = potentialList;
+        }
+      }
     } catch (parseErr) {
       console.error("JSON parse error:", cleaned);
       return NextResponse.json(
-        { success: false, error: "Could not parse timetable output from AI. Please try again." },
+        { success: false, error: "Could not parse timetable output from AI. Please try with clearer text or image." },
         { status: 500 }
       );
     }
