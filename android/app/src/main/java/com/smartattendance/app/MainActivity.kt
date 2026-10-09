@@ -1,5 +1,9 @@
 package com.smartattendance.app
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -92,6 +96,22 @@ class MainActivity : ComponentActivity() {
         setContent {
             SmartAttendanceTheme {
                 val context = LocalContext.current
+
+                // Request all necessary permissions on app startup
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestMultiplePermissions()
+                ) { /* Permissions evaluated */ }
+
+                LaunchedEffect(Unit) {
+                    val permissions = mutableListOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    permissionLauncher.launch(permissions.toTypedArray())
+                }
                 val prefs = remember {
                     context.getSharedPreferences("smart_attendance_prefs", Context.MODE_PRIVATE)
                 }

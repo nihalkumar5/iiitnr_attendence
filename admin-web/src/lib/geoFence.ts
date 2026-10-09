@@ -34,7 +34,7 @@ export function getGeofenceMode(): GeofenceMode {
       return saved;
     }
   }
-  return "demo_inside"; // Default to inside so classroom demos to professors work 100% reliably
+  return "real_gps"; // Default to real satellite GPS
 }
 
 export function setGeofenceMode(mode: GeofenceMode): void {

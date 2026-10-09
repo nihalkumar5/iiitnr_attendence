@@ -75,6 +75,19 @@ fun ActiveLectureScreen(
     }
 
     val wifiManager = remember { WifiPresenceManager(context) }
+    val gpsManager = remember { com.smartattendance.app.core.sensor.GpsLocationManager(context) }
+    var teacherLocation by remember { mutableStateOf<com.smartattendance.app.core.sensor.GpsCoordinate?>(null) }
+    var proximityResult by remember { mutableStateOf<com.smartattendance.app.core.sensor.GpsProximityResult?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val loc = gpsManager.getCurrentLocation()
+            teacherLocation = loc
+            if (loc != null) {
+                proximityResult = gpsManager.verifyClassroomProximity(loc.latitude, loc.longitude)
+            }
+        } catch (_: Exception) {}
+    }
     var scannedNetworks by remember { mutableStateOf<List<ScannedWifiNetwork>>(emptyList()) }
     var isScanningWifi by remember { mutableStateOf(false) }
 
@@ -801,9 +814,23 @@ fun ActiveLectureScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StatusPresent, modifier = Modifier.size(15.dp))
+                    val isLocOk = proximityResult?.isWithinRange ?: true
+                    Icon(
+                        imageVector = if (isLocOk) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
+                        contentDescription = null,
+                        tint = if (isLocOk) StatusPresent else StatusReview,
+                        modifier = Modifier.size(15.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Classroom location verified", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = if (proximityResult != null) {
+                            if (proximityResult!!.isWithinRange) "Classroom location verified (${proximityResult!!.distanceMeters.toInt()}m from center)"
+                            else "Location outside classroom (${proximityResult!!.distanceMeters.toInt()}m away)"
+                        } else "Classroom location active (Academic Block 1)",
+                        fontSize = 12.sp,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -821,7 +848,15 @@ fun ActiveLectureScreen(
 
                     Text("Active Access Point: $activeWifiSsid", fontSize = 11.sp, color = TextSecondary)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Geofence: Campus Boundary (300m Active Radius)", fontSize = 11.sp, color = TextSecondary)
+                    Text("Geofence: Academic Block 1 (30m Classroom Radius · Active)", fontSize = 11.sp, color = TextSecondary)
+                    if (teacherLocation != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Coordinates: ${String.format(java.util.Locale.US, "%.5f, %.5f (±%.0fm)", teacherLocation!!.latitude, teacherLocation!!.longitude, teacherLocation!!.accuracyMeters)}",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedButton(
