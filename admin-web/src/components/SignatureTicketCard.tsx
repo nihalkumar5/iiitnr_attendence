@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowUpRight, Play, Radio, Users, Wifi } from "lucide-react";
+import { Play, QrCode, Radio, Users, Wifi } from "lucide-react";
 
 export interface SignatureTicketCardProps {
   subjectName: string;
@@ -32,6 +32,11 @@ export function SignatureTicketCard({
   isStarting = false,
   className = ""
 }: SignatureTicketCardProps) {
+  // Parse title into lightweight body and bold emphasis keyword
+  const words = (subjectName || "Upcoming Class").trim().split(/\s+/);
+  const prefix = words.length > 1 ? words.slice(0, -1).join(" ") + " " : "";
+  const keyWord = words.length > 1 ? words[words.length - 1] : words[0];
+
   return (
     <div
       onClick={onStartAttendance}
@@ -55,59 +60,52 @@ export function SignatureTicketCard({
 
       {/* TOP TICKET BODY */}
       <div className="p-6 sm:p-7 pb-8 space-y-4">
-        {/* Eyebrow Row: NEXT CLASS & Circular Arrow Action */}
+        {/* Eyebrow Row: NEXT CLASS & Live Status Badge (Single action at bottom, duplicate arrow removed) */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <div className="w-[3px] h-3.5 rounded-full bg-[#C4B5FD]" />
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-[#C4B5FD]">
-              NEXT CLASS
+              {isLive ? "LIVE SESSION" : "NEXT CLASS"}
             </span>
 
             {isLive ? (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wider uppercase">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wider uppercase ml-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Live ({attendanceCount})
               </span>
             ) : null}
           </div>
 
-          {/* Restrained Lavender Circular Arrow Action Button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartAttendance();
-            }}
-            disabled={isStarting}
-            className="w-10 h-10 rounded-full bg-[#EDE9FE]/12 hover:bg-[#EDE9FE]/22 active:bg-[#EDE9FE]/30 border border-[#C4B5FD]/35 text-[#C4B5FD] flex items-center justify-center transition-all group-hover:scale-105 active:scale-95 shadow-sm cursor-pointer shrink-0"
-            title={isLive ? "Continue Live Attendance" : "Start Live Attendance"}
-          >
-            <ArrowUpRight className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </button>
+          <span className="text-[11px] font-medium text-slate-400 tracking-normal hidden sm:inline">
+            {timeSlot}
+          </span>
         </div>
 
-        {/* Large Subject Heading (Dominant Typographic Element) */}
-        <h2 className="text-2xl sm:text-[30px] font-extrabold tracking-tight text-white leading-[1.16] text-balance break-words pr-2">
-          {subjectName || "Upcoming Class"}
-        </h2>
+        {/* Large Subject Heading (Selective Bold Emphasis + Generous Whitespace) */}
+        <div>
+          <h2 className="text-2xl sm:text-[30px] tracking-tight text-white leading-[1.16] text-balance break-words pr-2">
+            <span className="font-light text-slate-100">{prefix}</span>
+            <span className="font-bold text-white">{keyWord}</span>
+          </h2>
+          {/* Subtle lavender underline decorative detail */}
+          <div className="w-9 h-[2.5px] rounded-full bg-[#C4B5FD]/85 mt-2" />
+        </div>
 
-        {/* Restrained Lavender Vertical Rule & Secondary Metadata */}
-        <div className="flex items-stretch gap-3.5 pt-1 pb-1">
-          <div className="w-[3px] rounded-full bg-[#C4B5FD] shrink-0" />
-          <div className="space-y-0.5">
-            <div className="text-xs sm:text-[13px] font-medium text-slate-300 tracking-normal">
-              {timeSlot}
-            </div>
-            <div className="text-xs font-mono font-semibold text-slate-400">
-              {subjectCode} · {roomNo}
-            </div>
+        {/* Restrained Secondary Metadata */}
+        <div className="space-y-0.5 pt-0.5">
+          <div className="text-xs sm:text-[13px] font-semibold text-[#C4B5FD]/90 tracking-normal">
+            {subjectCode} · {roomNo}
+          </div>
+          <div className="text-xs font-medium text-slate-400">
+            {timeSlot}
           </div>
         </div>
 
-        {/* Small Supporting Information */}
+        {/* Small Supporting Information (Understated) */}
         <div className="flex items-center gap-4 text-[11px] text-slate-400 font-medium pt-1">
           <span className="flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5 text-slate-500" />
-            <span>{enrolledStudentsCount} enrolled</span>
+            <span>{enrolledStudentsCount} students enrolled</span>
           </span>
 
           {wifiSsid && (
@@ -125,7 +123,7 @@ export function SignatureTicketCard({
         </div>
       </div>
 
-      {/* BOTTOM TICKET STUB (CTA ACTION ROW) */}
+      {/* BOTTOM TICKET STUB (SINGLE PRIMARY ACTION AREA) */}
       <div className="px-6 sm:px-7 py-3.5 bg-slate-950/60 border-t border-slate-800/40">
         <button
           type="button"
@@ -144,7 +142,7 @@ export function SignatureTicketCard({
             <span>Preparing Session...</span>
           ) : isLive ? (
             <>
-              <Radio className="w-4 h-4 text-white animate-pulse" />
+              <QrCode className="w-4 h-4 text-white" />
               <span>Continue Live Attendance ({attendanceCount} Present)</span>
             </>
           ) : (

@@ -7,26 +7,29 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -41,7 +44,7 @@ import com.smartattendance.app.ui.teacher.TeacherClassItem
 class TicketShape(
     val cornerRadius: Dp = 18.dp,
     val notchRadius: Dp = 12.dp,
-    val notchOffsetFromBottom: Dp = 74.dp
+    val notchOffsetFromBottom: Dp = 72.dp
 ) : Shape {
     override fun createOutline(
         size: Size,
@@ -125,7 +128,7 @@ fun TeacherSignatureTicketCard(
     val ticketShape = TicketShape(
         cornerRadius = 20.dp,
         notchRadius = 13.dp,
-        notchOffsetFromBottom = 76.dp
+        notchOffsetFromBottom = 72.dp
     )
 
     val eyebrowText = when {
@@ -138,6 +141,28 @@ fun TeacherSignatureTicketCard(
     val actionButtonText = if (isSessionLive) "Continue Live Attendance" else "Start Attendance"
     val actionButtonColor = if (isSessionLive) Color(0xFF10B981) else Color(0xFF2563EB)
 
+    // Selective typographic contrast: lightweight body with selective bold keyword
+    val annotatedTitle = remember(classItem.subjectName) {
+        val trimmed = classItem.subjectName.trim()
+        val words = trimmed.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        buildAnnotatedString {
+            if (words.size > 1) {
+                val prefix = words.dropLast(1).joinToString(" ") + " "
+                val keyWord = words.last()
+                withStyle(SpanStyle(fontWeight = FontWeight.Light, color = Color(0xFFF1F5F9))) {
+                    append(prefix)
+                }
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) {
+                    append(keyWord)
+                }
+            } else {
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.White)) {
+                    append(trimmed)
+                }
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -145,7 +170,7 @@ fun TeacherSignatureTicketCard(
             .background(TicketBackground)
             .border(1.dp, TicketBorderColor, ticketShape)
             .drawBehind {
-                val notchOffsetPx = 76.dp.toPx()
+                val notchOffsetPx = 72.dp.toPx()
                 val notchPx = 13.dp.toPx()
                 val notchCenterY = size.height - notchOffsetPx
                 val strokeWidth = 1.dp.toPx()
@@ -240,31 +265,71 @@ fun TeacherSignatureTicketCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             // ====================================================================
-            // 2. LARGE EXPRESSIVE SUBJECT TITLE (Dominant Element)
+            // 2. LARGE EXPRESSIVE SUBJECT TITLE (Deliberate Editorial Composition)
             // ====================================================================
-            val titleFontSize = when {
-                classItem.subjectName.length > 28 -> 22.sp
-                classItem.subjectName.length > 20 -> 24.sp
-                else -> 27.sp
-            }
-            val titleLineHeight = when {
-                classItem.subjectName.length > 28 -> 27.sp
-                classItem.subjectName.length > 20 -> 29.sp
-                else -> 32.sp
+            val titleWords = remember(classItem.subjectName) {
+                classItem.subjectName.trim().split(Regex("""\s+""")).filter { it.isNotBlank() }
             }
 
-            Text(
-                text = classItem.subjectName,
-                fontSize = titleFontSize,
-                lineHeight = titleLineHeight,
-                fontWeight = FontWeight.Bold,
-                color = TicketTextWhite,
-                letterSpacing = (-0.5).sp,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+            Column(
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (titleWords.size >= 2) {
+                    val mid = if (titleWords.size == 2) 1 else (titleWords.size + 1) / 2
+                    val line1 = titleWords.take(mid).joinToString(" ")
+                    val line2 = titleWords.drop(mid).joinToString(" ")
+
+                    val fs1 = if (line1.length > 16) 23.sp else 26.sp
+                    val fs2 = if (line2.length > 16) 22.sp else 25.sp
+
+                    Text(
+                        text = line1,
+                        fontSize = fs1,
+                        lineHeight = (fs1.value * 1.15f).sp,
+                        fontWeight = FontWeight.ExtraLight,
+                        color = Color(0xFFE2E8F0),
+                        letterSpacing = (-0.5).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = line2,
+                        fontSize = fs2,
+                        lineHeight = (fs2.value * 1.15f).sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        letterSpacing = (-0.5).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    val singleText = classItem.subjectName.ifBlank { "Upcoming Class" }
+                    val fs = if (singleText.length > 16) 23.sp else 26.sp
+                    Text(
+                        text = singleText,
+                        fontSize = fs,
+                        lineHeight = (fs.value * 1.15f).sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        letterSpacing = (-0.5).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Subtle restrained lavender underline decorative detail
+            Box(
+                modifier = Modifier
+                    .width(34.dp)
+                    .height(2.5.dp)
+                    .background(LavenderAccent.copy(alpha = 0.85f), RoundedCornerShape(2.dp))
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // ====================================================================
             // 3. SECONDARY METADATA: [Day & Time] + [Subject Code] · [Room]
@@ -289,7 +354,7 @@ fun TeacherSignatureTicketCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             // ====================================================================
-            // 4. SUPPORTING INFO: Enrolled Count + Join Code
+            // 4. SUPPORTING INFO: Enrolled Count + Join Code (Understated)
             // ====================================================================
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -328,61 +393,34 @@ fun TeacherSignatureTicketCard(
                 }
             }
 
-            // Space down to clear the perforated line and notches
-            Spacer(modifier = Modifier.height(28.dp))
+            // Generous whitespace to clear the perforated line and notches
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ====================================================================
-            // 5. BOTTOM ACTION STUB: Circular Arrow Action + Primary Button
+            // 5. SINGLE PRIMARY ACTION AREA (No duplicate button)
             // ====================================================================
-            Row(
+            Button(
+                onClick = onStartAttendance,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(46.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = actionButtonColor),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                // Primary Action Button
-                Button(
-                    onClick = onStartAttendance,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(46.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = actionButtonColor),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isSessionLive) Icons.Default.QrCodeScanner else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(17.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = actionButtonText,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        color = Color.White
-                    )
-                }
-
-                // Restrained Lavender Circular Arrow Action Button
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(LavenderAccent.copy(alpha = 0.15f))
-                        .border(1.dp, LavenderAccent.copy(alpha = 0.35f), CircleShape)
-                        .clickable { onStartAttendance() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Start action",
-                        tint = LavenderAccent,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                Icon(
+                    imageVector = if (isSessionLive) Icons.Default.QrCodeScanner else Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = actionButtonText,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    color = Color.White
+                )
             }
         }
     }
