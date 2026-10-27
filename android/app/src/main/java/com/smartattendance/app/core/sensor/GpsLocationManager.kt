@@ -38,6 +38,33 @@ class GpsLocationManager(private val context: Context) {
         const val CAMPUS_ACADEMIC_LAT = 21.128456
         const val CAMPUS_ACADEMIC_LON = 81.766184
         const val MAX_CLASSROOM_RADIUS_METERS = 30f // Strict 30m geofence: eliminates hostel 60-70m away!
+
+        // Real Main Academic Building Rooftop Polygon Coordinates [Lon, Lat]
+        val MAIN_BUILDING_POLYGON = listOf(
+            Pair(81.765620, 21.128180),
+            Pair(81.766780, 21.128180),
+            Pair(81.766780, 21.129120),
+            Pair(81.765620, 21.129120),
+            Pair(81.765620, 21.128180)
+        )
+    }
+
+    /**
+     * Ray-casting algorithm to test if student coordinate is inside Main Academic Building rooftop polygon
+     */
+    fun isInsideMainBuildingPolygon(lat: Double, lon: Double): Boolean {
+        var inside = false
+        val poly = MAIN_BUILDING_POLYGON
+        var j = poly.size - 1
+        for (i in poly.indices) {
+            val (xi, yi) = poly[i] // xi is lon, yi is lat
+            val (xj, yj) = poly[j]
+            val intersect = ((yi > lat) != (yj > lat)) &&
+                    (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)
+            if (intersect) inside = !inside
+            j = i
+        }
+        return inside
     }
 
     /**
@@ -66,7 +93,8 @@ class GpsLocationManager(private val context: Context) {
         maxRadiusMeters: Float = MAX_CLASSROOM_RADIUS_METERS
     ): GpsProximityResult {
         val distance = calculateDistanceMeters(studentLat, studentLon, targetLat, targetLon)
-        val isWithin = distance <= maxRadiusMeters
+        val isInsidePoly = isInsideMainBuildingPolygon(studentLat, studentLon)
+        val isWithin = isInsidePoly || distance <= maxRadiusMeters
 
         val msg = if (isWithin) {
             "Verified inside classroom geofence (${distance.toInt()}m from center, limit ${maxRadiusMeters.toInt()}m)"
