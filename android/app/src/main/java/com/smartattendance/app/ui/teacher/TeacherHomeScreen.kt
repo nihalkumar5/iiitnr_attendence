@@ -624,6 +624,25 @@ fun TeacherHomeScreen(
                 color = Color(0xFF475569)
             )
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onLogout != null) {
+                    Surface(
+                        onClick = { onLogout.invoke() },
+                        shape = PillShape,
+                        color = Color(0xFFFEF2F2),
+                        border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Logout", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                        }
+                    }
+                }
             Surface(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -650,6 +669,7 @@ fun TeacherHomeScreen(
                         color = Color(0xFF0F172A)
                     )
                 }
+            }
             }
         }
 

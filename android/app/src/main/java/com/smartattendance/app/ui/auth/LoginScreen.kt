@@ -160,6 +160,16 @@ fun LoginScreen(
     }
 
     var selectedPortal by remember { mutableStateOf(LoginPortal.STUDENT) }
+
+    // Direct Login Input States for Student vs Faculty
+    var studentRollInput by remember { mutableStateOf(prefs.getString("selected_roll", "263200113") ?: "263200113") }
+    var studentNameInput by remember { mutableStateOf(prefs.getString("selected_name", "Nihal Kumar") ?: "Nihal Kumar") }
+    var studentProgramInput by remember { mutableStateOf(prefs.getString("selected_program", "B.Tech DSAI") ?: "B.Tech DSAI") }
+    var studentSemesterInput by remember { mutableStateOf(prefs.getString("selected_semester", "Semester 5") ?: "Semester 5") }
+
+    var facultyIdInput by remember { mutableStateOf(prefs.getString("logged_in_faculty_id", "FAC-NIHAL26302") ?: "FAC-NIHAL26302") }
+    var facultyNameInput by remember { mutableStateOf(prefs.getString("logged_in_faculty_name", "Prof. Nihal Kumar") ?: "Prof. Nihal Kumar") }
+    var facultyDeptInput by remember { mutableStateOf(prefs.getString("logged_in_faculty_dept", "Computer Science & Engineering") ?: "Computer Science & Engineering") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var securityWarning by remember { mutableStateOf<String?>(null) }
@@ -1018,7 +1028,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Main Modern Login Card
+                // Main Modern Login Card (Separated Student vs Faculty Login)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1028,227 +1038,345 @@ fun LoginScreen(
                     shape = RoundedCornerShape(22.dp)
                 ) {
                     Column(modifier = Modifier.padding(22.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (selectedPortal == LoginPortal.STUDENT) "STUDENT ACCESS" else "FACULTY ACCESS",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                color = BrandAccent,
-                                letterSpacing = 0.8.sp
-                            )
-
-                            // Anti-Proxy hardware indicator chip
-                            Surface(
-                                shape = PillShape,
-                                color = SurfaceNeutral,
-                                border = BorderStroke(1.dp, BorderHairline)
+                        if (selectedPortal == LoginPortal.STUDENT) {
+                            // ========================================================
+                            // TAB 1: STUDENT LOGIN (ROLL NUMBER & DETAILS)
+                            // ========================================================
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.School, contentDescription = null, tint = BrandAccent, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "STUDENT PORTAL",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = BrandAccent,
+                                        letterSpacing = 0.8.sp
+                                    )
+                                }
+
+                                Surface(
+                                    shape = PillShape,
+                                    color = SurfaceNeutral,
+                                    border = BorderStroke(1.dp, BorderHairline)
                                 ) {
-                                    Icon(Icons.Default.Lock, contentDescription = null, tint = TextMuted, modifier = Modifier.size(10.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("DEVICE LOCKED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                    Text(
+                                        text = "ROLL NUMBER AUTH",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextSecondary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Enter your College Roll Number to join class attendance radar.",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                lineHeight = 16.sp
+                            )
 
-                        Text(
-                            text = if (selectedPortal == LoginPortal.STUDENT)
-                                "Authenticate using your Google account to verify presence, scan BLE tokens, and record attendance."
-                            else
-                                "Sign in with your Google account to start encrypted sessions and audit live attendance.",
-                            fontSize = 12.sp,
-                            color = TextSecondary,
-                            lineHeight = 17.sp
-                        )
+                            Spacer(modifier = Modifier.height(18.dp))
 
-                        Spacer(modifier = Modifier.height(22.dp))
+                            // Field: Roll Number
+                            Text("College Roll Number *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = studentRollInput,
+                                onValueChange = { studentRollInput = it.uppercase(); errorMessage = null },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("e.g. 263200113 or BT23DSAI001", fontSize = 13.sp, color = TextMuted) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                                shape = InputShape
+                            )
 
-                        // High-End Google Sign-In Button
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color.White,
-                            shadowElevation = 3.dp,
-                            border = BorderStroke(1.2.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = !isLoading) {
-                                    startGoogleAuthentication()
-                                }
-                        ) {
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Field: Full Name
+                            Text("Student Full Name *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = studentNameInput,
+                                onValueChange = { studentNameInput = it; errorMessage = null },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("e.g. Nihal Kumar", fontSize = 13.sp, color = TextMuted) },
+                                singleLine = true,
+                                shape = InputShape
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Program Chips
+                            Text("Program", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 14.dp, horizontal = 18.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                if (isLoading) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically
+                                programOptions.forEach { prog ->
+                                    val isSel = studentProgramInput == prog
+                                    Surface(
+                                        shape = PillShape,
+                                        color = if (isSel) BrandAccent.copy(alpha = 0.12f) else SurfaceNeutral,
+                                        border = BorderStroke(1.dp, if (isSel) BrandAccent else BorderHairline),
+                                        modifier = Modifier.clickable { studentProgramInput = prog }
                                     ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp,
-                                            color = Color(0xFF4285F4)
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
                                         Text(
-                                            text = "Authenticating with Google...",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1F2937)
+                                            text = prog,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSel) BrandAccent else TextPrimary,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                         )
                                     }
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        GoogleLogoIcon()
-                                        Spacer(modifier = Modifier.width(14.dp))
-                                        Column {
-                                            Text(
-                                                text = "Continue with Google",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF1F2937)
-                                            )
-                                            Text(
-                                                text = if (selectedPortal == LoginPortal.STUDENT)
-                                                    "Tap to select on-device Google account"
-                                                else
-                                                    "Faculty Google institutional verification",
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF6B7280)
-                                            )
-                                        }
-                                    }
+                                }
+                            }
 
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9CA3AF),
-                                        modifier = Modifier.size(16.dp)
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // CTA: Login as Student
+                            Button(
+                                onClick = {
+                                    val cleanRoll = studentRollInput.trim().uppercase()
+                                    val cleanName = studentNameInput.trim()
+                                    if (cleanRoll.isBlank()) {
+                                        errorMessage = "Please enter your College Roll Number."
+                                        return@Button
+                                    }
+                                    if (cleanName.isBlank()) {
+                                        errorMessage = "Please enter your Full Name."
+                                        return@Button
+                                    }
+                                    prefs.edit()
+                                        .putString("logged_in_role", "STUDENT")
+                                        .putString("selected_name", cleanName)
+                                        .putString("selected_roll", cleanRoll)
+                                        .putString("selected_program", studentProgramInput)
+                                        .putString("selected_semester", studentSemesterInput)
+                                        .putBoolean("is_profile_completed", true)
+                                        .apply()
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onLoginStudent(cleanName, cleanRoll)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = ButtonShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
+                                enabled = !isLoading
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Enter Student Attendance Radar", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Divider
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderHairline)
+                                Text("  OR GOOGLE LOGIN  ", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderHairline)
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Google Button
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.White,
+                                shadowElevation = 1.dp,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isLoading) { startGoogleAuthentication() }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp, horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    GoogleLogoIcon()
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text("Continue with Google Student Email", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
+                                }
+                            }
+
+                        } else {
+                            // ========================================================
+                            // TAB 2: FACULTY LOGIN (FACULTY ID & NAME)
+                            // ========================================================
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Person, contentDescription = null, tint = Color(0xFF0F172A), modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "FACULTY CONSOLE",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFF0F172A),
+                                        letterSpacing = 0.8.sp
+                                    )
+                                }
+
+                                Surface(
+                                    shape = PillShape,
+                                    color = Color(0xFFF1F5F9),
+                                    border = BorderStroke(1.dp, BorderHairline)
+                                ) {
+                                    Text(
+                                        text = "FACULTY ID AUTH",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF0F172A),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Expandable Instant Google Email Entry (Fallback & direct access)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showManualEmailInput = !showManualEmailInput },
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = if (showManualEmailInput) "Hide email input" else "Or sign in with Google email directly",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = BrandAccent
+                                text = "Enter your Faculty ID to start lectures and broadcast roll-call sessions.",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                lineHeight = 16.sp
                             )
-                            Icon(
-                                imageVector = if (showManualEmailInput) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = BrandAccent,
-                                modifier = Modifier.size(14.dp)
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Field: Faculty ID
+                            Text("Faculty ID / Code *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = facultyIdInput,
+                                onValueChange = { facultyIdInput = it.uppercase(); errorMessage = null },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("e.g. FAC-NIHAL26302 or FAC-CSE-042", fontSize = 13.sp, color = TextMuted) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                                shape = InputShape
                             )
-                        }
 
-                        AnimatedVisibility(
-                            visible = showManualEmailInput,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            Column(modifier = Modifier.padding(top = 14.dp)) {
-                                OutlinedTextField(
-                                    value = manualEmailText,
-                                    onValueChange = { manualEmailText = it; errorMessage = null },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    placeholder = {
-                                        Text(
-                                            text = if (selectedPortal == LoginPortal.STUDENT)
-                                                "e.g. rollnumber@iiitnr.edu.in"
-                                            else
-                                                "e.g. faculty@iiitnr.edu.in",
-                                            fontSize = 12.sp,
-                                            color = TextMuted
-                                        )
-                                    },
-                                    singleLine = true,
-                                    shape = InputShape,
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Email,
-                                        imeAction = ImeAction.Done
-                                    ),
-                                    keyboardActions = KeyboardActions(
-                                        onDone = {
-                                            val clean = manualEmailText.trim().lowercase()
-                                            if (clean.isBlank() || !clean.contains("@")) {
-                                                errorMessage = "Please enter a valid Google email address."
-                                                return@KeyboardActions
-                                            }
-                                            val derivedName = clean.substringBefore("@")
-                                                .replace(".", " ")
-                                                .split(" ")
-                                                .filter { it.isNotBlank() }
-                                                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                                            val profile = GoogleUserProfile(
-                                                email = clean,
-                                                displayName = derivedName.ifBlank { "Student" },
-                                                googleId = clean,
-                                                photoUrl = null,
-                                                idToken = null
-                                            )
-                                            processAuthenticatedGoogleProfile(profile)
-                                        }
-                                    )
-                                )
+                            // Field: Faculty Name
+                            Text("Professor Name *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = facultyNameInput,
+                                onValueChange = { facultyNameInput = it; errorMessage = null },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("e.g. Prof. Nihal Kumar", fontSize = 13.sp, color = TextMuted) },
+                                singleLine = true,
+                                shape = InputShape
+                            )
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                                Button(
-                                    onClick = {
-                                        val clean = manualEmailText.trim().lowercase()
-                                        if (clean.isBlank() || !clean.contains("@")) {
-                                            errorMessage = "Please enter a valid Google email address."
-                                            return@Button
-                                        }
-                                        val derivedName = clean.substringBefore("@")
-                                            .replace(".", " ")
-                                            .split(" ")
-                                            .filter { it.isNotBlank() }
-                                            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                            // Department
+                            Text("Department", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = facultyDeptInput,
+                                onValueChange = { facultyDeptInput = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = InputShape
+                            )
 
-                                        val profile = GoogleUserProfile(
-                                            email = clean,
-                                            displayName = derivedName.ifBlank { "Student" },
-                                            googleId = clean,
-                                            photoUrl = null,
-                                            idToken = null
-                                        )
-                                        processAuthenticatedGoogleProfile(profile)
-                                    },
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // CTA: Login as Faculty
+                            Button(
+                                onClick = {
+                                    val cleanId = facultyIdInput.trim().uppercase()
+                                    val cleanName = facultyNameInput.trim()
+                                    val cleanDept = facultyDeptInput.trim()
+                                    if (cleanId.isBlank()) {
+                                        errorMessage = "Please enter your Faculty ID."
+                                        return@Button
+                                    }
+                                    if (cleanName.isBlank()) {
+                                        errorMessage = "Please enter your Professor Name."
+                                        return@Button
+                                    }
+                                    prefs.edit()
+                                        .putString("logged_in_role", "TEACHER")
+                                        .putString("logged_in_faculty_id", cleanId)
+                                        .putString("logged_in_faculty_name", cleanName)
+                                        .putString("logged_in_faculty_dept", cleanDept)
+                                        .apply()
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onLoginFaculty(cleanName, cleanId, cleanDept)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = ButtonShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                                enabled = !isLoading
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Enter Faculty Broadcast Console", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Divider
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderHairline)
+                                Text("  OR GOOGLE LOGIN  ", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderHairline)
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Google Button
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.White,
+                                shadowElevation = 1.dp,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isLoading) { startGoogleAuthentication() }
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(44.dp),
-                                    shape = ButtonShape,
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandAccent),
-                                    enabled = !isLoading && manualEmailText.isNotBlank()
+                                        .padding(vertical = 12.dp, horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Text("Verify & Continue", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    GoogleLogoIcon()
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text("Continue with Google Faculty Email", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
                                 }
                             }
                         }
