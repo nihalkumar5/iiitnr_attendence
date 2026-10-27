@@ -25,22 +25,39 @@ ALTER TABLE classrooms
 
 -- 3. Seed Default CS_BLOCK Polygon (IIIT Naya Raipur Computer Science Block rooftop)
 INSERT INTO building_polygons (name, description, geojson)
-VALUES (
-    'CS_BLOCK',
-    'Computer Science & Engineering Building Rooftop Polygon',
+VALUES 
+(
+    'MAIN_BUILDING',
+    'Main Academic Building & Lecture Halls (IIIT Naya Raipur)',
     '{
         "type": "Polygon",
         "coordinates": [
             [
-                [81.765820, 21.128150],
-                [81.766540, 21.128150],
-                [81.766540, 21.128850],
-                [81.765820, 21.128850],
-                [81.765820, 21.128150]
+                [81.765620, 21.128180],
+                [81.766780, 21.128180],
+                [81.766780, 21.129120],
+                [81.765620, 21.129120],
+                [81.765620, 21.128180]
             ]
         ]
     }'::jsonb
-) ON CONFLICT (name) DO NOTHING;
+),
+(
+    'CS_BLOCK',
+    'Main Academic Building - CS Wing Rooftop Boundary',
+    '{
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [81.765620, 21.128180],
+                [81.766780, 21.128180],
+                [81.766780, 21.129120],
+                [81.765620, 21.129120],
+                [81.765620, 21.128180]
+            ]
+        ]
+    }'::jsonb
+) ON CONFLICT (name) DO UPDATE SET geojson = EXCLUDED.geojson;
 
 -- 4. Ensure Room 101, Room A-204, and Room A-302 exist and link to CS_BLOCK
 INSERT INTO classrooms (name, building, floor, capacity, polygon_name, wifi_ssid, wifi_bssid, secondary_bssids, is_calibrated)

@@ -42,18 +42,19 @@ interface BuildingPolygon {
   createdAt: string;
 }
 
-const DEFAULT_CS_BLOCK_GEOJSON = JSON.stringify({
+const DEFAULT_MAIN_BUILDING_GEOJSON = JSON.stringify({
   type: "Polygon",
   coordinates: [
     [
-      [81.765820, 21.128150],
-      [81.766540, 21.128150],
-      [81.766540, 21.128850],
-      [81.765820, 21.128850],
-      [81.765820, 21.128150]
+      [81.765620, 21.128180],
+      [81.766780, 21.128180],
+      [81.766780, 21.129120],
+      [81.765620, 21.129120],
+      [81.765620, 21.128180]
     ]
   ]
 }, null, 2);
+const DEFAULT_CS_BLOCK_GEOJSON = DEFAULT_MAIN_BUILDING_GEOJSON;
 
 export default function InfrastructurePage() {
   const [activeTab, setActiveTab] = useState<"classrooms" | "polygons">("classrooms");
@@ -63,7 +64,7 @@ export default function InfrastructurePage() {
     {
       id: "poly-cs",
       name: "CS_BLOCK",
-      description: "Computer Science & Engineering Building Rooftop Boundary (geojson.io)",
+      description: "Main Academic Building & Classrooms Boundary (IIIT Naya Raipur)",
       coordinatesCount: 5,
       geojsonString: DEFAULT_CS_BLOCK_GEOJSON,
       createdAt: "2026-10-27"
