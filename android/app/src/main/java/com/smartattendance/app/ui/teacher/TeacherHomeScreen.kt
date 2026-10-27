@@ -293,6 +293,7 @@ fun TeacherHomeScreen(
     var defaulterStudents by remember { mutableStateOf<List<DefaulterStudentItem>>(emptyList()) }
     var showDefaultersDialog by remember { mutableStateOf(false) }
     var showTeacherProfileDialog by remember { mutableStateOf(false) }
+    var showCalibrationDialog by remember { mutableStateOf(false) }
     var currentTeacherName by remember {
         mutableStateOf(prefs.getString("logged_in_faculty_name", teacherName)?.takeIf { it.isNotBlank() } ?: teacherName)
     }
@@ -790,6 +791,91 @@ fun TeacherHomeScreen(
         }
 
         // ====================================================================
+        // SCREEN 2: CALIBRATE ROOM WI-FI & POLYGON (One-Time Setup)
+        // ====================================================================
+        Spacer(modifier = Modifier.height(20.dp))
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    showCalibrationDialog = true
+                }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(Color(0xFFEFF6FF), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Wifi,
+                            contentDescription = null,
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Calibrate Room Wi-Fi",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFF1F5F9)
+                            ) {
+                                Text(
+                                    text = "CS_BLOCK",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF475569),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Link Top 3 routers (> -75 dBm) to bypass indoor GPS",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF2563EB)
+                ) {
+                    Text(
+                        text = "Calibrate",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // ====================================================================
         // 3. UPCOMING CLASSES (Refined schedule list, precise alignment)
         // ====================================================================
         if (upcomingClasses.isNotEmpty()) {
@@ -1128,6 +1214,14 @@ fun TeacherHomeScreen(
         LowAttendanceDefaultersDialog(
             defaulters = defaulterStudents,
             onDismiss = { showDefaultersDialog = false }
+        )
+    }
+
+    if (showCalibrationDialog) {
+        CalibrateRoomWifiDialog(
+            wifiPresenceManager = wifiManager,
+            facultyId = facultyId,
+            onDismiss = { showCalibrationDialog = false }
         )
     }
 
@@ -1609,5 +1703,396 @@ fun TeacherHomeScreen(
                 }
             }
         )
+    }
+}
+
+// ============================================================================
+// SCREEN 2: CALIBRATE ROOM WI-FI & POLYGON DIALOG
+// ============================================================================
+@Composable
+fun CalibrateRoomWifiDialog(
+    wifiPresenceManager: WifiPresenceManager,
+    facultyId: String,
+    onDismiss: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+
+    val roomOptions = remember {
+        listOf("Room 101", "Room A-204", "Room A-302", "Room B-105")
+    }
+    var selectedRoom by remember { mutableStateOf("Room 101") }
+    var selectedPolygon by remember { mutableStateOf("CS_BLOCK") }
+
+    var isScanning by remember { mutableStateOf(false) }
+    var calibratedAps by remember { 
+        mutableStateOf<List<com.smartattendance.app.core.sensor.CalibratedApInfo>>(emptyList()) 
+    }
+    var calibrationMessage by remember { mutableStateOf<String?>(null) }
+    var isSavedInDb by remember { mutableStateOf(false) }
+
+    // Load initial calibration if already calibrated
+    LaunchedEffect(selectedRoom) {
+        calibrationMessage = null
+        isSavedInDb = false
+        val res = SupabaseAttendanceService.fetchClassroomsForCalibration()
+        res.onSuccess { rooms ->
+            val match = rooms.find { it.name.equals(selectedRoom, ignoreCase = true) }
+            if (match != null) {
+                selectedPolygon = match.polygonName.ifBlank { "CS_BLOCK" }
+                if (match.isCalibrated && match.calibratedAps.isNotEmpty()) {
+                    calibratedAps = match.calibratedAps
+                    isSavedInDb = true
+                } else {
+                    calibratedAps = emptyList()
+                }
+            }
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(22.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Calibrate Room Wi-Fi",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Text(
+                            text = "One-Time Classroom Setup (Indoor Safe)",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Room Selector Pills
+                Text(
+                    text = "SELECT CLASSROOM",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF64748B),
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    roomOptions.forEach { room ->
+                        val isSelected = room == selectedRoom
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                selectedRoom = room
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) Color(0xFF2563EB) else Color(0xFFF1F5F9),
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFF2563EB) else Color(0xFFCBD5E1))
+                        ) {
+                            Text(
+                                text = room,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else Color(0xFF334155),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Polygon Link Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Layers,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Linked Building Polygon",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                                Text(
+                                    text = selectedPolygon,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A),
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFDCFCE7),
+                            border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                        ) {
+                            Text(
+                                text = "Rooftop GeoJSON",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF166534),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Calibration Trigger Button
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        isScanning = true
+                        calibrationMessage = null
+                        coroutineScope.launch {
+                            delay(400)
+                            val aps = withContext(Dispatchers.IO) {
+                                wifiPresenceManager.calibrateRoomWifi(minRssiDbm = -75, limit = 3)
+                            }
+                            calibratedAps = aps
+                            val res = SupabaseAttendanceService.saveClassroomWifiCalibration(
+                                classroomId = selectedRoom.lowercase().replace(" ", "-"),
+                                roomName = selectedRoom,
+                                polygonName = selectedPolygon,
+                                aps = aps,
+                                teacherId = facultyId
+                            )
+                            isScanning = false
+                            if (res.isSuccess) {
+                                isSavedInDb = true
+                                calibrationMessage = "Linked ${aps.size} APs to $selectedRoom & $selectedPolygon!"
+                                Toast.makeText(context, "Room $selectedRoom Calibrated!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                calibrationMessage = "Calibrated ${aps.size} APs locally."
+                            }
+                        }
+                    },
+                    enabled = !isScanning,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2563EB)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    if (isScanning) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Scanning APs (> -75 dBm)...",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.SignalWifiStatusbar4Bar,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isSavedInDb) "Re-Calibrate Room Wi-Fi" else "Calibrate Room Wi-Fi",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                // Status message
+                if (calibrationMessage != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF0FDF4),
+                        border = BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF16A34A),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = calibrationMessage ?: "",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF15803D)
+                            )
+                        }
+                    }
+                }
+
+                // Calibrated Routers List
+                if (calibratedAps.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "TOP 3 STRONGEST ROUTERS IN ${selectedRoom.uppercase()}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF64748B),
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        calibratedAps.forEachIndexed { index, ap ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (index == 0) Color(0xFF2563EB) else Color(0xFF64748B),
+                                            modifier = Modifier.size(22.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "${index + 1}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = ap.bssid,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                    color = Color(0xFF0F172A)
+                                                )
+                                                if (index == 0) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = Color(0xFFDBEAFE)
+                                                    ) {
+                                                        Text(
+                                                            text = "PRIMARY",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF1E40AF),
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                text = "${ap.ssid} · ${ap.frequencyMhz}MHz",
+                                                fontSize = 10.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (ap.rssiDbm >= -60) Color(0xFFDCFCE7) else if (ap.rssiDbm >= -70) Color(0xFFEFF6FF) else Color(0xFFFEF3C7)
+                                    ) {
+                                        Text(
+                                            text = "${ap.rssiDbm} dBm",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = if (ap.rssiDbm >= -60) Color(0xFF166534) else if (ap.rssiDbm >= -70) Color(0xFF1E40AF) else Color(0xFF92400E),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
