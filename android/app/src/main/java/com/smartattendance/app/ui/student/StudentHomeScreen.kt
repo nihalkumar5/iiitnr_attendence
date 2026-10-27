@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartattendance.app.core.AppConfig
 import com.smartattendance.app.core.engine.TimetableEngine
 import com.smartattendance.app.core.engine.TimetableSlotState
 import androidx.compose.foundation.horizontalScroll
@@ -208,7 +209,7 @@ fun StudentHomeScreen(
                 val isWifiMatched = snap.isConnected && isWifiSsidAllowed(currentSsid, requiredSsid)
 
                 // STRICT GATEKEEPER 1: Classroom Wi-Fi Verification
-                if (!isWifiMatched) {
+                if (!isWifiMatched && !AppConfig.DEV_MODE) {
                     isVerifiedPresent = false
                     isGeofenceVerified = false
                     geofenceErrorMessage = null
@@ -216,7 +217,7 @@ fun StudentHomeScreen(
                 }
 
                 // ANTI-ROGUE HOTSPOT GUARD: Reject personal phone hotspots masquerading as campus Wi-Fi
-                if (snap.isRogueHotspot) {
+                if (snap.isRogueHotspot && !AppConfig.DEV_MODE) {
                     isVerifiedPresent = false
                     isGeofenceVerified = false
                     geofenceErrorMessage = "ROGUE HOTSPOT BLOCKED: Mobile phone hotspot detected. Connect to official classroom router."
@@ -231,7 +232,7 @@ fun StudentHomeScreen(
                     currentBssid != "02:00:00:00:00:00" && !reqBssid.equals("classroom-ap", ignoreCase = true)) {
                     val allowedBssids = reqBssid.split(",").map { it.trim().lowercase() }
                     val isBssidMatched = allowedBssids.any { it == currentBssid.lowercase() }
-                    if (!isBssidMatched) {
+                    if (!isBssidMatched && !AppConfig.DEV_MODE) {
                         isVerifiedPresent = false
                         isGeofenceVerified = false
                         geofenceErrorMessage = "ROGUE AP BLOCKED: Fake hotspot with copied name detected ($currentBssid). Connect to genuine classroom router."
@@ -269,7 +270,7 @@ fun StudentHomeScreen(
                 }
                 geoProximity = proxResult
 
-                if (!proxResult.isWithinRange) {
+                if (!proxResult.isWithinRange && !AppConfig.DEV_MODE) {
                     // STUDENT IS OUTSIDE CLASSROOM (HOSTEL/CANTEEN PROXY ATTEMPT BLOCKED)
                     isVerifiedPresent = false
                     isGeofenceVerified = false
@@ -326,7 +327,7 @@ fun StudentHomeScreen(
                     }
                 }.onFailure { err ->
                     val msg = err.message ?: ""
-                    if (err is SecurityException || msg.contains("ANTI_PROXY") || msg.contains("DEVICE_MISMATCH")) {
+                    if ((err is SecurityException || msg.contains("ANTI_PROXY") || msg.contains("DEVICE_MISMATCH")) && !AppConfig.DEV_MODE) {
                         android.util.Log.e("StudentHome", "Anti-proxy security rejection: $msg")
                         deviceLockSecurityError = msg
                         showDeviceLockDialog = true
@@ -486,6 +487,29 @@ fun StudentHomeScreen(
     ) {
         // TAB 1: LIVE RADAR (Home View with Date Card, Greeting, Live Lecture, Radar)
         if (selectedTab == StudentTab.RADAR) {
+            if (AppConfig.DEV_MODE) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFFEF3C7),
+                    border = BorderStroke(1.dp, Color(0xFFFCD34D)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Build, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "DEVELOPER MODE ACTIVE: Geofence & Hardware locks bypassed for testing.",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF92400E)
+                        )
+                    }
+                }
+            }
+
             // 1. COMPACT DATE & POCKET MODE STATUS (AT VERY TOP)
         // COMPACT DATE & POCKET MODE STATUS
             Card(

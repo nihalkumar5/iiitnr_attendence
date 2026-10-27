@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartattendance.app.core.AppConfig
 import com.smartattendance.app.core.network.EnrolledStudentInfo
 import com.smartattendance.app.core.network.LiveStudentAttendanceItem
 import com.smartattendance.app.core.engine.TimetableEngine
@@ -79,24 +80,51 @@ fun ActiveLectureScreen(
     val gpsManager = remember { com.smartattendance.app.core.sensor.GpsLocationManager(context) }
     var teacherLocation by remember { mutableStateOf<com.smartattendance.app.core.sensor.GpsCoordinate?>(null) }
     var proximityResult by remember { mutableStateOf<com.smartattendance.app.core.sensor.GpsProximityResult?>(null) }
+    var isInsideBuildingPolygon by remember { mutableStateOf(false) }
+    var distanceToCampusMeters by remember { mutableStateOf(0f) }
+    var isGeofenceBlockedByPolicy by remember { mutableStateOf(false) }
+
+    fun evaluateFacultyGeofence(loc: com.smartattendance.app.core.sensor.GpsCoordinate?) {
+        if (loc == null) return
+        val isInside = gpsManager.isInsideMainBuildingPolygon(loc.latitude, loc.longitude)
+        val dist = gpsManager.calculateDistanceMeters(
+            loc.latitude,
+            loc.longitude,
+            com.smartattendance.app.core.sensor.GpsLocationManager.CAMPUS_ACADEMIC_LAT,
+            com.smartattendance.app.core.sensor.GpsLocationManager.CAMPUS_ACADEMIC_LON
+        )
+        isInsideBuildingPolygon = isInside
+        distanceToCampusMeters = dist
+        val isAllowed = isInside || dist <= 35f || AppConfig.DEV_MODE
+        isGeofenceBlockedByPolicy = !isAllowed
+
+        val msg = if (isInside) {
+            "Main Building Polygon Verified (Rooftop Geofence Active)"
+        } else if (dist <= 35f) {
+            "Main Building Perimeter Buffer Active (Within 35m)"
+        } else if (AppConfig.DEV_MODE) {
+            "DEV_MODE: Outside Polygon (${dist.toInt()}m offset · Test Bypass Active)"
+        } else {
+            "STRICT GEOFENCE VIOLATION: Outside Main Academic Building (${dist.toInt()}m away)"
+        }
+
+        proximityResult = com.smartattendance.app.core.sensor.GpsProximityResult(
+            isWithinRange = isAllowed,
+            distanceMeters = dist,
+            allowedRadiusMeters = 30f,
+            studentLat = loc.latitude,
+            studentLon = loc.longitude,
+            targetLat = loc.latitude,
+            targetLon = loc.longitude,
+            message = msg
+        )
+    }
 
     LaunchedEffect(Unit) {
         try {
             val loc = gpsManager.getCurrentLocation() ?: gpsManager.getLastKnownLocation()
             teacherLocation = loc
-            if (loc != null) {
-                // Faculty mobile device IS the dynamic geofence center point (distance = 0m)
-                proximityResult = com.smartattendance.app.core.sensor.GpsProximityResult(
-                    isWithinRange = true,
-                    distanceMeters = 0f,
-                    allowedRadiusMeters = 30f,
-                    studentLat = loc.latitude,
-                    studentLon = loc.longitude,
-                    targetLat = loc.latitude,
-                    targetLon = loc.longitude,
-                    message = "Faculty mobile center point active (0m distance, 30m geofence broadcast)"
-                )
-            }
+            evaluateFacultyGeofence(loc)
         } catch (_: Exception) {}
     }
     var scannedNetworks by remember { mutableStateOf<List<ScannedWifiNetwork>>(emptyList()) }
@@ -166,17 +194,14 @@ fun ActiveLectureScreen(
             val loc = teacherLocation ?: gpsManager.getCurrentLocation() ?: gpsManager.getLastKnownLocation()
             if (teacherLocation == null && loc != null) {
                 teacherLocation = loc
-                proximityResult = com.smartattendance.app.core.sensor.GpsProximityResult(
-                    isWithinRange = true,
-                    distanceMeters = 0f,
-                    allowedRadiusMeters = 30f,
-                    studentLat = loc.latitude,
-                    studentLon = loc.longitude,
-                    targetLat = loc.latitude,
-                    targetLon = loc.longitude,
-                    message = "Faculty mobile center point active (0m distance, 30m geofence broadcast)"
-                )
             }
+            evaluateFacultyGeofence(loc)
+
+            if (isGeofenceBlockedByPolicy) {
+                android.util.Log.e("ActiveLecture", "Faculty outside polygon and DEV_MODE=false, session start aborted")
+                return@launch
+            }
+
             val facultyUuid = prefs.getString("logged_in_faculty_uuid", "977d23e7-4b43-4a7a-af74-b3fb2855beae") ?: "977d23e7-4b43-4a7a-af74-b3fb2855beae"
             val res = SupabaseAttendanceService.startClassAttendanceSession(
                 classId = classId,
@@ -370,6 +395,42 @@ fun ActiveLectureScreen(
                     fontSize = 12.sp,
                     color = TextSecondary
                 )
+            }
+        }
+
+        if (isGeofenceBlockedByPolicy) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFFFEF2F2),
+                border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text("OUTSIDE MAIN ACADEMIC BUILDING", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB91C1C))
+                        Text("You are ${distanceToCampusMeters.toInt()}m away from campus coordinates. Attendance session blocked.", fontSize = 11.sp, color = Color(0xFF7F1D1D))
+                    }
+                }
+            }
+        } else if (!isInsideBuildingPolygon && distanceToCampusMeters > 35f && AppConfig.DEV_MODE) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFFFFFBEB),
+                border = BorderStroke(1.dp, Color(0xFFFCD34D))
+            ) {
+                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text("DEV_MODE: Outside Building Polygon (${distanceToCampusMeters.toInt()}m)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF92400E))
+                        Text("Testing bypass enabled. Session broadcast allowed.", fontSize = 10.sp, color = Color(0xFF78350F))
+                    }
+                }
             }
         }
 
@@ -890,18 +951,24 @@ fun ActiveLectureScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val isLocOk = proximityResult?.isWithinRange ?: true
+                    val isLocOk = isInsideBuildingPolygon || distanceToCampusMeters <= 35f
                     Icon(
-                        imageVector = if (isLocOk) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
+                        imageVector = if (isLocOk) Icons.Default.CheckCircle else if (AppConfig.DEV_MODE) Icons.Default.WarningAmber else Icons.Default.Cancel,
                         contentDescription = null,
-                        tint = if (isLocOk) StatusPresent else StatusReview,
+                        tint = if (isLocOk) StatusPresent else if (AppConfig.DEV_MODE) Color(0xFFD97706) else Color(0xFFDC2626),
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (teacherLocation != null) {
-                            "Classroom location verified (Faculty device anchor · 30m radius)"
-                        } else "Classroom location active (30m geofence)",
+                        text = if (isInsideBuildingPolygon) {
+                            "Main Building Polygon Verified (Rooftop Geofence)"
+                        } else if (distanceToCampusMeters <= 35f) {
+                            "Main Building Perimeter Verified (Within 35m)"
+                        } else if (AppConfig.DEV_MODE) {
+                            "DEV_MODE: Outside Polygon (${distanceToCampusMeters.toInt()}m offset · Bypass active)"
+                        } else {
+                            "STRICT BLOCKED: Outside Main Academic Building"
+                        },
                         fontSize = 12.sp,
                         color = TextPrimary,
                         fontWeight = FontWeight.Medium
@@ -923,19 +990,19 @@ fun ActiveLectureScreen(
 
                     Text("Active Access Point: $activeWifiSsid", fontSize = 11.sp, color = TextSecondary)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("Geofence: Faculty Mobile Center (30m Classroom Radius · Active)", fontSize = 11.sp, color = TextSecondary)
+                    Text("Geofence Target: Main Academic Building Polygon", fontSize = 11.sp, color = TextSecondary)
                     if (teacherLocation != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Anchor Coordinates: ${String.format(java.util.Locale.US, "%.5f, %.5f (±%.0fm)", teacherLocation!!.latitude, teacherLocation!!.longitude, teacherLocation!!.accuracyMeters)}",
+                            text = "Device Coordinates: ${String.format(java.util.Locale.US, "%.5f, %.5f (±%.0fm)", teacherLocation!!.latitude, teacherLocation!!.longitude, teacherLocation!!.accuracyMeters)}",
                             fontSize = 11.sp,
                             color = TextMuted
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Origin: Faculty Mobile Device (Teacher = 0m offset)",
+                            text = if (isInsideBuildingPolygon) "Status: Inside Main Building Polygon (0m deviation)" else "Distance from Center: ${distanceToCampusMeters.toInt()}m ${if (AppConfig.DEV_MODE) "(DEV_MODE Allowed)" else "(LOCKED)"}",
                             fontSize = 11.sp,
-                            color = StatusPresent
+                            color = if (isInsideBuildingPolygon) StatusPresent else if (AppConfig.DEV_MODE) Color(0xFFD97706) else Color(0xFFDC2626)
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
