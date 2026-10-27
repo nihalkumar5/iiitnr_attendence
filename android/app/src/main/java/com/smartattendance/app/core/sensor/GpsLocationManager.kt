@@ -35,17 +35,17 @@ class GpsLocationManager(private val context: Context) {
 
     companion object {
         // IIIT Naya Raipur Academic Block 1 Coordinates (Classrooms & Lecture Halls)
-        const val CAMPUS_ACADEMIC_LAT = 21.128456
-        const val CAMPUS_ACADEMIC_LON = 81.766184
+        const val CAMPUS_ACADEMIC_LAT = 21.128443
+        const val CAMPUS_ACADEMIC_LON = 81.766148
         const val MAX_CLASSROOM_RADIUS_METERS = 30f // Strict 30m geofence: eliminates hostel 60-70m away!
 
         // Real Main Academic Building Rooftop Polygon Coordinates [Lon, Lat]
         val MAIN_BUILDING_POLYGON = listOf(
-            Pair(81.765620, 21.128180),
-            Pair(81.766780, 21.128180),
-            Pair(81.766780, 21.129120),
-            Pair(81.765620, 21.129120),
-            Pair(81.765620, 21.128180)
+            Pair(81.765671, 21.128551),
+            Pair(81.766056, 21.128031),
+            Pair(81.766608, 21.128317),
+            Pair(81.766258, 21.128873),
+            Pair(81.765671, 21.128551)
         )
     }
 
@@ -94,12 +94,12 @@ class GpsLocationManager(private val context: Context) {
     ): GpsProximityResult {
         val distance = calculateDistanceMeters(studentLat, studentLon, targetLat, targetLon)
         val isInsidePoly = isInsideMainBuildingPolygon(studentLat, studentLon)
-        val isWithin = isInsidePoly || distance <= maxRadiusMeters
+        val isWithin = isInsidePoly || distance <= 35f
 
         val msg = if (isWithin) {
-            "Verified inside classroom geofence (${distance.toInt()}m from center, limit ${maxRadiusMeters.toInt()}m)"
+            "VERIFIED: Inside Main Academic Building polygon (${distance.toInt()}m from center)"
         } else {
-            "GEOFENCE EXCEEDED: You are ${distance.toInt()}m away (Hostel/Outside detected). Limit is ${maxRadiusMeters.toInt()}m."
+            "STRICT GEOFENCE VIOLATION: Outside Main Academic Building (${distance.toInt()}m away). Attendance allowed ONLY inside Main Building coordinates!"
         }
 
         return GpsProximityResult(
