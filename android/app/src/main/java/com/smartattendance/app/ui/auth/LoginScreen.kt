@@ -1,5 +1,7 @@
 package com.smartattendance.app.ui.auth
 
+import com.smartattendance.app.core.AppConfig
+
 import android.accounts.AccountManager
 import android.app.Activity
 import android.content.Context
@@ -214,7 +216,7 @@ fun LoginScreen(
             if (selectedPortal == LoginPortal.STUDENT) {
                 // 1. Hardware Device Lock Protection (1 Student = 1 Device)
                 val cleanEmail = profile.email.trim().lowercase()
-                if (!lockedEmail.isNullOrBlank()) {
+                if (!AppConfig.DEV_MODE && !lockedEmail.isNullOrBlank()) {
                     val isSame = cleanEmail == lockedEmail || cleanEmail.substringBefore("@").equals(lockedEmail.substringBefore("@"), ignoreCase = true)
                     if (!isSame) {
                         isLoading = false
